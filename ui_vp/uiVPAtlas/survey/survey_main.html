@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VPAtlas Survey</title>
+  <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+  <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+  <link rel="stylesheet" href="css/survey.css">
+</head>
+<body>
+
+  <!-- Survey Header -->
+  <div class="survey-header">
+    <a href="/survey/survey_start.html?tab_id=previous" class="exit-button" id="exitBtn" title="Exit Survey">&larr;</a>
+    <div class="survey-header-info">
+      <span id="location_label" class="header-pool-id">--</span>
+      <span id="survey_type_label" class="header-survey-type"></span>
+    </div>
+    <div class="survey-header-status">
+      <span class="gps-indicator" id="gpsIndicator" title="GPS Status"></span>
+      <span id="elapsedTime" class="header-elapsed">00:00</span>
+    </div>
+  </div>
+
+  <!-- Map Area -->
+  <div id="surveyMap" class="survey-map"></div>
+
+  <!-- GPS Status Monitor Overlay (inline, not separate file) -->
+  <div id="gpsMonitorOverlay" class="gps-monitor-overlay" style="display:none;">
+    <div class="gps-monitor-header">
+      <h3>GPS Status</h3>
+      <button id="closeGpsMonitor" class="btn btn-sm btn-outline-secondary">Close</button>
+    </div>
+
+    <div class="gps-signal-bar" id="gpsSignalBar">
+      <span class="gps-dot" id="monitorDot"></span>
+      <span id="signalQuality" class="gps-signal-label">UNKNOWN</span>
+      <span id="accuracy" class="gps-signal-accuracy"></span>
+    </div>
+
+    <div class="gps-data-list">
+      <div class="gps-data-section-label">Source</div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Data Source</span>
+        <span class="gps-data-value" id="gpsDataSource">--</span>
+      </div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Permission</span>
+        <span class="gps-data-value" id="permissionStatus">CHECKING...</span>
+      </div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Time Since Update</span>
+        <span class="gps-data-value" id="timeSince">--</span>
+      </div>
+
+      <div class="gps-data-section-label">Tracking</div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Status</span>
+        <span class="gps-data-value" id="trackingStatus">--</span>
+      </div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Points Recorded</span>
+        <span class="gps-data-value" id="pointCount">0</span>
+      </div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Wake Lock</span>
+        <span class="gps-data-value" id="gpsWakeLock">--</span>
+      </div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Keep-Alive Audio</span>
+        <span class="gps-data-value" id="gpsKeepAlive">--</span>
+      </div>
+
+      <div class="gps-data-section-label">Position</div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Latitude</span>
+        <span class="gps-data-value" id="gpsLatitude">--</span>
+      </div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Longitude</span>
+        <span class="gps-data-value" id="gpsLongitude">--</span>
+      </div>
+      <div class="gps-data-row">
+        <span class="gps-data-label">Accuracy</span>
+        <span class="gps-data-value" id="gpsHAccuracy">--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Entry Section -->
+  <div class="survey-data-section">
+    <div class="container">
+
+      <!-- GPS Status Button (opens overlay) -->
+      <div class="row mb-2">
+        <div class="col-12 text-end">
+          <button class="btn btn-sm btn-outline-secondary" id="openGpsMonitor">GPS Status</button>
+        </div>
+      </div>
+
+      <!-- Observation Entry -->
+      <div id="observationSection">
+        <h4>Observations</h4>
+
+        <!-- Visit observations: species presence/absence -->
+        <div id="visitFields" style="display:none;">
+          <div class="observation-card">
+            <label class="form-label fw-bold">Pool Characteristics</label>
+            <div class="row mb-2">
+              <div class="col-6">
+                <label for="waterLevel" class="form-label">Water Level</label>
+                <select class="form-select" id="waterLevel">
+                  <option value="">--</option>
+                  <option value="full">Full</option>
+                  <option value="partial">Partial</option>
+                  <option value="dry">Dry</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label for="canopyCover" class="form-label">Canopy Cover %</label>
+                <input type="number" class="form-control" id="canopyCover" min="0" max="100" placeholder="0-100">
+              </div>
+            </div>
+          </div>
+          <div class="observation-card">
+            <label class="form-label fw-bold">Species Observed</label>
+            <div class="species-checklist" id="visitSpeciesChecklist">
+              <div class="form-check"><input class="form-check-input" type="checkbox" id="spWoodFrog"><label class="form-check-label" for="spWoodFrog">Wood Frog</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" id="spSpottedSalamander"><label class="form-check-label" for="spSpottedSalamander">Spotted Salamander</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" id="spJeffersonSalamander"><label class="form-check-label" for="spJeffersonSalamander">Jefferson Salamander</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" id="spFairyShrimp"><label class="form-check-label" for="spFairyShrimp">Fairy Shrimp</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" id="spFingernailClam"><label class="form-check-label" for="spFingernailClam">Fingernail Clam</label></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monitoring observations: equipment, amphibians, macroinvertebrates -->
+        <div id="monitorFields" style="display:none;">
+          <div class="observation-card">
+            <label class="form-label fw-bold">Equipment</label>
+            <div class="row mb-2">
+              <div class="col-6">
+                <label for="equipDipNet" class="form-label">Dip Net Sweeps</label>
+                <input type="number" class="form-control" id="equipDipNet" min="0" placeholder="0">
+              </div>
+              <div class="col-6">
+                <label for="equipTrapCount" class="form-label">Trap Count</label>
+                <input type="number" class="form-control" id="equipTrapCount" min="0" placeholder="0">
+              </div>
+            </div>
+          </div>
+          <div class="observation-card">
+            <label class="form-label fw-bold">Amphibians</label>
+            <div class="row mb-2">
+              <div class="col-4">
+                <label for="amphibEggMass" class="form-label">Egg Masses</label>
+                <input type="number" class="form-control" id="amphibEggMass" min="0" placeholder="0">
+              </div>
+              <div class="col-4">
+                <label for="amphibLarvae" class="form-label">Larvae</label>
+                <input type="number" class="form-control" id="amphibLarvae" min="0" placeholder="0">
+              </div>
+              <div class="col-4">
+                <label for="amphibAdults" class="form-label">Adults</label>
+                <input type="number" class="form-control" id="amphibAdults" min="0" placeholder="0">
+              </div>
+            </div>
+          </div>
+          <div class="observation-card">
+            <label class="form-label fw-bold">Macroinvertebrates</label>
+            <div class="row mb-2">
+              <div class="col-6">
+                <label for="macroFairyShrimp" class="form-label">Fairy Shrimp</label>
+                <input type="number" class="form-control" id="macroFairyShrimp" min="0" placeholder="0">
+              </div>
+              <div class="col-6">
+                <label for="macroCaddisfly" class="form-label">Caddisfly Larvae</label>
+                <input type="number" class="form-control" id="macroCaddisfly" min="0" placeholder="0">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Observation Log -->
+        <div class="observation-card">
+          <label class="form-label fw-bold">Notes</label>
+          <textarea class="form-control" id="surveyNotes" rows="3" placeholder="Field notes..."></textarea>
+        </div>
+
+        <!-- Add Observation button for point observations -->
+        <div class="row mb-3">
+          <div class="col-12 text-center">
+            <button class="btn btn-outline-primary" id="addObservationBtn">Add Point Observation</button>
+          </div>
+        </div>
+
+        <!-- Observation list -->
+        <div id="observationList" class="observation-list"></div>
+      </div>
+
+      <!-- End Survey -->
+      <div class="row mt-3 mb-4">
+        <div class="col-12 text-center">
+          <button class="btn btn-danger btn-lg" id="endSurveyBtn">End Survey</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/js/config.js"></script>
+  <script src="/js/bootstrap_5.2.3.min.js"></script>
+  <script src="/js/leaflet_1.9.4.js"></script>
+  <script src="/js/resource_manager.js"></script>
+  <script src="survey_state.js"></script>
+  <script src="survey_main.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

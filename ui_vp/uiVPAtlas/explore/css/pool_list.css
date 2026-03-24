@@ -1,0 +1,115 @@
+/* Pool list table styles */
+.pool-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.pool-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--primary-color);
+    color: white;
+    padding: 6px 8px;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+}
+.pool-table thead th:hover {
+    background: var(--primary-hover);
+}
+.pool-table tbody tr {
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+.pool-table tbody tr:hover {
+    background-color: var(--primary-light);
+}
+.pool-table tbody tr.selected {
+    background-color: var(--primary-medium);
+    font-weight: bold;
+}
+.pool-table td {
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+/* Status badges */
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.status-confirmed { background: #d4edda; color: #155724; }
+.status-probable { background: #d4edda; color: #1b5e20; }
+.status-potential { background: #fff3cd; color: #856404; }
+.status-duplicate { background: #e2e3e5; color: #383d41; }
+.status-eliminated { background: #f8d7da; color: #721c24; }
+
+/* Pool summary card */
+.pool-summary-card {
+    padding: 10px;
+}
+.summary-field {
+    margin-bottom: 5px;
+    font-size: 14px;
+}
+
+/* Summary stats table */
+.summary-stats-table {
+    width: 100%;
+    font-size: 14px;
+    border-collapse: collapse;
+    margin-bottom: 8px;
+}
+.summary-stats-table td {
+    padding: 3px 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.stat-label {
+    color: var(--text-secondary);
+    font-weight: 600;
+    width: 40%;
+}
+.stat-value {
+    font-weight: 500;
+}
+
+/* Summary section headers */
+.summary-section {
+    margin-top: 8px;
+}
+.summary-section h6 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--primary-color);
+}
+
+/* Summary list items (visits, surveys) */
+.summary-list-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 8px;
+    font-size: 13px;
+    border-bottom: 1px solid #f5f5f5;
+}
+.summary-list-item:hover {
+    background-color: var(--primary-light);
+}
+
+/* Summary action links */
+.summary-link {
+    font-size: 13px;
+    padding: 3px 10px;
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--primary-color);
+}
+.summary-link:hover {
+    background-color: var(--primary-light);
+    text-decoration: none;
+}

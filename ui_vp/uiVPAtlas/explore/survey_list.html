@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Surveys</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/modal.css">
+    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="/css/map.css">
+</head>
+<body>
+    <header>
+        <div class="row controls">
+            <div class="px-1 col-xl-1 col-2">
+                <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            </div>
+            <div class="px-1 col-xl-3 col-4">
+                <h3 class="header-name light-foreground" id="page_title">Surveys (Monitoring)</h3>
+            </div>
+            <div class="px-1 col-xl-8 col-6" style="display:flex; gap:10px; justify-content:flex-end;">
+            </div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <!-- Filter Form -->
+    <div class="row" style="padding:10px;">
+        <div class="col-lg-2 col-md-3 col-sm-6 col-12 px-1">
+            <input type="text" id="filter_poolId" class="form-control form-control-sm" placeholder="Pool ID">
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6 col-12 px-1">
+            <select id="filter_surveyType" class="form-control form-control-sm">
+                <option value="">All Types</option>
+            </select>
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6 col-12 px-1">
+            <input type="text" id="filter_year" class="form-control form-control-sm" placeholder="Year">
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6 col-12 px-1">
+            <input type="text" id="filter_observer" class="form-control form-control-sm" placeholder="Observer">
+        </div>
+        <div class="col-lg-2 col-md-3 col-sm-6 col-12 px-1">
+            <button id="btn_search" class="action-button" style="font-size:14px; width:100%;">Search</button>
+        </div>
+    </div>
+
+    <!-- Message -->
+    <div id="message" class="auth-message" style="display:none;"></div>
+
+    <!-- Count -->
+    <div style="padding:0 10px;">
+        <span id="survey_count" style="font-size:14px; color:var(--light-foreground);"></span>
+    </div>
+
+    <!-- Surveys Table -->
+    <div style="padding:10px; max-height:75vh; overflow-y:auto;">
+        <div id="surveys_table"></div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/app_messaging.js"></script>
+
+    <script type="module">
+        import { fetchSurveys, fetchSurveyTypes } from './js/api.js';
+        import { formatDate } from './js/utils.js';
+        import { getUser } from './js/auth.js';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load survey types for dropdown
+            try {
+                let typesData = await fetchSurveyTypes();
+                let types = typesData.rows || [];
+                let select = document.getElementById('filter_surveyType');
+                types.forEach(t => {
+                    let opt = document.createElement('option');
+                    opt.value = t.surveyTypeId || t.id || t.surveyTypeName || '';
+                    opt.textContent = t.surveyTypeName || t.name || '';
+                    select.appendChild(opt);
+                });
+            } catch(err) {
+                console.warn('Could not load survey types:', err);
+            }
+
+            document.getElementById('btn_search').addEventListener('click', loadSurveys);
+
+            // Allow Enter key on inputs
+            document.querySelectorAll('#filter_poolId, #filter_year, #filter_observer').forEach(el => {
+                el.addEventListener('keyup', (e) => { if (e.key === 'Enter') loadSurveys(); });
+            });
+            document.getElementById('filter_surveyType').addEventListener('change', loadSurveys);
+
+            // Initial load
+            await loadSurveys();
+        });
+
+        async function loadSurveys() {
+            let params = [];
+            let poolId = document.getElementById('filter_poolId').value.trim();
+            let surveyType = document.getElementById('filter_surveyType').value;
+            let year = document.getElementById('filter_year').value.trim();
+            let observer = document.getElementById('filter_observer').value.trim();
+
+            if (poolId) params.push(`poolId=${poolId}`);
+            if (surveyType) params.push(`surveyTypeId=${surveyType}`);
+            if (year) params.push(`surveyYear=${year}`);
+            if (observer) params.push(`surveyObserver=${observer}`);
+
+            let searchTerm = params.length ? params.join('&') : false;
+
+            try {
+                let data = await fetchSurveys(searchTerm);
+                let rows = data.rows || [];
+                renderSurveys(rows);
+                document.getElementById('survey_count').textContent = `${rows.length} survey${rows.length !== 1 ? 's' : ''}`;
+                document.getElementById('message').style.display = 'none';
+            } catch(err) {
+                document.getElementById('message').textContent = `Error loading surveys: ${err.message || err}`;
+                document.getElementById('message').style.display = 'block';
+                renderSurveys([]);
+            }
+        }
+
+        function renderSurveys(rows) {
+            if (!rows.length) {
+                document.getElementById('surveys_table').innerHTML = '<p style="font-size:14px;">No surveys found.</p>';
+                document.getElementById('survey_count').textContent = '0 surveys';
+                return;
+            }
+            let html = `<table class="pool-table"><thead><tr>
+                <th>Survey ID</th><th>Pool ID</th><th>Date</th><th>Type</th><th>Observer</th>
+            </tr></thead><tbody>`;
+            rows.forEach(s => {
+                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='pool_view.html?poolId=${s.surveyPoolId || ''}'">
+                    <td>${s.surveyId || ''}</td>
+                    <td>${s.surveyPoolId || ''}</td>
+                    <td>${formatDate(s.surveyDate)}</td>
+                    <td>${s.surveyTypeName || ''}</td>
+                    <td>${s.surveyUserEmail || s.surveyObserverUserName || ''}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('surveys_table').innerHTML = html;
+        }
+    </script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

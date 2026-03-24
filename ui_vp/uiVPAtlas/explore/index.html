@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Vernal Pool Atlas</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#2c5530">
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/modal.css">
+    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="./css/filter_bar.css">
+    <link rel="stylesheet" href="/css/map.css">
+</head>
+<body>
+    <header>
+        <div class="row controls controls-top">
+            <!-- Logo -->
+            <div class="col-xl-2 col-lg-3 col-md-3 col-sm-6 col-12 header-title-logo">
+                <a id="logo_link" href="/explore/">
+                    <h3 class="header-name light-foreground">VPAtlas</h3>
+                </a>
+            </div>
+
+            <!-- Filter Container (injected by filter_bar.js) -->
+            <div id="filter_container" class="col-xl-7 col-lg-6 col-md-5 col-sm-6 col-12 filter-container"></div>
+
+            <!-- Profile / Auth -->
+            <div class="col-xl-3 col-lg-3 col-md-4 col-12 info-profile-container" style="justify-content:flex-end;">
+                <div id="profile_container" class="profile-container"></div>
+            </div>
+        </div>
+
+        <!-- Filter description -->
+        <div class="row">
+            <div class="col-12">
+                <div id="filter_description" class="filter-description"></div>
+            </div>
+        </div>
+    </header>
+
+    <hr class="divider-header">
+
+    <!-- Three-pane content layout -->
+    <div class="row content-row">
+        <!-- Left pane: Pool list -->
+        <div class="col-lg-4 col-md-4 col-12 tri-pane tri-pane-left">
+            <div id="list_table_title"></div>
+            <div id="list_table" style="overflow-y:auto; flex:1;"></div>
+        </div>
+
+        <!-- Center pane: Map -->
+        <div class="col-lg-4 col-md-4 col-12 tri-pane tri-pane-center">
+            <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+        </div>
+
+        <!-- Right pane: Summary -->
+        <div class="col-lg-4 col-md-4 col-12 tri-pane tri-pane-right">
+            <div id="summary_title"></div>
+            <div id="pool_summary" style="overflow-y:auto; flex:1;"></div>
+        </div>
+    </div>
+
+    <!-- Core libraries (non-module) -->
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/leaflet_1.9.4.js"></script>
+
+    <!-- Config (non-module, must load before modules) -->
+    <script src="/js/config.js"></script>
+    <script src="/js/esri-leaflet_3.0.12.js"></script>
+
+    <!-- App modules -->
+    <script type="module" src="./js/pool_list.js"></script>
+    <script type="module" src="./js/map.js"></script>
+    <script type="module" src="./js/filter_bar.js"></script>
+    <script type="module" src="./js/pool_summary.js"></script>
+
+    <!-- Toast messaging (non-module) -->
+    <script src="/js/app_messaging.js"></script>
+
+    <!-- Main app entry point -->
+    <script type="module">
+        import { initPoolList, loadPools } from './js/pool_list.js';
+        import { initMap, loadPoolMarkers, zoomToPool, zoomToState } from './js/map.js';
+        import { initFilterBar } from './js/filter_bar.js';
+        import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
+        import { loadFromUrl, setPopState, filters, buildSearchTerm } from './js/url_state.js';
+        import { getUser, logout } from './js/auth.js';
+        import { showModal } from './js/modal.js';
+
+        // Initialize on DOM ready
+        window.initApp = async function() {
+            console.log('VPAtlas explore: initApp()');
+
+            // Load filters from URL
+            loadFromUrl();
+
+            // Initialize components
+            let user = await getUser();
+            let username = user ? (user.username || user.email) : null;
+            initPoolList('list_table', 'list_table_title', onPoolSelect, username);
+            initSummary('pool_summary', 'summary_title');
+            initMap();
+            initFilterBar(onFilterChange);
+
+            // Setup profile icon
+            setupProfile(user);
+
+            // Load initial data (with default filters applied)
+            let searchTerm = buildSearchTerm();
+            let [poolRows] = await Promise.all([
+                loadPools(),
+                loadPoolMarkers(searchTerm, onMapPoolClick)
+            ]);
+
+            // Show scope summary (state/county/town based on active filters)
+            showScopeSummary(poolRows);
+
+            // Handle browser back/forward
+            setPopState(onFilterChange);
+        };
+
+        // Called when a pool is selected from the list
+        function onPoolSelect(poolId) {
+            showPoolSummary(poolId);
+            zoomToPool(poolId);
+        }
+
+        // Called when a pool is clicked on the map
+        function onMapPoolClick(props) {
+            let poolId = props.mappedPoolId || props.poolId;
+            if (poolId) {
+                showPoolSummary(poolId);
+                // Highlight in list
+                document.querySelectorAll('.pool-row').forEach(r => {
+                    r.classList.toggle('selected', r.dataset.poolId === poolId);
+                });
+            }
+        }
+
+        // Called when filters change — reload data and update scope summary
+        async function onFilterChange(updatedFilters) {
+            let searchTerm = buildSearchTerm();
+            let [poolRows] = await Promise.all([
+                loadPools(),
+                loadPoolMarkers(searchTerm, onMapPoolClick)
+            ]);
+            showScopeSummary(poolRows);
+        }
+
+        // Profile icon
+        async function setupProfile(user) {
+            let profileContainer = document.getElementById('profile_container');
+            if (!profileContainer) return;
+
+            let icon = document.createElement('div');
+            icon.className = 'profile-icon' + (user ? ' signed-in' : '');
+            icon.textContent = user ? (user.username || user.firstName || 'U')[0].toUpperCase() : '';
+            icon.title = user ? `Signed in as ${user.username || user.email}` : 'Sign in';
+
+            icon.addEventListener('click', async () => {
+                if (user) {
+                    let result = await showModal('Account',
+                        `<p><strong>User:</strong> ${user.username || ''}</p>
+                         <p><strong>Email:</strong> ${user.email || ''}</p>
+                         <p><strong>Name:</strong> ${user.firstName || ''} ${user.lastName || ''}</p>`,
+                        { buttons: [
+                            { text: 'Close', value: 'close', isDefault: true },
+                            { text: 'Sign Out', value: 'signout' }
+                        ]}
+                    );
+                    if (result === 'signout') {
+                        await logout();
+                        window.location.reload();
+                    }
+                } else {
+                    window.location.href = '/explore/login.html';
+                }
+            });
+
+            profileContainer.appendChild(icon);
+        }
+
+        // If SW is disabled or app.js isn't loaded, init directly
+        if (typeof appConfig !== 'undefined' && appConfig.useServiceWorker === false) {
+            document.addEventListener('DOMContentLoaded', () => window.initApp());
+        }
+    </script>
+
+    <!-- Service worker handler (non-module, calls initApp) -->
+    <script src="/js/app.js"></script>
+</body>
+</html>

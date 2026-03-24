@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VPAtlas Survey Start</title>
+  <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+  <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+  <link rel="stylesheet" href="css/survey.css">
+</head>
+<body>
+
+  <!-- Bottom Tabs -->
+  <div class="survey-bottom-tabs">
+    <button class="tab-btn active" data-tab="new-survey">New Survey</button>
+    <button class="tab-btn" data-tab="previous-surveys">Previous Surveys</button>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <div class="container start-container">
+
+      <div class="survey-header-bar">
+        <a href="/" class="exit-button" title="Home">&larr;</a>
+        <h2>VPAtlas Survey</h2>
+      </div>
+
+      <!-- New Survey Tab -->
+      <div id="new-survey" class="tab-content active">
+        <div class="row">
+          <div class="col-12 col-lg-8 mx-auto">
+            <div class="content-card">
+              <form id="surveyForm">
+
+                <!-- Pool ID -->
+                <div class="row mb-3">
+                  <div class="col-12">
+                    <label for="poolId" class="form-label fw-bold">Pool ID</label>
+                    <input type="text" class="form-control" id="poolId"
+                           placeholder="Enter vernal pool ID (e.g. VP-1234)"
+                           autocomplete="off" required>
+                  </div>
+                </div>
+
+                <!-- Survey Type -->
+                <div class="row mb-3">
+                  <div class="col-12">
+                    <label for="surveyType" class="form-label fw-bold">Survey Type</label>
+                    <select class="form-select" id="surveyType" required>
+                      <option value="" disabled selected>Select survey type</option>
+                      <option value="visit">Pool Visit (vpvisit)</option>
+                      <option value="monitor">Monitoring Survey (vpsurvey/vpmon)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Date / Time -->
+                <div class="row mb-3 date-time-row">
+                  <div class="col-6">
+                    <label for="surveyDate" class="form-label fw-bold">Survey Date</label>
+                    <input type="date" class="form-control" id="surveyDate" required>
+                  </div>
+                  <div class="col-6">
+                    <label for="surveyTime" class="form-label fw-bold">Survey Time</label>
+                    <input type="time" class="form-control" id="surveyTime" required>
+                  </div>
+                </div>
+
+                <!-- GPS Toggles -->
+                <div class="row mb-4">
+                  <div class="col-6" id="gpsTrackingDiv">
+                    <label class="form-label fw-bold d-block">GPS Track</label>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="gpsTrack" style="transform: scale(1.2);">
+                      <label class="form-check-label ms-2" for="gpsTrack" id="gpsTrackLabel">
+                        <span class="badge bg-secondary">No</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-6" id="gpsTestDiv" hidden>
+                    <label class="form-label fw-bold d-block">GPS Simulate</label>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="gpsTesting" style="transform: scale(1.2);">
+                      <label class="form-check-label ms-2" for="gpsTesting" id="gpsTestLabel">
+                        <span class="badge bg-secondary">No</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Start Survey Button -->
+                <div class="row mb-3">
+                  <div class="col-12 text-center">
+                    <button type="submit" class="btn btn-primary btn-lg start-survey-btn" id="startSurveyBtn">
+                      Start Survey
+                    </button>
+                  </div>
+                </div>
+
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Previous Surveys Tab -->
+      <div id="previous-surveys" class="tab-content">
+        <div class="row">
+          <div class="col-12 col-lg-8 mx-auto">
+            <div class="content-card">
+              <h4>Saved Surveys</h4>
+              <p class="text-muted">Surveys stored locally on this device.</p>
+              <div id="previousSurveyList" class="survey-list">
+                <p class="text-muted">Loading...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/js/config.js"></script>
+  <script src="/js/bootstrap_5.2.3.min.js"></script>
+  <script src="/js/leaflet_1.9.4.js"></script>
+  <script src="/js/idb-keyval_6.esm.js" type="module"></script>
+  <script src="/js/resource_manager.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    // Set default date/time to now
+    document.addEventListener('DOMContentLoaded', function() {
+      const now = new Date();
+      document.getElementById('surveyDate').value = now.toISOString().slice(0, 10);
+      document.getElementById('surveyTime').value = now.toTimeString().slice(0, 5);
+
+      // Tab switching
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          this.classList.add('active');
+          document.getElementById(this.dataset.tab).classList.add('active');
+        });
+      });
+
+      // GPS Track toggle shows Simulate option
+      const gpsTrack = document.getElementById('gpsTrack');
+      const gpsTestDiv = document.getElementById('gpsTestDiv');
+      const gpsTrackLabel = document.getElementById('gpsTrackLabel');
+      gpsTrack.addEventListener('change', function() {
+        gpsTestDiv.hidden = !this.checked;
+        gpsTrackLabel.innerHTML = this.checked
+          ? '<span class="badge bg-success">Yes</span>'
+          : '<span class="badge bg-secondary">No</span>';
+      });
+
+      const gpsTesting = document.getElementById('gpsTesting');
+      const gpsTestLabel = document.getElementById('gpsTestLabel');
+      gpsTesting.addEventListener('change', function() {
+        gpsTestLabel.innerHTML = this.checked
+          ? '<span class="badge bg-warning text-dark">Sim</span>'
+          : '<span class="badge bg-secondary">No</span>';
+      });
+
+      // Check URL params for tab selection
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab_id') === 'previous') {
+        document.querySelector('[data-tab="previous-surveys"]').click();
+      }
+
+      // Load previous surveys from IndexedDB
+      loadPreviousSurveys();
+
+      // Form submit
+      document.getElementById('surveyForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const poolId = document.getElementById('poolId').value.trim();
+        const surveyType = document.getElementById('surveyType').value;
+        const date = document.getElementById('surveyDate').value;
+        const time = document.getElementById('surveyTime').value;
+        const gpsEnabled = document.getElementById('gpsTrack').checked;
+        const gpsSimulate = document.getElementById('gpsTesting').checked;
+
+        if (!poolId || !surveyType) {
+          alert('Please enter a Pool ID and select a survey type.');
+          return;
+        }
+
+        const qs = new URLSearchParams({
+          pool_id: poolId,
+          survey_type: surveyType,
+          date: date,
+          time: time,
+          gps_track: gpsEnabled,
+          gps_simulate: gpsSimulate
+        });
+        window.location.href = '/survey/survey_main.html?' + qs.toString();
+      });
+    });
+
+    async function loadPreviousSurveys() {
+      const listEl = document.getElementById('previousSurveyList');
+      try {
+        // Use idb-keyval pattern: iterate all keys looking for survey entries
+        const { keys, get } = await import('/js/idb-keyval_6.esm.js');
+        const allKeys = await keys();
+        const surveyKeys = allKeys.filter(k => typeof k === 'string' && k.startsWith('vpatlas-survey-'));
+        if (surveyKeys.length === 0) {
+          listEl.innerHTML = '<p class="text-muted">No saved surveys found.</p>';
+          return;
+        }
+        let html = '';
+        for (const key of surveyKeys) {
+          const survey = await get(key);
+          if (!survey) continue;
+          const statusBadge = survey.status === 'complete'
+            ? '<span class="badge bg-success">Complete</span>'
+            : survey.status === 'uploaded'
+              ? '<span class="badge bg-info">Uploaded</span>'
+              : '<span class="badge bg-warning text-dark">Draft</span>';
+          html += `
+            <div class="survey-list-item" onclick="resumeSurvey('${survey.survey_uuid}')">
+              <div class="survey-list-info">
+                <strong>${survey.poolId || 'Unknown Pool'}</strong>
+                <span class="survey-list-type">${survey.surveyType === 'visit' ? 'Visit' : 'Monitoring'}</span>
+              </div>
+              <div class="survey-list-meta">
+                <span>${survey.survey_date || ''}</span>
+                ${statusBadge}
+              </div>
+            </div>`;
+        }
+        listEl.innerHTML = html;
+      } catch (err) {
+        console.error('Failed to load previous surveys:', err);
+        listEl.innerHTML = '<p class="text-muted">Could not load saved surveys.</p>';
+      }
+    }
+
+    function resumeSurvey(survey_uuid) {
+      window.location.href = '/survey/survey_main.html?survey_uuid=' + encodeURIComponent(survey_uuid);
+    }
+  </script>
+</body>
+</html>

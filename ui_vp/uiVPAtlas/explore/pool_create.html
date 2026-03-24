@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Map Pool</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/modal.css">
+    <link rel="stylesheet" href="/css/map.css">
+</head>
+<body>
+    <header>
+        <div class="row controls">
+            <div class="px-1 col-2">
+                <button class="exit-button" onclick="history.back()">&times;</button>
+            </div>
+            <div class="px-1 col-10">
+                <h3 class="header-name light-foreground" id="page_title">Map a Vernal Pool</h3>
+            </div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <div id="message" class="auth-message" style="margin:0 10px;"></div>
+
+    <div class="row" style="padding:10px;">
+        <!-- Left: Form -->
+        <div class="col-lg-6 col-12" style="max-height:85vh; overflow-y:auto;">
+            <form id="pool_form" onsubmit="return false;">
+                <div class="row mb-2">
+                    <div class="col-6">
+                        <label for="mappedPoolId">Pool ID</label>
+                        <input type="text" id="mappedPoolId" style="width:100%" readonly>
+                    </div>
+                    <div class="col-6">
+                        <label for="mappedDateText">Date</label>
+                        <input type="date" id="mappedDateText" required style="width:100%">
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-12">
+                        <label for="mappedObserverUserName">Observer</label>
+                        <input type="text" id="mappedObserverUserName" required style="width:100%">
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-6">
+                        <label for="mappedLatitude">Latitude</label>
+                        <input type="text" id="mappedLatitude" required style="width:100%" placeholder="Click map or enter">
+                    </div>
+                    <div class="col-6">
+                        <label for="mappedLongitude">Longitude</label>
+                        <input type="text" id="mappedLongitude" required style="width:100%" placeholder="Click map or enter">
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-6">
+                        <label for="townName">Town</label>
+                        <input type="text" id="townName" style="width:100%" disabled>
+                    </div>
+                    <div class="col-6">
+                        <label for="mappedLocationUncertainty">Location Uncertainty (yards)</label>
+                        <select id="mappedLocationUncertainty" style="width:100%; font-size:16px;">
+                            <option value="">--</option>
+                            <option value="10">10</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value=">100">&gt;100</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-6">
+                        <label for="mappedMethod">Mapped Method</label>
+                        <select id="mappedMethod" style="width:100%; font-size:16px;">
+                            <option value="">--</option>
+                            <option value="GPS">GPS</option>
+                            <option value="Heads-up Digitizing">Heads-up Digitizing</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label for="mappedPoolStatus">Pool Status</label>
+                        <select id="mappedPoolStatus" style="width:100%; font-size:16px;">
+                            <option value="Potential">Potential</option>
+                            <option value="Probable">Probable</option>
+                            <option value="Confirmed">Confirmed</option>
+                            <option value="Duplicate">Duplicate</option>
+                            <option value="Eliminated">Eliminated</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-12">
+                        <label for="mappedComments">Comments</label>
+                        <textarea id="mappedComments" rows="3" style="width:100%; font-size:16px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
+                    </div>
+                </div>
+
+                <!-- Landowner section -->
+                <div class="row mb-2">
+                    <div class="col-12">
+                        <label><input type="checkbox" id="mappedLandownerPermission"> Landowner Permission?</label>
+                    </div>
+                </div>
+                <div id="landowner_section" style="display:none;">
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <label for="mappedLandownerName">Landowner Name</label>
+                            <input type="text" id="mappedLandownerName" style="width:100%">
+                        </div>
+                        <div class="col-6">
+                            <label for="mappedLandownerPhone">Phone</label>
+                            <input type="text" id="mappedLandownerPhone" style="width:100%">
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-12">
+                            <label for="mappedLandownerAddress">Address</label>
+                            <textarea id="mappedLandownerAddress" rows="2" style="width:100%; font-size:16px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="button-container">
+                    <button type="button" onclick="history.back()">Cancel</button>
+                    <button type="submit" class="default-button" id="btn_save">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right: Map -->
+        <div class="col-lg-6 col-12" style="height:85vh;">
+            <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/leaflet_1.9.4.js"></script>
+    <script src="/js/config.js"></script>
+
+    <script type="module">
+        import { fetchMappedPoolById, createMappedPool, updateMappedPool } from './js/api.js';
+        import { requireAuth, getUser } from './js/auth.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const poolId = params.get('poolId');
+        const isEdit = !!poolId;
+        let map, marker;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!(await requireAuth())) return;
+
+            let user = await getUser();
+            if (user && !isEdit) {
+                document.getElementById('mappedObserverUserName').value = user.username || user.email || '';
+                document.getElementById('mappedDateText').value = new Date().toISOString().split('T')[0];
+            }
+
+            // Init map
+            map = L.map('map').setView([43.858297, -72.446594], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            // Click map to set location
+            map.on('click', function(e) {
+                setLocation(e.latlng.lat, e.latlng.lng);
+            });
+
+            // Load existing pool if editing
+            if (isEdit) {
+                document.getElementById('page_title').textContent = `Edit Pool ${poolId}`;
+                try {
+                    let data = await fetchMappedPoolById(poolId);
+                    let pool = data.rows ? data.rows[0] : data;
+                    populateForm(pool);
+                } catch(err) {
+                    showMsg('Error loading pool: ' + err.message, 'error');
+                }
+            }
+
+            // Landowner toggle
+            document.getElementById('mappedLandownerPermission').addEventListener('change', function() {
+                document.getElementById('landowner_section').style.display = this.checked ? 'block' : 'none';
+            });
+
+            // Save
+            document.getElementById('pool_form').addEventListener('submit', async () => {
+                let body = getFormData();
+                showMsg('Saving...', 'info');
+                try {
+                    if (isEdit) {
+                        await updateMappedPool(poolId, body);
+                    } else {
+                        await createMappedPool(body);
+                    }
+                    showMsg('Saved!', 'success');
+                    setTimeout(() => window.location.href = isEdit ? `pool_view.html?poolId=${poolId}` : '/explore/', 1000);
+                } catch(err) {
+                    showMsg('Save failed: ' + (err.message || JSON.stringify(err)), 'error');
+                }
+            });
+        });
+
+        function setLocation(lat, lng) {
+            document.getElementById('mappedLatitude').value = lat.toFixed(6);
+            document.getElementById('mappedLongitude').value = lng.toFixed(6);
+            if (marker) map.removeLayer(marker);
+            marker = L.circleMarker([lat, lng], {
+                radius: 10, fillColor: '#2c5530', color: '#333', weight: 2, fillOpacity: 0.8
+            }).addTo(map);
+            map.setView([lat, lng], 16);
+        }
+
+        function populateForm(pool) {
+            if (!pool) return;
+            ['mappedPoolId','mappedDateText','mappedObserverUserName','mappedLatitude','mappedLongitude',
+             'mappedLocationUncertainty','mappedMethod','mappedPoolStatus','mappedComments',
+             'mappedLandownerName','mappedLandownerPhone','mappedLandownerAddress'].forEach(field => {
+                let el = document.getElementById(field);
+                if (el && pool[field] !== undefined && pool[field] !== null) el.value = pool[field];
+            });
+            if (pool.townName || pool.mappedTownName)
+                document.getElementById('townName').value = pool.townName || pool.mappedTownName;
+            if (pool.mappedLandownerPermission) {
+                document.getElementById('mappedLandownerPermission').checked = true;
+                document.getElementById('landowner_section').style.display = 'block';
+            }
+            if (pool.mappedLatitude && pool.mappedLongitude) {
+                setLocation(Number(pool.mappedLatitude), Number(pool.mappedLongitude));
+            }
+        }
+
+        function getFormData() {
+            let body = {};
+            ['mappedDateText','mappedObserverUserName','mappedLatitude','mappedLongitude',
+             'mappedLocationUncertainty','mappedMethod','mappedPoolStatus','mappedComments',
+             'mappedLandownerPermission','mappedLandownerName','mappedLandownerPhone','mappedLandownerAddress'].forEach(f => {
+                let el = document.getElementById(f);
+                if (el) body[f] = el.type === 'checkbox' ? el.checked : el.value;
+            });
+            return body;
+        }
+
+        function showMsg(text, type) {
+            let el = document.getElementById('message');
+            el.textContent = text;
+            el.className = 'auth-message ' + type;
+        }
+    </script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

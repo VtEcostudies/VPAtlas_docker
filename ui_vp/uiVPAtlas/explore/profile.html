@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Profile</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/modal.css">
+    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="/css/map.css">
+</head>
+<body>
+    <header>
+        <div class="row controls">
+            <div class="px-1 col-xl-1 col-2">
+                <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            </div>
+            <div class="px-1 col-xl-3 col-4">
+                <h3 class="header-name light-foreground" id="page_title">My Profile</h3>
+            </div>
+            <div class="px-1 col-xl-8 col-6" style="display:flex; gap:10px; justify-content:flex-end;">
+                <button id="btn_save" class="action-button" style="display:none; font-size:16px;">Save Changes</button>
+            </div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <!-- Message -->
+    <div id="message" class="auth-message" style="display:none;"></div>
+
+    <!-- Profile Form -->
+    <div class="row" style="padding:20px;">
+        <div class="col-lg-6 col-md-8 col-12">
+            <div id="profile_form" style="display:none;">
+                <table class="pool-table" style="font-size:15px;">
+                    <tr>
+                        <td><strong>Username</strong></td>
+                        <td><input type="text" id="field_username" class="form-control form-control-sm" disabled></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Email</strong></td>
+                        <td><input type="email" id="field_email" class="form-control form-control-sm" disabled></td>
+                    </tr>
+                    <tr>
+                        <td><strong>First Name</strong></td>
+                        <td><input type="text" id="field_firstName" class="form-control form-control-sm"></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Last Name</strong></td>
+                        <td><input type="text" id="field_lastName" class="form-control form-control-sm"></td>
+                    </tr>
+                </table>
+            </div>
+            <div id="profile_loading">
+                <p style="font-size:14px;">Loading profile...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/app_messaging.js"></script>
+
+    <script type="module">
+        import { fetchUserById, updateUser } from './js/api.js';
+        import { getUser, requireAuth } from './js/auth.js';
+        import { formatDate } from './js/utils.js';
+
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Auth required
+            let authOk = await requireAuth();
+            if (!authOk) return;
+
+            let user = await getUser();
+            if (!user || !user.id) {
+                document.getElementById('profile_loading').innerHTML =
+                    '<p style="color:var(--danger-color);">Unable to load user information.</p>';
+                return;
+            }
+
+            // Load full user data from API
+            try {
+                let data = await fetchUserById(user.id);
+                currentUser = data.rows ? data.rows[0] : data;
+                renderProfile(currentUser);
+            } catch(err) {
+                document.getElementById('profile_loading').innerHTML =
+                    `<p style="color:var(--danger-color);">Error loading profile: ${err.message || err}</p>`;
+                return;
+            }
+
+            // Show save button and bind
+            document.getElementById('btn_save').style.display = 'inline-block';
+            document.getElementById('btn_save').addEventListener('click', saveProfile);
+        });
+
+        function renderProfile(user) {
+            document.getElementById('field_username').value = user.username || '';
+            document.getElementById('field_email').value = user.email || '';
+            document.getElementById('field_firstName').value = user.firstName || '';
+            document.getElementById('field_lastName').value = user.lastName || '';
+
+            document.getElementById('profile_loading').style.display = 'none';
+            document.getElementById('profile_form').style.display = 'block';
+        }
+
+        async function saveProfile() {
+            if (!currentUser || !currentUser.id) return;
+
+            let body = {
+                firstName: document.getElementById('field_firstName').value.trim(),
+                lastName: document.getElementById('field_lastName').value.trim()
+            };
+
+            let msgEl = document.getElementById('message');
+            try {
+                await updateUser(currentUser.id, body);
+                msgEl.textContent = 'Profile updated successfully.';
+                msgEl.style.color = 'var(--success-color, green)';
+                msgEl.style.display = 'block';
+            } catch(err) {
+                msgEl.textContent = `Error saving profile: ${err.message || err}`;
+                msgEl.style.color = 'var(--danger-color)';
+                msgEl.style.display = 'block';
+            }
+        }
+    </script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

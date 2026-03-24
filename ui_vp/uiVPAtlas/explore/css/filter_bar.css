@@ -1,0 +1,174 @@
+/* Data-type buttons (All, Visited, Monitored, Mine, Review) */
+.data-type-group {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+.data-type-btn {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    background: white;
+    color: var(--primary-color);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.data-type-btn:hover {
+    background: var(--primary-light);
+}
+.data-type-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Filter bar and token styles */
+
+/* Filter tokens (chips) */
+.filter-tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 2px 10px;
+    min-height: 4px;
+}
+.filter-token {
+    display: inline-flex;
+    align-items: center;
+    background: var(--primary-light);
+    color: var(--primary-color);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 13px;
+    gap: 4px;
+    border: 1px solid var(--primary-color);
+}
+.filter-token strong {
+    font-weight: 700;
+}
+.filter-token-remove {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 15px;
+    padding: 0 2px;
+    line-height: 1;
+    opacity: 0.6;
+}
+.filter-token-remove:hover {
+    color: var(--danger-color);
+    opacity: 1;
+}
+.filter-token-clear-all {
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--secondary-color);
+    background: white;
+    color: var(--secondary-color);
+    cursor: pointer;
+}
+.filter-token-clear-all:hover {
+    background: var(--danger-light);
+    color: white;
+    border-color: var(--danger-color);
+}
+
+/* Dropdown suggestions (type-ahead) */
+.dropdown-suggestions {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 10001;
+    min-width: 200px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.suggestion-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid #f5f5f5;
+}
+.suggestion-item:hover {
+    background-color: var(--primary-light);
+}
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+.suggestion-empty {
+    padding: 8px 10px;
+    color: #999;
+    font-size: 13px;
+    font-style: italic;
+}
+
+/* Dropdown panel (status checkboxes) */
+.dropdown-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #f9f9f9;
+    min-width: 180px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    z-index: 10000;
+    padding: 10px;
+    border-radius: 5px;
+}
+.dropdown-check-label {
+    display: block;
+    margin-bottom: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: normal;
+}
+.dropdown-quick-btns {
+    margin-top: 8px;
+    padding-top: 5px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    gap: 5px;
+}
+.dropdown-quick-btn {
+    font-size: 12px;
+    padding: 2px 8px;
+}
+
+/* Filter dropdown button */
+.filter-dropdown-btn {
+    cursor: pointer;
+    font-size: 14px;
+    padding: 5px 12px;
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    display: inline-block;
+    font-weight: normal;
+}
+.filter-dropdown-btn:hover {
+    background-color: var(--primary-light);
+}
+
+/* Clear button inside inputs */
+.input-clear-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    font-size: 14px;
+    padding: 0 2px;
+}
+.input-clear-btn:hover {
+    color: #333;
+}

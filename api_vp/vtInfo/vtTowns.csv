@@ -1,0 +1,256 @@
+townId,townName,townCountyId
+1,Canaan,9
+2,Franklin,11
+3,Berkshire,11
+4,Highgate,11
+5,Richford,11
+6,Alburgh,13
+7,Norton,9
+8,Averill,9
+9,Holland,19
+10,Jay,19
+11,Troy,19
+12,Lemington,9
+13,Isle La Motte,13
+14,Averys Gore,9
+15,Warren Gore,9
+16,Warners Grant,9
+17,Sheldon,11
+18,Morgan,19
+19,Lewis,9
+20,Swanton,11
+21,North Hero,13
+22,Enosburgh,11
+23,Westfield,19
+24,Charleston,19
+25,St. Albans Town,11
+26,Brownington,19
+27,Fairfield,11
+28,Bloomfield,9
+29,Brighton,9
+30,Irasburg,19
+31,Lowell,19
+32,Bakersfield,11
+33,St. Albans City,11
+34,Westmore,19
+35,Ferdinand,9
+36,Brunswick,9
+37,Belvidere,15
+38,Georgia,11
+39,Albany,19
+40,Grand Isle,13
+41,Waterville,15
+42,Fairfax,11
+43,Newark,5
+44,Fletcher,11
+45,Barton,19
+46,Sutton,5
+47,Glover,19
+48,Milton,7
+49,East Haven,9
+50,Craftsbury,19
+51,Cambridge,15
+52,Sheffield,5
+53,South Hero,13
+54,Granby,9
+55,Greensboro,19
+56,Burke,5
+57,Westford,7
+58,Johnson,15
+59,Wolcott,15
+60,Underhill,7
+61,Wheelock,5
+62,Guildhall,9
+63,Victory,9
+64,Hyde Park,15
+65,Morristown,15
+66,Hardwick,5
+67,Stannard,5
+68,Kirby,5
+69,Stowe,15
+70,Elmore,15
+71,Lyndon,5
+72,Walden,5
+73,Lunenburg,9
+74,Jericho,7
+75,St. Johnsbury,5
+76,Concord,9
+77,Woodbury,23
+78,Worcester,23
+79,Bolton,7
+80,Waterford,5
+81,Calais,23
+82,St. George,7
+83,Barnet,5
+84,Middlesex,23
+85,Peacham,5
+86,Duxbury,23
+87,Charlotte,7
+88,Huntington,7
+89,Waterbury,23
+90,Marshfield,23
+91,East Montpelier,23
+92,Moretown,23
+93,Montpelier,23
+94,Starksboro,1
+95,Groton,5
+96,Plainfield,23
+97,Monkton,1
+98,Fayston,23
+99,Berlin,23
+100,Ferrisburgh,1
+101,Barre Town,23
+102,Buels Gore,7
+103,Orange,17
+104,Barre City,23
+105,Bristol,1
+106,Topsham,17
+107,Vergennes,1
+108,New Haven,1
+109,Panton,1
+110,Waltham,1
+111,Lincoln,1
+112,Washington,17
+113,Addison,1
+114,Corinth,17
+115,Weybridge,1
+116,Chelsea,17
+117,Middlebury,1
+118,Ripton,1
+119,Bridport,1
+120,Cornwall,1
+121,Vershire,17
+122,West Fairlee,17
+123,Fairlee,17
+124,Hancock,1
+125,Tunbridge,17
+126,Salisbury,1
+127,Rochester,27
+128,Shoreham,1
+129,Strafford,17
+130,Bethel,27
+131,Thetford,17
+132,Royalton,27
+133,Orwell,1
+134,Pittsfield,21
+135,Sharon,27
+136,Stockbridge,27
+137,Norwich,27
+138,Barnard,27
+139,Benson,21
+140,Hartford,27
+141,Killington,21
+142,Bridgewater,27
+143,West Haven,21
+144,Fair Haven,21
+145,Hartland,27
+146,Plymouth,27
+147,Shrewsbury,21
+148,Reading,27
+149,Windsor,27
+150,Wallingford,21
+151,Mount Holly,21
+152,Pawlet,21
+153,Danby,21
+154,Mount Tabor,21
+155,Weston,27
+156,Andover,27
+157,Springfield,27
+158,Rupert,3
+159,Dorset,3
+160,Peru,3
+161,Landgrove,3
+162,Londonderry,25
+163,Grafton,25
+164,Windham,25
+165,Sandgate,3
+166,Winhall,3
+167,Manchester,3
+168,Jamaica,25
+169,Townshend,25
+170,Westminster,25
+171,Arlington,3
+172,Sunderland,3
+173,Stratton,25
+174,Brookline,25
+175,Wardsboro,25
+176,Shaftsbury,3
+177,Glastenbury,3
+178,Somerset,25
+179,Putney,25
+180,Newfane,25
+181,Dover,25
+182,Dummerston,25
+183,Bennington,3
+184,Woodford,3
+185,Searsburg,3
+186,Wilmington,25
+187,Marlboro,25
+188,Brattleboro,25
+189,Readsboro,3
+190,Pownal,3
+191,Stamford,3
+192,Whitingham,25
+193,Halifax,25
+194,Guilford,25
+195,Vernon,25
+196,Montgomery,11
+197,Eden,15
+198,Maidstone,9
+199,Colchester,7
+200,Danville,5
+201,Winooski,7
+202,Cabot,23
+203,Shelburne,7
+204,Richmond,7
+205,Hinesburg,7
+206,Pomfret,27
+207,Woodstock,27
+208,Rutland City,21
+209,Burlington,7
+210,Braintree,17
+211,Randolph,17
+212,Essex,7
+213,Ryegate,5
+214,Newbury,17
+215,South Burlington,7
+216,Williston,7
+217,Williamstown,17
+218,Brookfield,17
+219,Bradford,17
+220,Poultney,21
+221,Tinmouth,21
+222,Wells,21
+223,Middletown Springs,21
+224,West Windsor,27
+225,Chester,27
+226,Cavendish,27
+227,Baltimore,27
+228,Weathersfield,27
+229,Newport Town,19
+230,Derby,19
+231,Coventry,19
+232,Newport City,19
+233,Northfield,23
+234,Waitsfield,23
+235,Rockingham,25
+236,Athens,25
+237,Granville,1
+238,Roxbury,23
+239,Warren,23
+240,Goshen,1
+241,Whiting,1
+242,Leicester,1
+243,Chittenden,21
+244,Sudbury,21
+245,Hubbardton,21
+246,Castleton,21
+247,Ira,21
+248,Brandon,21
+249,Pittsford,21
+250,West Rutland,21
+251,Proctor,21
+252,Rutland,21
+253,Mendon,21
+254,Clarendon,21
+255,Ludlow,27

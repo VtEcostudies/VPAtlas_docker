@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - User Management</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/modal.css">
+    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="/css/map.css">
+</head>
+<body>
+    <header>
+        <div class="row controls">
+            <div class="px-1 col-xl-1 col-2">
+                <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            </div>
+            <div class="px-1 col-xl-2 col-3">
+                <h3 class="header-name light-foreground" id="page_title">Users</h3>
+            </div>
+            <div class="px-1 col-xl-2 col-3">
+                <span id="user_count" class="light-foreground" style="font-size:14px;"></span>
+            </div>
+            <div class="px-1 col-xl-4 col-4">
+                <input type="text" id="filter_search" class="form-control form-control-sm" placeholder="Search by username or email">
+            </div>
+            <div class="px-1 col-xl-3 col-12" style="display:flex; gap:10px; justify-content:flex-end;">
+                <button id="btn_search" class="action-button" style="font-size:14px;">Search</button>
+            </div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <!-- Message -->
+    <div id="message" class="auth-message" style="display:none;"></div>
+
+    <!-- Users Table -->
+    <div style="padding:10px; max-height:85vh; overflow-y:auto;">
+        <div id="users_table">
+            <p style="font-size:14px;">Loading users...</p>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/app_messaging.js"></script>
+
+    <script type="module">
+        import { fetchUsers, updateUser } from './js/api.js';
+        import { getUser, requireAuth } from './js/auth.js';
+        import { formatDate } from './js/utils.js';
+
+        let allUsers = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Auth required
+            let authOk = await requireAuth();
+            if (!authOk) return;
+
+            // Check admin role
+            let user = await getUser();
+            if (!user || (user.role !== 'admin' && user.userrole !== 'admin')) {
+                document.getElementById('message').textContent = 'You do not have permission to access this page.';
+                document.getElementById('message').style.display = 'block';
+                document.getElementById('users_table').innerHTML = '';
+                return;
+            }
+
+            document.getElementById('btn_search').addEventListener('click', loadUsers);
+            document.getElementById('filter_search').addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') loadUsers();
+            });
+
+            // Initial load
+            await loadUsers();
+        });
+
+        async function loadUsers() {
+            let search = document.getElementById('filter_search').value.trim();
+            let searchTerm = search ? `search=${search}` : false;
+
+            try {
+                let data = await fetchUsers(searchTerm);
+                allUsers = data.rows || [];
+                renderUsers(allUsers);
+                document.getElementById('user_count').textContent = `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''}`;
+                document.getElementById('message').style.display = 'none';
+            } catch(err) {
+                document.getElementById('message').textContent = `Error loading users: ${err.message || err}`;
+                document.getElementById('message').style.display = 'block';
+                renderUsers([]);
+            }
+        }
+
+        function renderUsers(rows) {
+            if (!rows.length) {
+                document.getElementById('users_table').innerHTML = '<p style="font-size:14px;">No users found.</p>';
+                document.getElementById('user_count').textContent = '0 users';
+                return;
+            }
+            let html = `<table class="pool-table"><thead><tr>
+                <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th>
+            </tr></thead><tbody>`;
+            rows.forEach(u => {
+                let role = u.userrole || u.role || '';
+                let status = u.status || u.userStatus || '';
+                html += `<tr class="pool-row">
+                    <td>${u.id || ''}</td>
+                    <td>${u.username || ''}</td>
+                    <td>${u.email || ''}</td>
+                    <td>
+                        <select class="form-control form-control-sm role-select" data-user-id="${u.id}" style="width:auto; display:inline-block;">
+                            <option value="user" ${role === 'user' ? 'selected' : ''}>user</option>
+                            <option value="editor" ${role === 'editor' ? 'selected' : ''}>editor</option>
+                            <option value="admin" ${role === 'admin' ? 'selected' : ''}>admin</option>
+                        </select>
+                    </td>
+                    <td>${status}</td>
+                    <td>
+                        <button class="action-button btn-update-role" data-user-id="${u.id}" style="font-size:12px; padding:2px 8px;">Update</button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('users_table').innerHTML = html;
+
+            // Bind update buttons
+            document.querySelectorAll('.btn-update-role').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    let userId = e.target.dataset.userId;
+                    let select = document.querySelector(`.role-select[data-user-id="${userId}"]`);
+                    let newRole = select.value;
+                    await updateUserRole(userId, newRole);
+                });
+            });
+        }
+
+        async function updateUserRole(userId, role) {
+            let msgEl = document.getElementById('message');
+            try {
+                await updateUser(userId, { userrole: role, role: role });
+                msgEl.textContent = `User ${userId} role updated to "${role}".`;
+                msgEl.style.color = 'var(--success-color, green)';
+                msgEl.style.display = 'block';
+            } catch(err) {
+                msgEl.textContent = `Error updating user ${userId}: ${err.message || err}`;
+                msgEl.style.color = 'var(--danger-color)';
+                msgEl.style.display = 'block';
+            }
+        }
+    </script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
