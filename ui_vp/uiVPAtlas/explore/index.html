@@ -86,7 +86,7 @@
     <!-- Main app entry point -->
     <script type="module">
         import { initPoolList, loadPools } from './js/pool_list.js';
-        import { initMap, loadPoolMarkers, zoomToPool, zoomToState } from './js/map.js';
+        import { initMap, plotPoolRows, zoomToPool, zoomToState } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
         import { loadFromUrl, setPopState, filters, buildSearchTerm } from './js/url_state.js';
@@ -111,14 +111,10 @@
             // Setup profile icon
             setupProfile(user);
 
-            // Load initial data (with default filters applied)
-            let searchTerm = buildSearchTerm();
-            let [poolRows] = await Promise.all([
-                loadPools(),
-                loadPoolMarkers(searchTerm, onMapPoolClick)
-            ]);
-
-            // Show scope summary (state/county/town based on active filters)
+            // Load data — pool list returns the deduplicated, filtered rows.
+            // Map and summary are driven from the same rows.
+            let poolRows = await loadPools();
+            plotPoolRows(poolRows, onMapPoolClick);
             showScopeSummary(poolRows);
 
             // Handle browser back/forward
@@ -143,13 +139,10 @@
             }
         }
 
-        // Called when filters change — reload data and update scope summary
+        // Called when filters change — reload all three panes from the same data
         async function onFilterChange(updatedFilters) {
-            let searchTerm = buildSearchTerm();
-            let [poolRows] = await Promise.all([
-                loadPools(),
-                loadPoolMarkers(searchTerm, onMapPoolClick)
-            ]);
+            let poolRows = await loadPools();
+            plotPoolRows(poolRows, onMapPoolClick);
             showScopeSummary(poolRows);
         }
 

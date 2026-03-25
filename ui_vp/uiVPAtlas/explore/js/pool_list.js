@@ -32,7 +32,11 @@ export async function loadPools() {
     try {
         let searchTerm = buildSearchTerm();
         let data = await fetchPools(searchTerm);
-        let rows = data.rows || [];
+        let rawRows = data.rows || [];
+
+        // Deduplicate: the JOIN query returns multiple rows per pool (one per visit/survey).
+        // Keep one row per poolId, merging visitId/surveyId/reviewId presence from all rows.
+        let rows = deduplicateByPoolId(rawRows);
 
         // Apply client-side data-type filter (Visited, Monitored, Mine, Review)
         rows = filterRowsByDataType(rows, currentUsername);
@@ -53,6 +57,49 @@ export async function loadPools() {
     } finally {
         hideWait();
     }
+}
+
+// =============================================================================
+// DEDUPLICATE ROWS BY POOL ID
+// =============================================================================
+// The /pools JOIN returns multiple rows when a pool has multiple visits/surveys.
+// Merge into one row per pool, preserving whether it has visits/surveys/reviews.
+function deduplicateByPoolId(rows) {
+    let poolMap = new Map();
+    for (let row of rows) {
+        let pid = row.poolId || row.mappedPoolId || '';
+        if (!pid) continue;
+        let existing = poolMap.get(pid);
+        if (!existing) {
+            // Clone and init tracking fields
+            poolMap.set(pid, {
+                ...row,
+                _hasVisit: !!row.visitId,
+                _hasSurvey: !!row.surveyId,
+                _hasReview: !!row.reviewId,
+                _visitCount: row.visits ? row.visits.length : (row.visitId ? 1 : 0),
+                _surveyCount: row.surveys ? row.surveys.length : (row.surveyId ? 1 : 0),
+            });
+        } else {
+            // Merge: mark if any joined row has a visit/survey/review
+            if (row.visitId) existing._hasVisit = true;
+            if (row.surveyId) existing._hasSurvey = true;
+            if (row.reviewId) existing._hasReview = true;
+            // Keep usernames from all rows for "Mine" filter
+            if (row.visitUserName && !existing.visitUserName) existing.visitUserName = row.visitUserName;
+            if (row.visitObserverUserName && !existing.visitObserverUserName) existing.visitObserverUserName = row.visitObserverUserName;
+            if (row.surveyUserName && !existing.surveyUserName) existing.surveyUserName = row.surveyUserName;
+        }
+    }
+    // Replace visitId/surveyId/reviewId with merged booleans for filterRowsByDataType
+    let result = [];
+    for (let row of poolMap.values()) {
+        if (row._hasVisit && !row.visitId) row.visitId = true;
+        if (row._hasSurvey && !row.surveyId) row.surveyId = true;
+        if (row._hasReview && !row.reviewId) row.reviewId = true;
+        result.push(row);
+    }
+    return result;
 }
 
 // =============================================================================

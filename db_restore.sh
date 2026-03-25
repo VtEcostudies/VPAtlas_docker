@@ -5,7 +5,15 @@
 #
 # Prerequisites: db_vp container must be running (docker compose up db_vp)
 
-BACKUP_FILE="${1:-vpatlas_20260323.backup}"
+if [ -n "$1" ]; then
+    BACKUP_FILE="$1"
+else
+    BACKUP_FILE=$(ls -t db_backup/*.backup 2>/dev/null | head -1)
+    if [ -z "$BACKUP_FILE" ]; then
+        echo "ERROR: No .backup files found in db_backup/"
+        exit 1
+    fi
+fi
 CONTAINER="db_vp"
 DB_NAME="vpatlas"
 DB_USER="postgres"

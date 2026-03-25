@@ -202,8 +202,49 @@ async function loadBoundaryOverlays(overlays) {
 }
 
 // =============================================================================
-// POOL MARKERS
+// POOL MARKERS — driven by the same filtered rows as the pool list
 // =============================================================================
+// plotPoolRows() takes the deduplicated, data-type-filtered rows from pool_list.js
+// so the map always matches what the list and summary show.
+export function plotPoolRows(rows, onPoolClick=null) {
+    clearPoolMarkers();
+    if (!rows || !rows.length) return;
+
+    let group = L.featureGroup();
+
+    rows.forEach(row => {
+        let lat = parseFloat(row.latitude || row.mappedLatitude);
+        let lng = parseFloat(row.longitude || row.mappedLongitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        let poolId = row.poolId || row.mappedPoolId || '';
+        let status = row.poolStatus || row.mappedPoolStatus || '';
+        let town = row.townName || '';
+        let color = getPoolColor(status);
+
+        let marker = L.circleMarker([lat, lng], {
+            radius: 6,
+            fillColor: color,
+            color: '#333',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        });
+
+        marker.bindTooltip(`${poolId} - ${town}<br>${status}`, tooltipOptions);
+
+        if (onPoolClick) {
+            marker.on('click', function() { onPoolClick(row); });
+        }
+
+        markers[poolId] = marker;
+        group.addLayer(marker);
+    });
+
+    poolLayer = group.addTo(map);
+}
+
+// Legacy GeoJSON loader (kept for cases like initial large load or export)
 export async function loadPoolMarkers(searchTerm=false, onPoolClick=null) {
     try {
         let data = await fetchMappedPoolGeoJson(searchTerm);
@@ -231,9 +272,7 @@ export async function loadPoolMarkers(searchTerm=false, onPoolClick=null) {
                     layer.bindTooltip(`${poolId} - ${town}<br>${status}`, tooltipOptions);
 
                     if (onPoolClick) {
-                        layer.on('click', function() {
-                            onPoolClick(props);
-                        });
+                        layer.on('click', function() { onPoolClick(props); });
                     }
 
                     markers[poolId] = layer;
