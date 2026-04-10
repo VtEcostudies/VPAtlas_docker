@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Review Detail</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="/css/map.css">
+</head>
+<body>
+    <header>
+        <div class="detail-header">
+            <button class="exit-button" onclick="history.back()">&times;</button>
+            <h3 class="header-name light-foreground detail-title" id="page_title">Review Detail</h3>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <div class="row">
+        <!-- Left: Review info -->
+        <div class="col-lg-6 col-12" style="max-height:85vh; overflow-y:auto; padding:10px;">
+            <div id="review_info"></div>
+
+            <hr>
+            <h5>Associated Visit</h5>
+            <div id="visit_info"></div>
+
+            <hr>
+            <h5>Pool Info</h5>
+            <div id="pool_info"></div>
+        </div>
+
+        <!-- Right: Map -->
+        <div class="col-lg-6 col-12" style="height:85vh;">
+            <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/leaflet_1.9.4.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/esri-leaflet_3.0.12.js"></script>
+    <script src="/js/app_messaging.js"></script>
+
+    <script type="module">
+        import { fetchReviewById } from './js/api.js';
+        import { formatDate } from './js/utils.js';
+        import { createMap, addPoolMarker } from './js/map_common.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const reviewId = params.get('reviewId');
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!reviewId) {
+                document.getElementById('review_info').innerHTML = '<p>No review ID specified.</p>';
+                return;
+            }
+
+            document.getElementById('page_title').textContent = `Review ${reviewId}`;
+
+            try {
+                let data = await fetchReviewById(reviewId);
+                let review = data.rows ? data.rows[0] : (Array.isArray(data) ? data[0] : data);
+                if (!review) {
+                    document.getElementById('review_info').innerHTML = '<p>Review not found.</p>';
+                    return;
+                }
+
+                // Descriptive title
+                let poolId = review.reviewPoolId || review.mappedPoolId || '';
+                let town = review.townName || '';
+                let county = review.countyName || '';
+                let date = formatDate(review.reviewQADate);
+                let person = review.reviewQAPerson || '';
+                let qaCode = review.reviewQACode || '';
+                let loc = town ? `${town}${county ? ' (' + county + ')' : ''}` : '';
+                let title = `Review ${reviewId}`;
+                if (qaCode) title += ` [${qaCode}]`;
+                title += ` of pool ${poolId}`;
+                if (loc) title += ` in ${loc}`;
+                if (date) title += ` on ${date}`;
+                if (person) title += ` by ${person}`;
+                document.getElementById('page_title').textContent = title;
+                document.title = `VPAtlas - ${title}`;
+
+                renderReviewInfo(review);
+                renderVisitInfo(review);
+                renderPoolInfo(review);
+                initMap(review);
+            } catch(err) {
+                document.getElementById('review_info').innerHTML =
+                    `<p style="color:var(--danger-color);">Error: ${err.message || JSON.stringify(err)}</p>`;
+            }
+        });
+
+        function renderReviewInfo(r) {
+            let html = `<table class="pool-table" style="font-size:15px;">
+                <tr><td><strong>Review ID</strong></td><td>${r.reviewId || ''}</td></tr>
+                <tr><td><strong>Pool ID</strong></td><td><a href="pool_view.html?poolId=${r.reviewPoolId}">${r.reviewPoolId || ''}</a></td></tr>
+                <tr><td><strong>QA Code</strong></td><td>${r.reviewQACode || ''}</td></tr>
+                <tr><td><strong>QA Alt</strong></td><td>${r.reviewQAAlt || ''}</td></tr>
+                <tr><td><strong>QA Person</strong></td><td>${r.reviewQAPerson || ''}</td></tr>
+                <tr><td><strong>QA Date</strong></td><td>${formatDate(r.reviewQADate)}</td></tr>
+                <tr><td><strong>Pool Status</strong></td><td>${r.reviewPoolStatus || ''}</td></tr>
+                <tr><td><strong>Pool Locator</strong></td><td>${r.reviewPoolLocator || ''}</td></tr>
+                <tr><td><strong>Reviewer</strong></td><td>${r.reviewUserName || ''}</td></tr>`;
+            if (r.reviewQANotes) html += `<tr><td><strong>Notes</strong></td><td>${r.reviewQANotes}</td></tr>`;
+            html += `<tr><td><strong>Created</strong></td><td>${formatDate(r.reviewCreatedAt || r.createdAt)}</td></tr>`;
+            html += `</table>`;
+            document.getElementById('review_info').innerHTML = html;
+        }
+
+        function renderVisitInfo(r) {
+            if (!r.visitId) {
+                document.getElementById('visit_info').innerHTML = '<p style="font-size:14px;">No associated visit.</p>';
+                return;
+            }
+            let html = `<table class="pool-table" style="font-size:14px;">
+                <tr><td><strong>Visit ID</strong></td><td><a href="visit_create.html?visitId=${r.visitId}">${r.visitId}</a></td></tr>
+                <tr><td><strong>Date</strong></td><td>${formatDate(r.visitDate)}</td></tr>
+                <tr><td><strong>Observer</strong></td><td>${r.visitObserverUserName || r.visitUserName || ''}</td></tr>
+                <tr><td><strong>Pool Located</strong></td><td>${r.visitLocatePool || ''}</td></tr>
+            </table>`;
+            document.getElementById('visit_info').innerHTML = html;
+        }
+
+        function renderPoolInfo(r) {
+            if (!r.mappedPoolId) {
+                document.getElementById('pool_info').innerHTML = '<p style="font-size:14px;">No pool data.</p>';
+                return;
+            }
+            let html = `<table class="pool-table" style="font-size:14px;">
+                <tr><td><strong>Pool ID</strong></td><td><a href="pool_view.html?poolId=${r.mappedPoolId}">${r.mappedPoolId}</a></td></tr>
+                <tr><td><strong>Status</strong></td><td>${r.mappedPoolStatus || ''}</td></tr>
+                <tr><td><strong>Town</strong></td><td>${r.townName || ''}</td></tr>
+                <tr><td><strong>County</strong></td><td>${r.countyName || ''}</td></tr>
+                <tr><td><strong>Method</strong></td><td>${r.mappedMethod || ''}</td></tr>
+                <tr><td><strong>Observer</strong></td><td>${r.mappedObserverUserName || ''}</td></tr>
+            </table>`;
+            document.getElementById('pool_info').innerHTML = html;
+        }
+
+        async function initMap(r) {
+            let lat = parseFloat(r.mappedLatitude || r.visitLatitude);
+            let lng = parseFloat(r.mappedLongitude || r.visitLongitude);
+            if (isNaN(lat) || isNaN(lng)) return;
+            let status = r.mappedPoolStatus || r.reviewPoolStatus || 'Potential';
+            let map = await createMap('map', { center: [lat, lng], zoom: 16 });
+            let town = r.townName || '';
+            let poolId = r.reviewPoolId || r.mappedPoolId || '';
+            addPoolMarker(map, [lat, lng], {
+                status: status,
+                surveyLevel: 'visited',
+                size: 22,
+                tooltip: `${poolId} — ${status}${town ? ', ' + town : ''}`,
+                popup: `Review ${r.reviewId} — Pool ${poolId}`
+            });
+        }
+    </script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

@@ -2,289 +2,472 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VPAtlas - Pool Visit</title>
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
     <link rel="stylesheet" href="./css/common.css">
-    <link rel="stylesheet" href="./css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
     <style>
-        .page-tab { display:none; }
-        .page-tab.active { display:block; }
-        .tab-nav { display:flex; gap:5px; margin-bottom:10px; flex-wrap:wrap; }
-        .tab-btn { font-size:14px; padding:6px 12px; border-radius:8px; border:1px solid var(--primary-color); background:white; color:var(--primary-color); cursor:pointer; }
-        .tab-btn.active { background:var(--primary-color); color:white; }
-        fieldset { border:1px solid #ddd; border-radius:8px; padding:10px; margin-bottom:10px; }
-        legend { font-size:16px; font-weight:600; color:var(--primary-color); padding:0 5px; }
-        .radio-group { display:flex; flex-wrap:wrap; gap:10px; margin:5px 0; }
-        .radio-group label { font-size:14px; font-weight:normal; cursor:pointer; }
-        .checkbox-group { display:flex; flex-wrap:wrap; gap:10px; margin:5px 0; }
-        .checkbox-group label { font-size:14px; font-weight:normal; cursor:pointer; }
-        .species-table { width:100%; border-collapse:collapse; font-size:14px; }
-        .species-table th { background:var(--primary-color); color:white; padding:4px 6px; text-align:left; }
-        .species-table td { padding:3px 6px; border-bottom:1px solid #eee; }
-        .species-table input[type=text] { width:60px; font-size:14px; padding:2px 4px; }
+        /* Mobile-first visit form layout */
+        html, body { height: 100%; overflow: hidden; }
+
+        .visit-app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .visit-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            flex-shrink: 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .visit-header h3 {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 15px;
+            margin: 0;
+        }
+
+        /* Message bar */
+        .visit-message {
+            padding: 4px 10px;
+            font-size: 14px;
+            flex-shrink: 0;
+            display: none;
+        }
+        .visit-message.show { display: block; }
+        .visit-message.info { background: #d1ecf1; color: #0c5460; }
+        .visit-message.success { background: #d4edda; color: #155724; }
+        .visit-message.error { background: #f8d7da; color: #721c24; }
+
+        /* Tab content area */
+        .visit-content {
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            position: relative;
+        }
+        .visit-tab {
+            display: none;
+            height: 100%;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .visit-tab.active { display: block; }
+        .visit-tab-map { padding: 0; }
+        .visit-tab-map #map { height: 100%; width: 100%; }
+
+        /* Bottom tab bar */
+        .visit-tabs {
+            display: flex;
+            flex-shrink: 0;
+            border-top: 1px solid #ddd;
+            background: white;
+        }
+        .visit-tab-btn {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 2px;
+            border: none;
+            background: white;
+            color: var(--text-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 0;
+        }
+        .visit-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+        .visit-tab-btn.active {
+            color: var(--primary-color);
+            border-top: 2px solid var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* Form styling */
+        .form-section {
+            margin-bottom: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .form-section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+        .form-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .form-field {
+            flex: 1;
+            min-width: 120px;
+        }
+        .form-field label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 2px;
+            color: var(--text-secondary);
+        }
+        .form-field input, .form-field textarea, .form-field select {
+            width: 100%;
+            font-size: 16px;
+            padding: 8px;
+            border: 1px solid var(--primary-color);
+            border-radius: 6px;
+            font-weight: normal;
+        }
+        .form-field textarea { resize: vertical; min-height: 60px; }
+
+        /* Radio/checkbox groups - touch friendly */
+        .choice-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 4px 0 8px;
+        }
+        .choice-group label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: normal;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .choice-group label:has(input:checked) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .choice-group input[type="radio"],
+        .choice-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+            accent-color: var(--primary-color);
+        }
+
+        /* Species cards */
+        .species-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+        .species-card-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--primary-color);
+            margin-bottom: 6px;
+        }
+        .species-counts {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .species-counts .form-field { min-width: 80px; flex: 1; }
+        .species-counts .form-field input { padding: 6px; font-size: 16px; }
+
+        /* Save bar */
+        .save-bar {
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .save-bar button {
+            padding: 8px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+
+        /* Map instruction overlay */
+        .map-instruction {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        @media (max-width: 500px) {
+            .visit-tab-btn { font-size: 10px; padding: 4px 1px; }
+            .visit-tab-btn i { font-size: 16px; }
+        }
     </style>
 </head>
 <body>
-    <header>
-        <div class="row controls">
-            <div class="px-1 col-2">
-                <button class="exit-button" onclick="history.back()">&times;</button>
-            </div>
-            <div class="px-1 col-10">
-                <h3 class="header-name light-foreground" id="page_title">Pool Visit</h3>
-            </div>
-        </div>
-    </header>
-    <hr class="divider-header">
-
-    <div id="message" class="auth-message" style="margin:0 10px;"></div>
-
-    <div class="row" style="padding:10px;">
-        <!-- Left: Form -->
-        <div class="col-lg-6 col-12" style="max-height:85vh; overflow-y:auto;">
-            <!-- Tab navigation -->
-            <div class="tab-nav">
-                <button class="tab-btn active" data-page="0">Location</button>
-                <button class="tab-btn" data-page="1">Landowner</button>
-                <button class="tab-btn" data-page="2">Field Verification</button>
-                <button class="tab-btn" data-page="3">Pool Characteristics</button>
-                <button class="tab-btn" data-page="4">Indicator Species</button>
-            </div>
-
-            <form id="visit_form" onsubmit="return false;">
-                <!-- Header fields -->
-                <div class="row mb-2">
-                    <div class="col-4">
-                        <label for="visitPoolId">Pool ID</label>
-                        <input type="text" id="visitPoolId" required style="width:100%; font-size:16px;">
-                    </div>
-                    <div class="col-4">
-                        <label for="visitDate">Date</label>
-                        <input type="date" id="visitDate" required style="width:100%; font-size:16px;">
-                    </div>
-                    <div class="col-4">
-                        <label for="visitObserverUserName">Observer</label>
-                        <input type="text" id="visitObserverUserName" required style="width:100%; font-size:16px;">
-                    </div>
-                </div>
-
-                <!-- PAGE 0: Location -->
-                <div class="page-tab active" id="page_0">
-                    <fieldset>
-                        <legend>Location</legend>
-                        <div class="row mb-2">
-                            <div class="col-12">
-                                <label>Was the pool located?</label>
-                                <div class="radio-group">
-                                    <label><input type="radio" name="visitLocatePool" value="Yes"> Yes</label>
-                                    <label><input type="radio" name="visitLocatePool" value="No"> No</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6">
-                                <label for="visitLatitude">Latitude</label>
-                                <input type="text" id="visitLatitude" style="width:100%; font-size:16px;" placeholder="Click map">
-                            </div>
-                            <div class="col-6">
-                                <label for="visitLongitude">Longitude</label>
-                                <input type="text" id="visitLongitude" style="width:100%; font-size:16px;" placeholder="Click map">
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6">
-                                <label>Location Certainty</label>
-                                <div class="radio-group">
-                                    <label><input type="radio" name="visitCertainty" value="Certain"> Certain</label>
-                                    <label><input type="radio" name="visitCertainty" value="Pretty Sure"> Pretty Sure</label>
-                                    <label><input type="radio" name="visitCertainty" value="Not Sure"> Not Sure</label>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <label>Navigation Method</label>
-                                <div class="radio-group">
-                                    <label><input type="radio" name="visitNavMethod" value="GPS"> GPS</label>
-                                    <label><input type="radio" name="visitNavMethod" value="Map"> Map</label>
-                                    <label><input type="radio" name="visitNavMethod" value="Prior Knowledge"> Prior Knowledge</label>
-                                    <label><input type="radio" name="visitNavMethod" value="Other"> Other</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-12">
-                                <label for="visitDirections">Directions to Pool</label>
-                                <textarea id="visitDirections" rows="2" style="width:100%; font-size:14px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-12">
-                                <label for="visitLocationComments">Location Comments</label>
-                                <textarea id="visitLocationComments" rows="2" style="width:100%; font-size:14px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
-                            </div>
-                        </div>
-                    </fieldset>
-                </div>
-
-                <!-- PAGE 1: Landowner -->
-                <div class="page-tab" id="page_1">
-                    <fieldset>
-                        <legend>Landowner Contact</legend>
-                        <div class="checkbox-group mb-2">
-                            <label><input type="checkbox" id="visitUserIsLandowner"> I am the landowner</label>
-                            <label><input type="checkbox" id="visitLandownerPermission"> Landowner permission obtained</label>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6">
-                                <label for="visitLandownerName">Name</label>
-                                <input type="text" id="visitLandownerName" style="width:100%; font-size:16px;">
-                            </div>
-                            <div class="col-6">
-                                <label for="visitLandownerPhone">Phone</label>
-                                <input type="text" id="visitLandownerPhone" style="width:100%; font-size:16px;">
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-6">
-                                <label for="visitLandownerEmail">Email</label>
-                                <input type="email" id="visitLandownerEmail" style="width:100%; font-size:16px;">
-                            </div>
-                            <div class="col-6">
-                                <label for="visitLandownerAddress">Address</label>
-                                <textarea id="visitLandownerAddress" rows="2" style="width:100%; font-size:14px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
-                            </div>
-                        </div>
-                    </fieldset>
-                </div>
-
-                <!-- PAGE 2: Field Verification -->
-                <div class="page-tab" id="page_2">
-                    <fieldset>
-                        <legend>Field Verification</legend>
-                        <label>Is this a Vernal Pool?</label>
-                        <div class="radio-group mb-2">
-                            <label><input type="radio" name="visitVernalPool" value="Yes"> Yes</label>
-                            <label><input type="radio" name="visitVernalPool" value="No"> No</label>
-                            <label><input type="radio" name="visitVernalPool" value="Don't Know"> Don't Know</label>
-                        </div>
-                        <label>Pool Type</label>
-                        <div class="radio-group mb-2">
-                            <label><input type="radio" name="visitPoolType" value="Isolated Forest Depression"> Isolated Forest Depression</label>
-                            <label><input type="radio" name="visitPoolType" value="Floodplain Depression"> Floodplain Depression</label>
-                            <label><input type="radio" name="visitPoolType" value="Manmade"> Manmade</label>
-                            <label><input type="radio" name="visitPoolType" value="Other"> Other</label>
-                        </div>
-                        <label>Inlet Type</label>
-                        <div class="radio-group mb-2">
-                            <label><input type="radio" name="visitInletType" value="No Inlet"> No Inlet</label>
-                            <label><input type="radio" name="visitInletType" value="Ephemeral"> Ephemeral</label>
-                            <label><input type="radio" name="visitInletType" value="Permanent"> Permanent</label>
-                        </div>
-                        <label>Outlet Type</label>
-                        <div class="radio-group mb-2">
-                            <label><input type="radio" name="visitOutletType" value="No Outlet"> No Outlet</label>
-                            <label><input type="radio" name="visitOutletType" value="Ephemeral"> Ephemeral</label>
-                            <label><input type="radio" name="visitOutletType" value="Permanent"> Permanent</label>
-                        </div>
-                    </fieldset>
-                    <fieldset>
-                        <legend>Surrounding Habitat</legend>
-                        <div class="checkbox-group">
-                            <label><input type="checkbox" id="visitHabitatAgriculture"> Agriculture/grassland</label>
-                            <label><input type="checkbox" id="visitHabitatLightDev"> Light development</label>
-                            <label><input type="checkbox" id="visitHabitatHeavyDev"> Heavy development</label>
-                            <label><input type="checkbox" id="visitHabitatPavedRd"> Paved road</label>
-                            <label><input type="checkbox" id="visitHabitatDirtRd"> Dirt road</label>
-                            <label><input type="checkbox" id="visitHabitatPowerline"> Powerline</label>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-12">
-                                <label for="visitHabitatComment">Habitat Comments</label>
-                                <textarea id="visitHabitatComment" rows="2" style="width:100%; font-size:14px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
-                            </div>
-                        </div>
-                    </fieldset>
-                </div>
-
-                <!-- PAGE 3: Pool Characteristics -->
-                <div class="page-tab" id="page_3">
-                    <fieldset>
-                        <legend>Pool Characteristics</legend>
-                        <label>Maximum Depth</label>
-                        <div class="radio-group mb-2">
-                            <label><input type="radio" name="visitMaxDepth" value="Ankle"> Ankle</label>
-                            <label><input type="radio" name="visitMaxDepth" value="Shin"> Shin</label>
-                            <label><input type="radio" name="visitMaxDepth" value="Knee"> Knee</label>
-                            <label><input type="radio" name="visitMaxDepth" value="Hip"> Hip</label>
-                            <label><input type="radio" name="visitMaxDepth" value="Chest"> Chest</label>
-                            <label><input type="radio" name="visitMaxDepth" value=">4ft"> &gt;4ft</label>
-                        </div>
-                        <label>Water Level</label>
-                        <div class="radio-group mb-2">
-                            <label><input type="radio" name="visitWaterLevelObs" value="Full"> Full</label>
-                            <label><input type="radio" name="visitWaterLevelObs" value=">50%"> &gt;50%</label>
-                            <label><input type="radio" name="visitWaterLevelObs" value="<50%"> &lt;50%</label>
-                            <label><input type="radio" name="visitWaterLevelObs" value="Dry"> Dry</label>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-3"><label for="visitMaxWidth">Width (ft)</label><input type="text" id="visitMaxWidth" style="width:100%; font-size:14px;"></div>
-                            <div class="col-3"><label for="visitMaxLength">Length (ft)</label><input type="text" id="visitMaxLength" style="width:100%; font-size:14px;"></div>
-                            <div class="col-3"><label for="visitPoolTrees">Canopy %</label><input type="text" id="visitPoolTrees" style="width:100%; font-size:14px;"></div>
-                            <div class="col-3"><label for="visitPoolShrubs">Shrubs %</label><input type="text" id="visitPoolShrubs" style="width:100%; font-size:14px;"></div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-3"><label for="visitPoolEmergents">Emergent %</label><input type="text" id="visitPoolEmergents" style="width:100%; font-size:14px;"></div>
-                            <div class="col-3"><label for="visitPoolFloatingVeg">Floating %</label><input type="text" id="visitPoolFloatingVeg" style="width:100%; font-size:14px;"></div>
-                        </div>
-                        <label>Substrate</label>
-                        <div class="radio-group mb-2">
-                            <label><input type="radio" name="visitSubstrate" value="Leaf litter"> Leaf litter</label>
-                            <label><input type="radio" name="visitSubstrate" value="Bedrock"> Bedrock</label>
-                            <label><input type="radio" name="visitSubstrate" value="Sand/Gravel"> Sand/Gravel</label>
-                            <label><input type="radio" name="visitSubstrate" value="Mud"> Mud</label>
-                        </div>
-                    </fieldset>
-                </div>
-
-                <!-- PAGE 4: Indicator Species -->
-                <div class="page-tab" id="page_4">
-                    <fieldset>
-                        <legend>Indicator Species</legend>
-                        <table class="species-table">
-                            <thead><tr><th>Species</th><th>Adults</th><th>Larvae</th><th>Egg Masses</th><th>Notes</th></tr></thead>
-                            <tbody>
-                                <tr><td>Wood Frog</td><td><input type="text" id="visitWoodFrogAdults"></td><td><input type="checkbox" id="visitWoodFrogLarvae"></td><td><input type="text" id="visitWoodFrogEgg"></td><td><input type="text" id="visitWoodFrogNotes" style="width:120px;"></td></tr>
-                                <tr><td>Spotted Salamander</td><td><input type="text" id="visitSpsAdults"></td><td><input type="checkbox" id="visitSpsLarvae"></td><td><input type="text" id="visitSpsEgg"></td><td><input type="text" id="visitSpsNotes" style="width:120px;"></td></tr>
-                                <tr><td>Jefferson Salamander</td><td><input type="text" id="visitJesaAdults"></td><td><input type="checkbox" id="visitJesaLarvae"></td><td><input type="text" id="visitJesaEgg"></td><td><input type="text" id="visitJesaNotes" style="width:120px;"></td></tr>
-                                <tr><td>Blue-spotted Salamander</td><td><input type="text" id="visitBssaAdults"></td><td><input type="checkbox" id="visitBssaLarvae"></td><td><input type="text" id="visitBssaEgg"></td><td><input type="text" id="visitBssaNotes" style="width:120px;"></td></tr>
-                                <tr><td>Fairy Shrimp</td><td><input type="text" id="visitFairyShrimpAdults"></td><td><input type="checkbox" id="visitFairyShrimpLarvae"></td><td></td><td><input type="text" id="visitFairyShrimpNotes" style="width:120px;"></td></tr>
-                            </tbody>
-                        </table>
-                        <div class="row mt-2">
-                            <div class="col-12">
-                                <label for="visitSpeciesComments">Species Comments</label>
-                                <textarea id="visitSpeciesComments" rows="2" style="width:100%; font-size:14px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
-                            </div>
-                        </div>
-                        <div class="checkbox-group mt-2">
-                            <label><input type="checkbox" id="visitFish"> Fish observed?</label>
-                        </div>
-                    </fieldset>
-                </div>
-
-                <div class="button-container">
-                    <button type="button" onclick="history.back()">Cancel</button>
-                    <button type="submit" class="default-button" id="btn_save">Save Visit</button>
-                </div>
-            </form>
+    <div class="visit-app">
+        <!-- Header -->
+        <div class="visit-header">
+            <button class="exit-button" onclick="history.back()">&times;</button>
+            <h3 class="header-name light-foreground" id="page_title">Pool Visit</h3>
+            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
         </div>
 
-        <!-- Right: Map -->
-        <div class="col-lg-6 col-12" style="height:85vh;">
-            <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+        <!-- Message -->
+        <div id="message" class="visit-message"></div>
+
+        <!-- Content tabs -->
+        <div class="visit-content">
+            <!-- MAP TAB -->
+            <div class="visit-tab visit-tab-map active" id="tab_map">
+                <div id="map"></div>
+                <div class="map-instruction" id="map_instruction">Tap map to set pool location</div>
+            </div>
+
+            <!-- LOCATION TAB -->
+            <div class="visit-tab" id="tab_location">
+                <div class="form-section">
+                    <div class="form-section-title">Visit Info</div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="visitPoolId">Pool ID</label><input type="text" id="visitPoolId" required></div>
+                        <div class="form-field"><label for="visitDate">Date</label><input type="date" id="visitDate" required></div>
+                        <div class="form-field"><label for="visitObserverUserName">Observer</label><input type="text" id="visitObserverUserName" required></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Location</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Was the pool located?</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitLocatePool" value="Yes"> Yes</label>
+                        <label><input type="radio" name="visitLocatePool" value="No"> No</label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="visitLatitude">Latitude</label><input type="text" id="visitLatitude" placeholder="Tap map"></div>
+                        <div class="form-field"><label for="visitLongitude">Longitude</label><input type="text" id="visitLongitude" placeholder="Tap map"></div>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Certainty</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitCertainty" value="Certain"> Certain</label>
+                        <label><input type="radio" name="visitCertainty" value="Pretty Sure"> Pretty Sure</label>
+                        <label><input type="radio" name="visitCertainty" value="Not Sure"> Not Sure</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Navigation Method</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitNavMethod" value="GPS"> GPS</label>
+                        <label><input type="radio" name="visitNavMethod" value="Map"> Map</label>
+                        <label><input type="radio" name="visitNavMethod" value="Prior Knowledge"> Prior Knowledge</label>
+                        <label><input type="radio" name="visitNavMethod" value="Other"> Other</label>
+                    </div>
+                    <div class="form-field"><label for="visitDirections">Directions</label><textarea id="visitDirections" rows="2"></textarea></div>
+                    <div class="form-field" style="margin-top:6px;"><label for="visitLocationComments">Location Comments</label><textarea id="visitLocationComments" rows="2"></textarea></div>
+                </div>
+            </div>
+
+            <!-- VERIFY TAB -->
+            <div class="visit-tab" id="tab_verify">
+                <div class="form-section">
+                    <div class="form-section-title">Field Verification</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is this a Vernal Pool?</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitVernalPool" value="Yes"> Yes</label>
+                        <label><input type="radio" name="visitVernalPool" value="No"> No</label>
+                        <label><input type="radio" name="visitVernalPool" value="Don't Know"> Don't Know</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Pool Type</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitPoolType" value="Isolated Forest Depression"> Forest Depression</label>
+                        <label><input type="radio" name="visitPoolType" value="Floodplain Depression"> Floodplain</label>
+                        <label><input type="radio" name="visitPoolType" value="Manmade"> Manmade</label>
+                        <label><input type="radio" name="visitPoolType" value="Other"> Other</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Inlet</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitInletType" value="No Inlet"> None</label>
+                        <label><input type="radio" name="visitInletType" value="Ephemeral"> Ephemeral</label>
+                        <label><input type="radio" name="visitInletType" value="Permanent"> Permanent</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Outlet</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitOutletType" value="No Outlet"> None</label>
+                        <label><input type="radio" name="visitOutletType" value="Ephemeral"> Ephemeral</label>
+                        <label><input type="radio" name="visitOutletType" value="Permanent"> Permanent</label>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Surrounding Habitat</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest/Upland Type</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitForestUpland" value="Hardwood"> Hardwood</label>
+                        <label><input type="radio" name="visitForestUpland" value="Softwood"> Softwood</label>
+                        <label><input type="radio" name="visitForestUpland" value="Mixed"> Mixed</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest Condition</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitForestCondition" value="Undisturbed"> Undisturbed</label>
+                        <label><input type="radio" name="visitForestCondition" value="Recently Logged"> Logged</label>
+                        <label><input type="radio" name="visitForestCondition" value="Old Growth"> Old Growth</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Adjacent Land Use</label>
+                    <div class="choice-group">
+                        <label><input type="checkbox" id="visitHabitatAgriculture"> Agriculture</label>
+                        <label><input type="checkbox" id="visitHabitatLightDev"> Light Dev</label>
+                        <label><input type="checkbox" id="visitHabitatHeavyDev"> Heavy Dev</label>
+                        <label><input type="checkbox" id="visitHabitatPavedRd"> Paved Road</label>
+                        <label><input type="checkbox" id="visitHabitatDirtRd"> Dirt Road</label>
+                        <label><input type="checkbox" id="visitHabitatPowerline"> Powerline</label>
+                    </div>
+                    <div class="form-field" style="margin-top:6px;"><label for="visitHabitatComment">Habitat Comments</label><textarea id="visitHabitatComment" rows="2"></textarea></div>
+                </div>
+            </div>
+
+            <!-- POOL TAB -->
+            <div class="visit-tab" id="tab_pool">
+                <div class="form-section">
+                    <div class="form-section-title">Pool Characteristics</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Maximum Depth</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitMaxDepth" value="Ankle"> Ankle</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Shin"> Shin</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Knee-deep"> Knee</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Hip"> Hip</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Chest"> Chest</label>
+                        <label><input type="radio" name="visitMaxDepth" value=">4ft"> &gt;4ft</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Water Level</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitWaterLevelObs" value="Full"> Full</label>
+                        <label><input type="radio" name="visitWaterLevelObs" value="More than 50%"> &gt;50%</label>
+                        <label><input type="radio" name="visitWaterLevelObs" value="Less than 50%"> &lt;50%</label>
+                        <label><input type="radio" name="visitWaterLevelObs" value="Dry"> Dry</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Hydroperiod</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitHydroPeriod" value="Ephemeral"> Ephemeral</label>
+                        <label><input type="radio" name="visitHydroPeriod" value="Semi-permanent"> Semi-perm</label>
+                        <label><input type="radio" name="visitHydroPeriod" value="Permanent"> Permanent</label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field" style="min-width:80px;"><label for="visitMaxWidth">Width (ft)</label><input type="text" id="visitMaxWidth" inputmode="numeric"></div>
+                        <div class="form-field" style="min-width:80px;"><label for="visitMaxLength">Length (ft)</label><input type="text" id="visitMaxLength" inputmode="numeric"></div>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Substrate</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitSubstrate" value="Leaf litter"> Leaf litter</label>
+                        <label><input type="radio" name="visitSubstrate" value="Bedrock"> Bedrock</label>
+                        <label><input type="radio" name="visitSubstrate" value="Sand/Gravel"> Sand/Gravel</label>
+                        <label><input type="radio" name="visitSubstrate" value="Mud"> Mud</label>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Vegetation Cover (%)</div>
+                    <div class="form-row">
+                        <div class="form-field" style="min-width:70px;"><label for="visitPoolTrees">Canopy</label><input type="text" id="visitPoolTrees" inputmode="numeric"></div>
+                        <div class="form-field" style="min-width:70px;"><label for="visitPoolShrubs">Shrubs</label><input type="text" id="visitPoolShrubs" inputmode="numeric"></div>
+                        <div class="form-field" style="min-width:70px;"><label for="visitPoolEmergents">Emergent</label><input type="text" id="visitPoolEmergents" inputmode="numeric"></div>
+                        <div class="form-field" style="min-width:70px;"><label for="visitPoolFloatingVeg">Floating</label><input type="text" id="visitPoolFloatingVeg" inputmode="numeric"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SPECIES TAB -->
+            <div class="visit-tab" id="tab_species">
+                <div class="species-card">
+                    <div class="species-card-title">Wood Frog</div>
+                    <div class="species-counts">
+                        <div class="form-field"><label>Adults</label><input type="text" id="visitWoodFrogAdults" inputmode="numeric"></div>
+                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitWoodFrogEgg" inputmode="numeric"></div>
+                        <div class="form-field"><label>Larvae</label><input type="text" id="visitWoodFrogLarvae" inputmode="numeric"></div>
+                    </div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitWoodFrogNotes"></div>
+                </div>
+                <div class="species-card">
+                    <div class="species-card-title">Spotted Salamander</div>
+                    <div class="species-counts">
+                        <div class="form-field"><label>Adults</label><input type="text" id="visitSpsAdults" inputmode="numeric"></div>
+                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitSpsEgg" inputmode="numeric"></div>
+                        <div class="form-field"><label>Larvae</label><input type="text" id="visitSpsLarvae" inputmode="numeric"></div>
+                    </div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitSpsNotes"></div>
+                </div>
+                <div class="species-card">
+                    <div class="species-card-title">Jefferson Salamander</div>
+                    <div class="species-counts">
+                        <div class="form-field"><label>Adults</label><input type="text" id="visitJesaAdults" inputmode="numeric"></div>
+                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitJesaEgg" inputmode="numeric"></div>
+                        <div class="form-field"><label>Larvae</label><input type="text" id="visitJesaLarvae" inputmode="numeric"></div>
+                    </div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitJesaNotes"></div>
+                </div>
+                <div class="species-card">
+                    <div class="species-card-title">Blue-spotted Salamander</div>
+                    <div class="species-counts">
+                        <div class="form-field"><label>Adults</label><input type="text" id="visitBssaAdults" inputmode="numeric"></div>
+                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitBssaEgg" inputmode="numeric"></div>
+                        <div class="form-field"><label>Larvae</label><input type="text" id="visitBssaLarvae" inputmode="numeric"></div>
+                    </div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitBssaNotes"></div>
+                </div>
+                <div class="species-card">
+                    <div class="species-card-title">Fairy Shrimp</div>
+                    <div class="species-counts">
+                        <div class="form-field"><label>Count</label><input type="text" id="visitFairyShrimpAdults" inputmode="numeric"></div>
+                    </div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitFairyShrimpNotes"></div>
+                </div>
+                <div class="form-section" style="margin-top:8px;">
+                    <div class="choice-group">
+                        <label><input type="checkbox" id="visitFish"> Fish observed</label>
+                    </div>
+                    <div class="form-field"><label for="visitSpeciesComments">Species Comments</label><textarea id="visitSpeciesComments" rows="2"></textarea></div>
+                </div>
+            </div>
+
+            <!-- LANDOWNER TAB -->
+            <div class="visit-tab" id="tab_landowner">
+                <div class="form-section">
+                    <div class="form-section-title">Landowner</div>
+                    <div class="choice-group">
+                        <label><input type="checkbox" id="visitUserIsLandowner"> I am the landowner</label>
+                        <label><input type="checkbox" id="visitLandownerPermission"> Permission obtained</label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="visitLandownerName">Name</label><input type="text" id="visitLandownerName"></div>
+                        <div class="form-field"><label for="visitLandownerPhone">Phone</label><input type="tel" id="visitLandownerPhone"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="visitLandownerEmail">Email</label><input type="email" id="visitLandownerEmail"></div>
+                    </div>
+                    <div class="form-field"><label for="visitLandownerAddress">Address</label><textarea id="visitLandownerAddress" rows="2"></textarea></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom tab bar -->
+        <div class="visit-tabs">
+            <button class="visit-tab-btn active" data-tab="tab_map"><i class="fa fa-map"></i>Map</button>
+            <button class="visit-tab-btn" data-tab="tab_location"><i class="fa fa-location-dot"></i>Location</button>
+            <button class="visit-tab-btn" data-tab="tab_verify"><i class="fa fa-check-circle"></i>Verify</button>
+            <button class="visit-tab-btn" data-tab="tab_pool"><i class="fa fa-water"></i>Pool</button>
+            <button class="visit-tab-btn" data-tab="tab_species"><i class="fa fa-frog"></i>Species</button>
+            <button class="visit-tab-btn" data-tab="tab_landowner"><i class="fa fa-user"></i>Owner</button>
         </div>
     </div>
 
@@ -293,42 +476,51 @@
     <script src="/js/bootstrap_5.2.3.min.js"></script>
     <script src="/js/leaflet_1.9.4.js"></script>
     <script src="/js/config.js"></script>
+    <script src="/js/esri-leaflet_3.0.12.js"></script>
 
     <script type="module">
         import { fetchVisitById, fetchMappedPoolById, createVisit, updateVisit } from './js/api.js';
         import { requireAuth, getUser } from './js/auth.js';
+        import { createMap, addPoolMarker, getPoolColor } from './js/map_common.js';
 
         const params = new URLSearchParams(window.location.search);
         const visitId = params.get('visitId');
         const poolId = params.get('poolId');
         const isEdit = !!visitId;
-        let map, marker;
+        let map, marker, poolMarker;
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!(await requireAuth())) return;
 
             // Tab navigation
-            document.querySelectorAll('.tab-btn').forEach(btn => {
+            document.querySelectorAll('.visit-tab-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.page-tab').forEach(p => p.classList.remove('active'));
+                    document.querySelectorAll('.visit-tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.visit-tab').forEach(t => t.classList.remove('active'));
                     this.classList.add('active');
-                    document.getElementById('page_' + this.dataset.page).classList.add('active');
+                    document.getElementById(this.dataset.tab).classList.add('active');
+                    // Invalidate map size when switching to map tab
+                    if (this.dataset.tab === 'tab_map' && map) {
+                        setTimeout(() => map.invalidateSize(), 100);
+                    }
                 });
             });
 
             // Init map
-            map = L.map('map').setView([43.858297, -72.446594], 8);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19, attribution: '&copy; OpenStreetMap'
-            }).addTo(map);
+            map = await createMap('map', { center: [43.858297, -72.446594], zoom: 8 });
+
+            // Click map to set location
             map.on('click', function(e) {
                 document.getElementById('visitLatitude').value = e.latlng.lat.toFixed(6);
                 document.getElementById('visitLongitude').value = e.latlng.lng.toFixed(6);
                 if (marker) map.removeLayer(marker);
-                marker = L.circleMarker([e.latlng.lat, e.latlng.lng], {
-                    radius: 10, fillColor: '#2c5530', color: '#333', weight: 2, fillOpacity: 0.8
-                }).addTo(map);
+                marker = addPoolMarker(map, [e.latlng.lat, e.latlng.lng], {
+                    status: 'Potential', surveyLevel: 'potential', size: 22,
+                    tooltip: 'Visit location'
+                });
+                // Hide instruction
+                let instr = document.getElementById('map_instruction');
+                if (instr) instr.style.display = 'none';
             });
 
             let user = await getUser();
@@ -338,14 +530,28 @@
                 try {
                     let data = await fetchVisitById(visitId);
                     let visit = data.rows ? data.rows[0] : data;
-                    populateVisitForm(visit);
+                    let v = visit.both ? visit.both.visit : visit;
+                    let m = visit.both ? visit.both.mapped : visit;
+                    let editPoolId = v.visitPoolId || m.mappedPoolId || '';
+                    let editTown = v.townName || m.townName || '';
+                    let editCounty = v.countyName || m.countyName || '';
+                    let editDate = v.visitDate ? new Date(v.visitDate).toLocaleDateString() : '';
+                    let editLoc = editTown ? `${editTown}${editCounty ? ' (' + editCounty + ')' : ''}` : '';
+                    let editTitle = `Edit Visit ${visitId} of pool ${editPoolId}`;
+                    if (editLoc) editTitle += ` in ${editLoc}`;
+                    if (editDate) editTitle += ` on ${editDate}`;
+                    document.getElementById('page_title').textContent = editTitle;
+                    document.title = `VPAtlas - ${editTitle}`;
+                    populateVisitForm(v);
                 } catch(err) { showMsg('Error: ' + err.message, 'error'); }
             } else {
+                let newTitle = poolId ? `New Visit for Pool ${poolId}` : 'New Pool Visit';
+                document.getElementById('page_title').textContent = newTitle;
+                document.title = `VPAtlas - ${newTitle}`;
                 if (poolId) document.getElementById('visitPoolId').value = poolId;
                 document.getElementById('visitDate').value = new Date().toISOString().split('T')[0];
-                if (user) document.getElementById('visitObserverUserName').value = user.username || '';
+                if (user) document.getElementById('visitObserverUserName').value = user.handle || user.username || '';
 
-                // Zoom to pool if we have one
                 if (poolId) {
                     try {
                         let data = await fetchMappedPoolById(poolId);
@@ -353,24 +559,25 @@
                         if (pool && pool.mappedLatitude) {
                             let lat = Number(pool.mappedLatitude), lng = Number(pool.mappedLongitude);
                             map.setView([lat, lng], 16);
-                            L.circleMarker([lat, lng], {
-                                radius: 8, fillColor: '#999', color: '#333', weight: 1, fillOpacity: 0.5
-                            }).addTo(map).bindTooltip('Pool ' + poolId);
+                            poolMarker = addPoolMarker(map, [lat, lng], {
+                                status: pool.mappedPoolStatus || 'Potential',
+                                surveyLevel: 'potential', size: 18,
+                                tooltip: `Pool ${poolId}`
+                            });
                         }
                     } catch(err) {}
                 }
             }
 
             // Save
-            document.getElementById('visit_form').addEventListener('submit', async () => {
+            document.getElementById('btn_save').addEventListener('click', async () => {
                 let body = getVisitFormData();
+                if (!body.visitPoolId) { showMsg('Pool ID is required', 'error'); return; }
+                if (!body.visitDate) { showMsg('Date is required', 'error'); return; }
                 showMsg('Saving...', 'info');
                 try {
-                    if (isEdit) {
-                        await updateVisit(visitId, body);
-                    } else {
-                        await createVisit(body);
-                    }
+                    if (isEdit) { await updateVisit(visitId, body); }
+                    else { await createVisit(body); }
                     showMsg('Saved!', 'success');
                     setTimeout(() => {
                         if (poolId || body.visitPoolId)
@@ -388,22 +595,21 @@
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
              'visitDirections','visitLocationComments','visitMaxWidth','visitMaxLength',
              'visitPoolTrees','visitPoolShrubs','visitPoolEmergents','visitPoolFloatingVeg',
-             'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes',
-             'visitSpsAdults','visitSpsEgg','visitSpsNotes',
-             'visitJesaAdults','visitJesaEgg','visitJesaNotes',
-             'visitBssaAdults','visitBssaEgg','visitBssaNotes',
+             'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes','visitWoodFrogLarvae',
+             'visitSpsAdults','visitSpsEgg','visitSpsNotes','visitSpsLarvae',
+             'visitJesaAdults','visitJesaEgg','visitJesaNotes','visitJesaLarvae',
+             'visitBssaAdults','visitBssaEgg','visitBssaNotes','visitBssaLarvae',
              'visitFairyShrimpAdults','visitFairyShrimpNotes',
              'visitSpeciesComments','visitHabitatComment',
              'visitLandownerName','visitLandownerPhone','visitLandownerEmail','visitLandownerAddress'
             ].forEach(f => {
                 let el = document.getElementById(f);
-                if (el && v[f] != null) el.value = v[f];
+                if (el && v[f] != null && v[f] !== 'None') el.value = v[f];
             });
             // Checkboxes
             ['visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitFish','visitUserIsLandowner','visitLandownerPermission',
-             'visitWoodFrogLarvae','visitSpsLarvae','visitJesaLarvae','visitBssaLarvae','visitFairyShrimpLarvae'
+             'visitFish','visitUserIsLandowner','visitLandownerPermission'
             ].forEach(f => {
                 let el = document.getElementById(f);
                 if (el && v[f]) el.checked = true;
@@ -411,9 +617,10 @@
             // Radio groups
             ['visitLocatePool','visitCertainty','visitNavMethod','visitVernalPool',
              'visitPoolType','visitInletType','visitOutletType','visitMaxDepth',
-             'visitWaterLevelObs','visitSubstrate'
+             'visitWaterLevelObs','visitHydroPeriod','visitSubstrate',
+             'visitForestUpland','visitForestCondition'
             ].forEach(f => {
-                if (v[f]) {
+                if (v[f] && v[f] !== 'None') {
                     let radio = document.querySelector(`input[name="${f}"][value="${v[f]}"]`);
                     if (radio) radio.checked = true;
                 }
@@ -422,36 +629,35 @@
             if (v.visitLatitude && v.visitLongitude) {
                 let lat = Number(v.visitLatitude), lng = Number(v.visitLongitude);
                 map.setView([lat, lng], 16);
-                marker = L.circleMarker([lat, lng], {
-                    radius: 10, fillColor: '#2c5530', color: '#333', weight: 2, fillOpacity: 0.8
-                }).addTo(map);
+                marker = addPoolMarker(map, [lat, lng], {
+                    status: 'Potential', surveyLevel: 'visited', size: 22,
+                    tooltip: `Visit ${v.visitId}`
+                });
+                document.getElementById('map_instruction').style.display = 'none';
             }
         }
 
         function getVisitFormData() {
             let body = {};
-            // Text fields
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
              'visitDirections','visitLocationComments','visitMaxWidth','visitMaxLength',
              'visitPoolTrees','visitPoolShrubs','visitPoolEmergents','visitPoolFloatingVeg',
-             'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes',
-             'visitSpsAdults','visitSpsEgg','visitSpsNotes',
-             'visitJesaAdults','visitJesaEgg','visitJesaNotes',
-             'visitBssaAdults','visitBssaEgg','visitBssaNotes',
+             'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes','visitWoodFrogLarvae',
+             'visitSpsAdults','visitSpsEgg','visitSpsNotes','visitSpsLarvae',
+             'visitJesaAdults','visitJesaEgg','visitJesaNotes','visitJesaLarvae',
+             'visitBssaAdults','visitBssaEgg','visitBssaNotes','visitBssaLarvae',
              'visitFairyShrimpAdults','visitFairyShrimpNotes',
              'visitSpeciesComments','visitHabitatComment',
              'visitLandownerName','visitLandownerPhone','visitLandownerEmail','visitLandownerAddress'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.value; });
-            // Checkboxes
             ['visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitFish','visitUserIsLandowner','visitLandownerPermission',
-             'visitWoodFrogLarvae','visitSpsLarvae','visitJesaLarvae','visitBssaLarvae','visitFairyShrimpLarvae'
+             'visitFish','visitUserIsLandowner','visitLandownerPermission'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.checked; });
-            // Radio groups
             ['visitLocatePool','visitCertainty','visitNavMethod','visitVernalPool',
              'visitPoolType','visitInletType','visitOutletType','visitMaxDepth',
-             'visitWaterLevelObs','visitSubstrate'
+             'visitWaterLevelObs','visitHydroPeriod','visitSubstrate',
+             'visitForestUpland','visitForestCondition'
             ].forEach(f => { let r = document.querySelector(`input[name="${f}"]:checked`); if (r) body[f] = r.value; });
             return body;
         }
@@ -459,7 +665,10 @@
         function showMsg(text, type) {
             let el = document.getElementById('message');
             el.textContent = text;
-            el.className = 'auth-message ' + type;
+            el.className = 'visit-message show ' + type;
+            if (type === 'info' || type === 'success') {
+                setTimeout(() => { el.className = 'visit-message'; }, 3000);
+            }
         }
     </script>
     <script src="/js/app.js"></script>

@@ -14,17 +14,14 @@
 </head>
 <body>
     <header>
-        <div class="row controls">
-            <div class="px-1 col-xl-1 col-2">
-                <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
-            </div>
-            <div class="px-1 col-xl-3 col-4">
-                <h3 class="header-name light-foreground" id="page_title">Pool Detail</h3>
-            </div>
-            <div class="px-1 col-xl-8 col-6" style="display:flex; gap:10px; justify-content:flex-end;">
-                <button id="btn_edit" class="action-button" style="display:none; font-size:16px;">Edit Pool</button>
-                <button id="btn_add_visit" class="action-button" style="font-size:16px;">Add Visit</button>
-                <button id="btn_add_survey" class="action-button" style="font-size:16px;">Add Survey</button>
+        <div class="detail-header">
+            <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            <h3 class="header-name light-foreground detail-title" id="page_title">Pool Detail</h3>
+            <div class="detail-actions">
+                <button id="btn_edit" class="action-button" style="display:none;">Edit Pool</button>
+                <button id="btn_add_visit" class="action-button">Atlas Visit</button>
+                <button id="btn_add_survey" class="action-button">Monitor Survey</button>
+                <button id="btn_find_pool" class="action-button">Find Pool</button>
             </div>
         </div>
     </header>
@@ -63,12 +60,14 @@
     <script src="/js/bootstrap_5.2.3.min.js"></script>
     <script src="/js/leaflet_1.9.4.js"></script>
     <script src="/js/config.js"></script>
+    <script src="/js/esri-leaflet_3.0.12.js"></script>
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
         import { fetchMappedPoolById, fetchVisitsByPool, fetchSurveysByPool, fetchReviews } from './js/api.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from './js/auth.js';
+        import { createMap, addPoolMarker, getPoolColor } from './js/map_common.js';
 
         const params = new URLSearchParams(window.location.search);
         const poolId = params.get('poolId');
@@ -85,6 +84,20 @@
             try {
                 let data = await fetchMappedPoolById(poolId);
                 let pool = data.rows ? data.rows[0] : data;
+
+                // Descriptive title
+                if (pool) {
+                    let status = pool.poolStatus || pool.mappedPoolStatus || '';
+                    let town = pool.townName || pool.mappedTownName || '';
+                    let county = pool.countyName || pool.mappedCountyName || '';
+                    let loc = town ? `${town}${county ? ' (' + county + ')' : ''}` : '';
+                    let title = `Pool ${poolId}`;
+                    if (status) title += ` — ${status}`;
+                    if (loc) title += ` in ${loc}`;
+                    document.getElementById('page_title').textContent = title;
+                    document.title = `VPAtlas - ${title}`;
+                }
+
                 renderPoolInfo(pool);
                 initPoolMap(pool);
             } catch(err) {
@@ -100,12 +113,12 @@
             // Load surveys
             try {
                 let surveys = await fetchSurveysByPool(poolId);
-                renderSurveys(surveys.rows || []);
+                renderSurveys(Array.isArray(surveys) ? surveys : surveys.rows || []);
             } catch(err) { renderSurveys([]); }
 
             // Load reviews
             try {
-                let reviews = await fetchReviews(`poolId=${poolId}`);
+                let reviews = await fetchReviews(`reviewPoolId=${poolId}`);
                 renderReviews(reviews.rows || []);
             } catch(err) { renderReviews([]); }
 
@@ -119,6 +132,8 @@
             document.getElementById('btn_add_visit').addEventListener('click', () =>
                 window.location.href = `visit_create.html?poolId=${poolId}`);
             document.getElementById('btn_add_survey').addEventListener('click', () =>
+                window.location.href = `/explore/survey_create.html?poolId=${poolId}`);
+            document.getElementById('btn_find_pool').addEventListener('click', () =>
                 window.location.href = `/survey/survey_start.html?poolId=${poolId}`);
         });
 
@@ -139,17 +154,68 @@
             document.getElementById('pool_info').innerHTML = html;
         }
 
+        // ---- Sorting ----
+        let sortState = {}; // keyed by table name: { col, asc }
+
+        function sortRows(rows, col, asc) {
+            return [...rows].sort((a, b) => {
+                let va = (a[col] ?? '').toString();
+                let vb = (b[col] ?? '').toString();
+                // Date-like columns: compare as dates
+                if (col.toLowerCase().includes('date')) {
+                    va = va ? new Date(va).getTime() : 0;
+                    vb = vb ? new Date(vb).getTime() : 0;
+                    return asc ? va - vb : vb - va;
+                }
+                // Numeric IDs
+                if (!isNaN(va) && !isNaN(vb) && va !== '' && vb !== '') {
+                    return asc ? Number(va) - Number(vb) : Number(vb) - Number(va);
+                }
+                va = va.toLowerCase(); vb = vb.toLowerCase();
+                if (va < vb) return asc ? -1 : 1;
+                if (va > vb) return asc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function sortIndicator(tableName, col) {
+            let s = sortState[tableName];
+            if (!s || s.col !== col) return '';
+            return s.asc ? ' <i class="fa fa-caret-up"></i>' : ' <i class="fa fa-caret-down"></i>';
+        }
+
+        function wireSort(containerEl, tableName, rows, renderFn) {
+            containerEl.querySelectorAll('th[data-col]').forEach(th => {
+                th.style.cursor = 'pointer';
+                th.addEventListener('click', () => {
+                    let col = th.dataset.col;
+                    let s = sortState[tableName];
+                    if (s && s.col === col) { s.asc = !s.asc; }
+                    else { sortState[tableName] = { col, asc: false }; }
+                    renderFn(sortRows(rows, col, sortState[tableName].asc));
+                });
+            });
+        }
+
+        // ---- Visits ----
         function renderVisits(rows) {
+            // Default sort by date desc on first render
+            if (!sortState.visits) { sortState.visits = { col: 'visitDate', asc: false }; }
+            rows = sortRows(rows, sortState.visits.col, sortState.visits.asc);
+
             document.getElementById('visits_title').textContent = `Visits (${rows.length})`;
             if (!rows.length) {
                 document.getElementById('visits_table').innerHTML = '<p style="font-size:14px;">No visits recorded.</p>';
                 return;
             }
             let html = `<table class="pool-table"><thead><tr>
-                <th>Visit ID</th><th>Date</th><th>Observer</th><th>Pool Located</th>
+                <th data-col="visitId">Visit ID${sortIndicator('visits','visitId')}</th>
+                <th data-col="visitDate">Date${sortIndicator('visits','visitDate')}</th>
+                <th data-col="visitObserverUserName">Observer${sortIndicator('visits','visitObserverUserName')}</th>
+                <th data-col="visitLocatePool">Pool Located${sortIndicator('visits','visitLocatePool')}</th>
             </tr></thead><tbody>`;
             rows.forEach(v => {
-                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='visit_create.html?visitId=${v.visitId}'">
+                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='visit_view.html?visitId=${v.visitId}'">
                     <td>${v.visitId || ''}</td>
                     <td>${formatDate(v.visitDate)}</td>
                     <td>${v.visitObserverUserName || v.visitUserName || ''}</td>
@@ -157,41 +223,60 @@
                 </tr>`;
             });
             html += '</tbody></table>';
-            document.getElementById('visits_table').innerHTML = html;
+            let container = document.getElementById('visits_table');
+            container.innerHTML = html;
+            wireSort(container, 'visits', rows, renderVisits);
         }
 
+        // ---- Surveys ----
         function renderSurveys(rows) {
+            if (!sortState.surveys) { sortState.surveys = { col: 'surveyDate', asc: false }; }
+            rows = sortRows(rows, sortState.surveys.col, sortState.surveys.asc);
+
             document.getElementById('surveys_title').textContent = `Surveys (${rows.length})`;
             if (!rows.length) {
                 document.getElementById('surveys_table').innerHTML = '<p style="font-size:14px;">No monitoring surveys recorded.</p>';
                 return;
             }
             let html = `<table class="pool-table"><thead><tr>
-                <th>Survey ID</th><th>Date</th><th>Type</th><th>Observer</th>
+                <th data-col="surveyId">Survey ID${sortIndicator('surveys','surveyId')}</th>
+                <th data-col="surveyDate">Date${sortIndicator('surveys','surveyDate')}</th>
+                <th data-col="surveyTypeName">Type${sortIndicator('surveys','surveyTypeName')}</th>
+                <th data-col="surveyUserName">Observer${sortIndicator('surveys','surveyUserName')}</th>
             </tr></thead><tbody>`;
             rows.forEach(s => {
-                html += `<tr class="pool-row">
+                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='survey_view.html?surveyId=${s.surveyId}'">
                     <td>${s.surveyId || ''}</td>
                     <td>${formatDate(s.surveyDate)}</td>
                     <td>${s.surveyTypeName || ''}</td>
-                    <td>${s.surveyUserEmail || ''}</td>
+                    <td>${s.surveyUserName || ''}</td>
                 </tr>`;
             });
             html += '</tbody></table>';
-            document.getElementById('surveys_table').innerHTML = html;
+            let container = document.getElementById('surveys_table');
+            container.innerHTML = html;
+            wireSort(container, 'surveys', rows, renderSurveys);
         }
 
+        // ---- Reviews ----
         function renderReviews(rows) {
+            if (!sortState.reviews) { sortState.reviews = { col: 'reviewQADate', asc: false }; }
+            rows = sortRows(rows, sortState.reviews.col, sortState.reviews.asc);
+
             document.getElementById('reviews_title').textContent = `Reviews (${rows.length})`;
             if (!rows.length) {
                 document.getElementById('reviews_table').innerHTML = '<p style="font-size:14px;">No reviews.</p>';
                 return;
             }
             let html = `<table class="pool-table"><thead><tr>
-                <th>Review ID</th><th>QA Code</th><th>QA Person</th><th>Date</th><th>Status</th>
+                <th data-col="reviewId">Review ID${sortIndicator('reviews','reviewId')}</th>
+                <th data-col="reviewQACode">QA Code${sortIndicator('reviews','reviewQACode')}</th>
+                <th data-col="reviewQAPerson">QA Person${sortIndicator('reviews','reviewQAPerson')}</th>
+                <th data-col="reviewQADate">Date${sortIndicator('reviews','reviewQADate')}</th>
+                <th data-col="reviewStatus">Status${sortIndicator('reviews','reviewStatus')}</th>
             </tr></thead><tbody>`;
             rows.forEach(r => {
-                html += `<tr class="pool-row">
+                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='review_view.html?reviewId=${r.reviewId}'">
                     <td>${r.reviewId || ''}</td>
                     <td>${r.reviewQACode || ''}</td>
                     <td>${r.reviewQAPerson || ''}</td>
@@ -200,21 +285,25 @@
                 </tr>`;
             });
             html += '</tbody></table>';
-            document.getElementById('reviews_table').innerHTML = html;
+            let container = document.getElementById('reviews_table');
+            container.innerHTML = html;
+            wireSort(container, 'reviews', rows, renderReviews);
         }
 
-        function initPoolMap(pool) {
+        async function initPoolMap(pool) {
             if (!pool || !pool.mappedLatitude) return;
             let lat = Number(pool.mappedLatitude);
             let lng = Number(pool.mappedLongitude);
-            let map = L.map('map').setView([lat, lng], 16);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19, attribution: '&copy; OpenStreetMap'
-            }).addTo(map);
-            L.circleMarker([lat, lng], {
-                radius: 10, fillColor: '#2c5530', color: '#333',
-                weight: 2, opacity: 1, fillOpacity: 0.8
-            }).addTo(map).bindPopup(`Pool ${pool.mappedPoolId}`).openPopup();
+            let map = await createMap('map', { center: [lat, lng], zoom: 16 });
+            let status = pool.poolStatus || pool.mappedPoolStatus || 'Potential';
+            let town = pool.townName || pool.mappedTownName || '';
+            addPoolMarker(map, [lat, lng], {
+                status: status,
+                surveyLevel: 'potential',
+                size: 22,
+                tooltip: `${pool.mappedPoolId} — ${status}${town ? ', ' + town : ''}`,
+                popup: `Pool ${pool.mappedPoolId} — ${status}`
+            });
         }
     </script>
     <script src="/js/app.js"></script>

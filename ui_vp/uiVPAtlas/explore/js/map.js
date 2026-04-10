@@ -1,27 +1,28 @@
 /*
     map.js - Leaflet map management for VPAtlas explore app
     ES6 module, singleton map instance.
-
-    Base layers: OSM, Satellite, Topo, VCGI CIR, VCGI Leaf-Off, VCGI Lidar DEM/DSM/Slope
-    Overlays: State boundary, County boundaries, Town boundaries, Parcel boundaries, Pool markers
+    Uses map_common.js for base layers, overlays, and marker styles.
 */
 import { showWait, hideWait } from './utils.js';
-import { fetchMappedPoolGeoJson, fetchTowns, fetchCounties } from './api.js';
-import { filters, putUserState } from './url_state.js';
+import { fetchMappedPoolGeoJson } from './api.js';
+import {
+    createBaseLayers, loadBoundaryOverlays, addBoundaryControl,
+    getPoolColor, getSurveyLevel, buildShapeIcon,
+    poolTooltipText, poolPopupHtml,
+    stateCenter, stateZoom
+} from './map_common.js';
+import { getLocal, setLocal } from './storage.js';
 
-const eleMap = document.getElementById('map');
+const SETTINGS_KEY = 'map_settings';
+async function loadSettings() { try { return (await getLocal(SETTINGS_KEY)) || {}; } catch(e) { return {}; } }
+async function saveSettings(s) { try { let c = await loadSettings(); Object.assign(c, s); await setLocal(SETTINGS_KEY, c); } catch(e) {} }
+
 var map = false;
 var markers = {};
 var poolLayer = null;
 
-// Overlay layers
-var stateBoundary = null;
-var countyBoundary = null;
-var townBoundary = null;
-
 // Layer controls
 var baseLayerControl = null;
-var overlayControl = null;
 
 // Home button callback
 var homeCallback = null;
@@ -29,10 +30,6 @@ export function setHomeCallback(cb) { homeCallback = cb; }
 
 var mapReadyResolve;
 export var mapReady = new Promise(resolve => { mapReadyResolve = resolve; });
-
-// Vermont center
-var stateCenter = [43.858297, -72.446594];
-var stateZoom = 8;
 
 const tooltipOptions = {
     permanent: false,
@@ -45,8 +42,10 @@ const tooltipOptions = {
 // =============================================================================
 // INITIALIZE MAP
 // =============================================================================
-export function initMap() {
+export async function initMap() {
     if (map) return map;
+
+    let settings = await loadSettings();
 
     map = L.map('map', {
         zoomControl: false,
@@ -54,79 +53,13 @@ export function initMap() {
         zoom: stateZoom
     });
 
-    // --- BASE LAYERS ---
-    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-    });
+    // Base layers — restore saved selection
+    let baseLayers = createBaseLayers();
+    let savedBase = settings.baseLayer || 'Esri Topo';
+    (baseLayers[savedBase] || baseLayers['Esri Topo']).addTo(map);
 
-    var satelliteLayer = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19, attribution: '&copy; Esri' }
-    );
-
-    var topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        maxZoom: 17,
-        attribution: '&copy; OpenTopoMap'
-    });
-
-    var esriTopo = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19, attribution: '&copy; Esri' }
-    );
-
-    // VCGI tile layers
-    var vcgiCIR = L.tileLayer(
-        'https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/IMG_VCGI_CIR_WM_CACHE/ImageServer/tile/{z}/{y}/{x}',
-        { maxZoom: 20, attribution: 'VCGI CIR' }
-    );
-
-    var vcgiCLR = L.tileLayer(
-        'https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/IMG_VCGI_CLR_WM_CACHE/ImageServer/tile/{z}/{y}/{x}',
-        { maxZoom: 20, attribution: 'VCGI Leaf-Off Imagery' }
-    );
-
-    // VCGI Lidar layers (use esri-leaflet imageMapLayer)
-    var vcgiLidarDEM = null;
-    var vcgiLidarDSM = null;
-    var vcgiLidarSlope = null;
-
-    if (typeof L.esri !== 'undefined') {
-        vcgiLidarDEM = L.esri.imageMapLayer({
-            url: 'https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/IMG_VCGI_LIDARHILLSHD_WM_CACHE_v1/ImageServer',
-            maxZoom: 20, attribution: 'VCGI Lidar'
-        });
-        vcgiLidarDSM = L.esri.imageMapLayer({
-            url: 'https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/IMG_VCGI_LIDARDSMHILLSHD_SP_CACHE_v1/ImageServer/',
-            maxZoom: 20, attribution: 'VCGI Lidar'
-        });
-        vcgiLidarSlope = L.esri.imageMapLayer({
-            url: 'https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/IMG_VCGI_LIDARSLOPESYM_SP_NOCACHE_v1/ImageServer/',
-            maxZoom: 20, attribution: 'VCGI Lidar'
-        });
-    }
-
-    // Default base layer
-    esriTopo.addTo(map);
-
-    // Build base layers object
-    var baseLayers = {
-        'Esri Topo': esriTopo,
-        'Street Map': osmLayer,
-        'Satellite': satelliteLayer,
-        'Open Topo': topoLayer,
-        'VCGI CIR': vcgiCIR,
-        'VCGI Leaf-Off': vcgiCLR,
-    };
-    if (vcgiLidarDEM) baseLayers['VCGI Lidar DEM Hill Shade'] = vcgiLidarDEM;
-    if (vcgiLidarDSM) baseLayers['VCGI Lidar DSM Hill Shade'] = vcgiLidarDSM;
-    if (vcgiLidarSlope) baseLayers['VCGI Lidar Slope Sym'] = vcgiLidarSlope;
-
-    // --- OVERLAYS ---
-    var overlays = {};
-
-    // Load boundary GeoJSON
-    loadBoundaryOverlays(overlays);
+    // Persist base layer changes
+    map.on('baselayerchange', function(e) { saveSettings({ baseLayer: e.name }); });
 
     // Controls
     L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -151,61 +84,26 @@ export function initMap() {
     };
     homeCtl.addTo(map);
 
-    // Layer controls
-    baseLayerControl = L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: true }).addTo(map);
+    // Base layer control
+    baseLayerControl = L.control.layers(baseLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
+
+    // Boundary overlays (radio-button style) — restore saved selection
+    let boundaries = await loadBoundaryOverlays(map);
+    if (Object.keys(boundaries).length) {
+        let savedBoundary = settings.boundary || 'none';
+        addBoundaryControl(map, boundaries, 'topright', savedBoundary);
+    }
+
+    // Resize pool markers on zoom change
+    map.on('zoomend', onZoomResizeMarkers);
 
     mapReadyResolve(map);
     return map;
 }
 
 // =============================================================================
-// BOUNDARY OVERLAYS
-// =============================================================================
-async function loadBoundaryOverlays(overlays) {
-    try {
-        // State boundary
-        let stateRes = await fetch('/geojson/Polygon_VT_State_Boundary.geo.json');
-        let stateGeo = await stateRes.json();
-        stateBoundary = L.geoJSON(stateGeo, {
-            style: { color: '#333', weight: 2, fillOpacity: 0, dashArray: '5,5' }
-        });
-        if (baseLayerControl) baseLayerControl.addOverlay(stateBoundary, 'State Boundary');
-    } catch(err) { console.warn('map.js: state boundary load failed', err); }
-
-    try {
-        // County boundaries
-        let countyRes = await fetch('/geojson/Polygon_VT_County_Boundaries.geo.json');
-        let countyGeo = await countyRes.json();
-        countyBoundary = L.geoJSON(countyGeo, {
-            style: { color: '#8B4513', weight: 1.5, fillOpacity: 0, dashArray: '3,3' },
-            onEachFeature: function(feature, layer) {
-                let name = feature.properties.CNTYNAME || feature.properties.countyName || feature.properties.NAME || '';
-                if (name) layer.bindTooltip(name, { sticky: true, direction: 'center', className: 'boundary-tooltip' });
-            }
-        });
-        if (baseLayerControl) baseLayerControl.addOverlay(countyBoundary, 'County Boundaries');
-    } catch(err) { console.warn('map.js: county boundary load failed', err); }
-
-    try {
-        // Town boundaries (larger file — only load on demand via layer control)
-        let townRes = await fetch('/geojson/Polygon_VT_Town_Boundaries.geo.json');
-        let townGeo = await townRes.json();
-        townBoundary = L.geoJSON(townGeo, {
-            style: { color: '#4682B4', weight: 1, fillOpacity: 0 },
-            onEachFeature: function(feature, layer) {
-                let name = feature.properties.TOWNNAME || feature.properties.townName || feature.properties.NAME || '';
-                if (name) layer.bindTooltip(name, { sticky: true, direction: 'center', className: 'boundary-tooltip' });
-            }
-        });
-        if (baseLayerControl) baseLayerControl.addOverlay(townBoundary, 'Town Boundaries');
-    } catch(err) { console.warn('map.js: town boundary load failed', err); }
-}
-
-// =============================================================================
 // POOL MARKERS — driven by the same filtered rows as the pool list
 // =============================================================================
-// plotPoolRows() takes the deduplicated, data-type-filtered rows from pool_list.js
-// so the map always matches what the list and summary show.
 export function plotPoolRows(rows, onPoolClick=null) {
     clearPoolMarkers();
     if (!rows || !rows.length) return;
@@ -219,19 +117,13 @@ export function plotPoolRows(rows, onPoolClick=null) {
 
         let poolId = row.poolId || row.mappedPoolId || '';
         let status = row.poolStatus || row.mappedPoolStatus || '';
-        let town = row.townName || '';
         let color = getPoolColor(status);
+        let surveyLevel = getSurveyLevel(row);
+        let marker = createShapeMarker([lat, lng], color, surveyLevel);
 
-        let marker = L.circleMarker([lat, lng], {
-            radius: 6,
-            fillColor: color,
-            color: '#333',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-        });
-
-        marker.bindTooltip(`${poolId} - ${town}<br>${status}`, tooltipOptions);
+        // Brief tooltip on hover, detailed popup on click
+        marker.bindTooltip(poolTooltipText(row), tooltipOptions);
+        marker.bindPopup(poolPopupHtml(row), { maxWidth: 280 });
 
         if (onPoolClick) {
             marker.on('click', function() { onPoolClick(row); });
@@ -244,7 +136,7 @@ export function plotPoolRows(rows, onPoolClick=null) {
     poolLayer = group.addTo(map);
 }
 
-// Legacy GeoJSON loader (kept for cases like initial large load or export)
+// Legacy GeoJSON loader
 export async function loadPoolMarkers(searchTerm=false, onPoolClick=null) {
     try {
         let data = await fetchMappedPoolGeoJson(searchTerm);
@@ -256,12 +148,8 @@ export async function loadPoolMarkers(searchTerm=false, onPoolClick=null) {
                     let props = feature.properties;
                     let color = getPoolColor(props.poolStatus || props.mappedPoolStatus);
                     return L.circleMarker(latlng, {
-                        radius: 6,
-                        fillColor: color,
-                        color: '#333',
-                        weight: 1,
-                        opacity: 1,
-                        fillOpacity: 0.8
+                        radius: 6, fillColor: color, color: '#333',
+                        weight: 1, opacity: 1, fillOpacity: 0.8
                     });
                 },
                 onEachFeature: function(feature, layer) {
@@ -270,11 +158,7 @@ export async function loadPoolMarkers(searchTerm=false, onPoolClick=null) {
                     let status = props.poolStatus || props.mappedPoolStatus || '';
                     let town = props.townName || props.mappedTownName || '';
                     layer.bindTooltip(`${poolId} - ${town}<br>${status}`, tooltipOptions);
-
-                    if (onPoolClick) {
-                        layer.on('click', function() { onPoolClick(props); });
-                    }
-
+                    if (onPoolClick) layer.on('click', function() { onPoolClick(props); });
                     markers[poolId] = layer;
                 }
             }).addTo(map);
@@ -287,22 +171,35 @@ export async function loadPoolMarkers(searchTerm=false, onPoolClick=null) {
 }
 
 export function clearPoolMarkers() {
-    if (poolLayer) {
-        map.removeLayer(poolLayer);
-        poolLayer = null;
-    }
+    if (poolLayer) { map.removeLayer(poolLayer); poolLayer = null; }
     markers = {};
 }
 
-function getPoolColor(status) {
-    switch(status) {
-        case 'Confirmed': return '#27ae60';
-        case 'Probable': return '#2ecc71';
-        case 'Potential': return '#f39c12';
-        case 'Duplicate': return '#95a5a6';
-        case 'Eliminated': return '#e74c3c';
-        default: return '#3498db';
-    }
+// Icon size scales with zoom level
+function getIconSize() {
+    if (!map) return 14;
+    let z = map.getZoom();
+    if (z >= 17) return 28;
+    if (z >= 15) return 22;
+    if (z >= 13) return 18;
+    if (z >= 11) return 14;
+    return 10;
+}
+
+function createShapeMarker(latlng, fillColor, surveyLevel) {
+    let size = getIconSize();
+    let icon = buildShapeIcon(fillColor, surveyLevel, size);
+    let marker = L.marker(latlng, { icon: icon });
+    marker._vpColor = fillColor;
+    marker._vpLevel = surveyLevel;
+    return marker;
+}
+
+function onZoomResizeMarkers() {
+    let size = getIconSize();
+    Object.values(markers).forEach(m => {
+        if (m._vpColor) m.setIcon(buildShapeIcon(m._vpColor, m._vpLevel, size));
+    });
 }
 
 // =============================================================================
@@ -318,6 +215,13 @@ export function zoomToPool(poolId) {
 
 export function zoomToState() {
     if (map) map.setView(stateCenter, stateZoom);
+}
+
+export function zoomToFilteredPools() {
+    if (poolLayer && map) {
+        let bounds = poolLayer.getBounds();
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
+    }
 }
 
 export function fitBounds(bounds) {

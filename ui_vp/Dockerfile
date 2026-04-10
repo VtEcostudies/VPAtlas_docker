@@ -12,6 +12,9 @@ RUN chown -R ui:ui /opt/ui
 USER ui
 RUN npm install
 
+# Build service worker with version injection (explore app)
+RUN node uiVPAtlas/explore/sw-build.js patch
+
 EXPOSE 8090
 
 # Default env values (docker-compose overrides these)

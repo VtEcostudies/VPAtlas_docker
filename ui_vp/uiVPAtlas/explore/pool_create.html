@@ -179,6 +179,15 @@
                 try {
                     let data = await fetchMappedPoolById(poolId);
                     let pool = data.rows ? data.rows[0] : data;
+                    if (pool) {
+                        let town = pool.townName || pool.mappedTownName || '';
+                        let county = pool.countyName || pool.mappedCountyName || '';
+                        let loc = town ? `${town}${county ? ' (' + county + ')' : ''}` : '';
+                        let editTitle = `Edit Pool ${poolId}`;
+                        if (loc) editTitle += ` in ${loc}`;
+                        document.getElementById('page_title').textContent = editTitle;
+                        document.title = `VPAtlas - ${editTitle}`;
+                    }
                     populateForm(pool);
                 } catch(err) {
                     showMsg('Error loading pool: ' + err.message, 'error');

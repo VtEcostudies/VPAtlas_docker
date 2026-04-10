@@ -1,3 +1,9 @@
+/* Pool shape markers — strip Leaflet's default divIcon white-box */
+.pool-shape-icon {
+    background: none !important;
+    border: none !important;
+}
+
 /* VPAtlas Color Scheme - Conservation/Ecology theme */
 :root {
     --primary-color: #2c5530;
@@ -33,6 +39,16 @@ html, body {
     margin: 0;
     padding: 0;
     font-family: Georgia, open-sans, sans-serif;
+    overflow-x: hidden;
+}
+/* Prevent Bootstrap .row negative margins from causing horizontal overflow */
+.row {
+    margin-left: 0;
+    margin-right: 0;
+}
+.row > * {
+    padding-left: 6px;
+    padding-right: 6px;
 }
 h1, h2, h3, h4, h5, h6 {
     color: var(--primary-color);
@@ -83,7 +99,8 @@ select {
     margin-bottom: 5px;
 }
 .content-row {
-    padding: 2px;
+    padding: 2px 8px;
+    margin: 0;
 }
 
 /* Tri-pane layout */
@@ -97,7 +114,7 @@ select {
 .tri-pane-left {
     border: var(--primary-color) 1px solid;
     border-radius: var(--border-radius);
-    padding-left: 10px;
+    padding: 5px 10px;
 }
 .tri-pane-center {
     padding: 0 5px;
@@ -105,18 +122,65 @@ select {
 .tri-pane-right {
     border: var(--primary-color) 1px solid;
     border-radius: var(--border-radius);
-    padding-right: 10px;
+    padding: 5px 10px;
 }
 @media (max-width: 767px) {
     .tri-pane {
         height: 400px;
     }
+    .tri-pane-left {
+        border-right: var(--primary-color) 1px solid;
+    }
+    .tri-pane-right {
+        border-left: var(--primary-color) 1px solid;
+    }
 }
 
 /* Header */
+header {
+    padding: 4px 8px;
+}
+
+/* Detail page header: back button + title + action buttons on one row */
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    flex-wrap: nowrap;
+}
+.detail-title {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 16px;
+}
+.detail-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+}
+.detail-actions .action-button {
+    font-size: 14px;
+    padding: 4px 10px;
+    white-space: nowrap;
+}
 div.controls {
     color: var(--primary-color);
     background-color: white;
+    align-items: center;
+}
+@media (max-width: 500px) {
+    div.controls > div {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: none !important;
+    }
+    div.controls {
+        gap: 4px;
+    }
 }
 .header-title {
     height: 100%;
@@ -138,9 +202,12 @@ div.controls {
 .header-title-logo img {
     max-height: 50px;
 }
+hr {
+    margin: 0;
+}
 .divider-header {
     width: 100%;
-    margin-bottom: 5px;
+    margin: 0 0 2px 0;
 }
 
 /* Filter bar */
@@ -156,7 +223,7 @@ div.controls {
     font-style: italic;
     font-weight: bold;
     text-decoration: underline;
-    padding: 2px 10px;
+    padding: 2px 8px;
     min-height: 1.2em;
 }
 
@@ -275,6 +342,12 @@ select:invalid {
 
 .light-foreground {
     color: var(--primary-color);
+}
+.app-version {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 4px;
+    vertical-align: middle;
 }
 
 /* Search input with clear button */

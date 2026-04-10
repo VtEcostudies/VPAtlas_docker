@@ -143,7 +143,7 @@ async function getAll(params={}) {
     "townId",
     "townName",
     "countyName",
-    surveyuser.username AS "surveyUserName",
+    COALESCE(surveyuser.handle, surveyuser.username) AS "surveyUserName",
     surveyuser.id AS "surveyUserId"
     --list all vpSurvey columns except email
     ,"surveyId"
@@ -236,7 +236,7 @@ function getById(surveyId) {
   "townId",
   "townName",
   "countyName",
-  surveyuser.username AS "surveyUserLogin",
+  COALESCE(surveyuser.handle, surveyuser.username) AS "surveyUserLogin",
   --CONCAT(surveyuser.firstname, ' ', surveyuser.lastname) AS "surveyUserFullName",
   --surveyuser.id AS "surveyUserId",
   vpSurvey.*,
@@ -308,9 +308,9 @@ function getByPoolId(poolId) {
   "townId",
   "townName",
   "countyName",
-  surveyuser.username AS "surveyUserName",
+  COALESCE(surveyuser.handle, surveyuser.username) AS "surveyUserName",
   surveyuser.id AS "surveyUserId",
-  --surveyuser.email AS "surveyUserEmail",
+  (SELECT "surveyTypeName" FROM def_survey_type WHERE def_survey_type."surveyTypeId"=vpsurvey."surveyTypeId") AS "surveyTypeName",
   vpSurvey.*,
   vpSurvey."updatedAt" AS "surveyUpdatedAt",
   vpSurvey."createdAt" AS "surveyCreatedAt",

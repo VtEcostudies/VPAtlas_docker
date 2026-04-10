@@ -112,6 +112,34 @@ export function initFilterBar(filterCallback) {
         });
     });
 
+    // Listen for map boundary clicks to toggle filters
+    document.addEventListener('map:town-click', (e) => {
+        let name = e.detail.name;
+        if (!name) return;
+        // Toggle: if already filtered, remove; otherwise add
+        if (filters.townNames.includes(name)) {
+            filters.townNames = filters.townNames.filter(n => n !== name);
+        } else {
+            filters.townNames.push(name);
+        }
+        putUserState(1, { townNames: filters.townNames });
+        renderTokens();
+        applyFilters();
+    });
+
+    document.addEventListener('map:county-click', (e) => {
+        let name = e.detail.name;
+        if (!name) return;
+        if (filters.countyNames.includes(name)) {
+            filters.countyNames = filters.countyNames.filter(n => n !== name);
+        } else {
+            filters.countyNames.push(name);
+        }
+        putUserState(1, { countyNames: filters.countyNames });
+        renderTokens();
+        applyFilters();
+    });
+
     // Render initial tokens from loaded filters
     if (filters.poolIdSearch) document.getElementById('filter_pool_id').value = filters.poolIdSearch;
     renderTokens();
@@ -379,12 +407,10 @@ function renderTokens() {
     filters.countyNames.forEach(name => {
         tokens.push({ key: 'countyName', value: name, label: 'County' });
     });
-    // Only show status tokens if not the default set
-    let isDefault = filters.poolStatuses.length === DEFAULT_STATUSES.length &&
-        DEFAULT_STATUSES.every(s => filters.poolStatuses.includes(s));
-    if (!isDefault) {
-        tokens.push({ key: 'poolStatuses', label: 'Status', value: filters.poolStatuses.join(', ') });
-    }
+    // Each status as its own removable chip
+    filters.poolStatuses.forEach(status => {
+        tokens.push({ key: 'poolStatus', value: status, label: 'Status' });
+    });
 
     if (!tokens.length) {
         container.innerHTML = '';
@@ -394,6 +420,7 @@ function renderTokens() {
     let html = tokens.map(t => {
         let removeData = t.key === 'townName' ? `data-remove-town="${t.value}"`
             : t.key === 'countyName' ? `data-remove-county="${t.value}"`
+            : t.key === 'poolStatus' ? `data-remove-status="${t.value}"`
             : `data-remove-key="${t.key}"`;
         return `<span class="filter-token">
             ${t.label}: <strong>${t.value}</strong>
@@ -423,10 +450,10 @@ function renderTokens() {
                 document.getElementById('filter_pool_id').value = '';
                 document.getElementById('filter_pool_id_clear').style.display = 'none';
                 putUserState(1, { poolIdSearch: '' });
-            } else if (btn.dataset.removeKey === 'poolStatuses') {
-                filters.poolStatuses = [...DEFAULT_STATUSES];
+            } else if (btn.dataset.removeStatus) {
+                filters.poolStatuses = filters.poolStatuses.filter(s => s !== btn.dataset.removeStatus);
                 document.querySelectorAll('input[name="pool_status"]').forEach(cb => {
-                    cb.checked = DEFAULT_STATUSES.includes(cb.value);
+                    cb.checked = filters.poolStatuses.includes(cb.value);
                 });
                 putUserState(1, { poolStatuses: filters.poolStatuses });
             }

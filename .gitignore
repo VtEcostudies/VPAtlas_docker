@@ -1,2 +1,6 @@
 db_data_vt/
 db_backup/
+
+# Generated service worker (built from sw_template.js by sw-build.js)
+ui_vp/uiVPAtlas/explore/sw.js
+ui_vp/uiVPAtlas/survey/sw.js

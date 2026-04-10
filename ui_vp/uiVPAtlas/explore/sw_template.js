@@ -1,18 +1,12 @@
 // sw.js - Service Worker for VPAtlas explore app
-// Adapted from LoonWeb sw_template.js
-//
-// =============================================================================
-// VERSION (injected during build)
-// =============================================================================
+// Generated from sw_template.js by sw-build.js — do not edit directly
 const APP_VERSION = '__APP_VERSION__';
 const BUILD_TIMESTAMP = '__BUILD_TIMESTAMP__';
 const ME = 'sw.js';
 
 const SW_BASE = self.location.pathname.replace(/\/[^\/]*$/, '');
 
-// =============================================================================
-// BROADCAST CHANNEL
-// =============================================================================
+// Broadcast Channel
 let channel = null;
 let channelReady = false;
 let pendingMessages = [];
@@ -34,12 +28,12 @@ function sendMessage(message) {
   const ch = getChannel();
   if (ch && channelReady) {
     try { ch.postMessage(message); } catch (e) { pendingMessages.push(message); }
-  } else { pendingMessages.push(message); }
+  } else {
+    pendingMessages.push(message);
+  }
 }
 
-// =============================================================================
-// LOAD CONFIG AND URLS
-// =============================================================================
+// Load config and URLs
 let swConfig = null;
 let configLoadError = null;
 
@@ -62,9 +56,7 @@ const TILE_FETCH_TIMEOUT = swConfig?.tileFetchTimeout ?? 10000;
 
 const URLS_TO_CACHE = swConfig?.urlsToCache || [];
 
-// =============================================================================
-// CACHE NAMES
-// =============================================================================
+// Cache names
 const APP_CACHE_NAME = 'vpAtlas-app';
 const DATA_CACHE_NAME = 'vpAtlas-data';
 const TILE_CACHE_NAME = 'vpAtlas-map';
@@ -73,36 +65,38 @@ const APP_CACHE = `${APP_CACHE_NAME}-${APP_VERSION}`;
 const DATA_CACHE = `${DATA_CACHE_NAME}-${APP_VERSION}`;
 const TILE_CACHE = `${TILE_CACHE_NAME}-${APP_VERSION}`;
 
-// =============================================================================
-// DATA API PATTERNS
-// =============================================================================
+// Data patterns to cache (lookup/reference data)
 const DATA_CACHE_PATTERNS = [
   /\/vtinfo\//,
-  /\/pools\/mapped\/geojson/,
   /\/pools\/mapped\/stats/,
-  /\/survey\/types/,
 ];
 
+// Data patterns to never cache (dynamic/user data)
 const DATA_NO_CACHE_PATTERNS = [
-  /\/users/,
-  /\/aws\/s3/,
+  /\/users\//,
+  /\/pools\/visit$/,
+  /\/review$/,
 ];
 
+// Tile patterns
 const TILE_PATTERNS = [
   /^https:\/\/[abc]\.tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png/,
-  /^https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/World_Imagery\/MapServer\/tile\/\d+\/\d+\/\d+/,
+  /^https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/.*\/MapServer\/tile\/\d+\/\d+\/\d+/,
   /^https:\/\/.*\.tile\.opentopomap\.org\/\d+\/\d+\/\d+\.png/,
+  /^https:\/\/maps\.vcgi\.vermont\.gov\//,
 ];
 
 // =============================================================================
-// LIFECYCLE EVENTS
+// LIFECYCLE
 // =============================================================================
 self.addEventListener('install', (event) => {
-  sendMessage({ type: 'info', text: `${ME} v${APP_VERSION}: install` });
+  sendMessage({ type: 'info', text: `${ME} v${APP_VERSION}: install (${SW_BASE})` });
   event.waitUntil((async () => {
-    if (configLoadError) throw configLoadError;
+    if (configLoadError) {
+      sendMessage({ type: 'error', text: `${ME} v${APP_VERSION}: install ABORTED`, data: configLoadError.message });
+      throw configLoadError;
+    }
     if (USE_APP_CACHE) await precacheApp();
-    if (USE_DATA_CACHE) await precacheData();
     sendMessage({ type: 'info', text: `${ME} v${APP_VERSION}: install complete` });
   })());
 });
@@ -123,8 +117,16 @@ self.addEventListener('message', (event) => {
   const msg = event.data;
   if (!msg?.type) return;
   switch (msg.type) {
-    case 'SKIP_WAITING': isUpdate = true; self.skipWaiting(); break;
-    case 'CLEAR_CACHE': event.waitUntil(clearCache(msg.cacheType)); break;
+    case 'SKIP_WAITING':
+      isUpdate = true;
+      self.skipWaiting();
+      break;
+    case 'CLEAR_CACHE':
+      event.waitUntil(clearCache(msg.cacheType));
+      break;
+    case 'GET_CACHE_STATUS':
+      event.waitUntil(getCacheStatus().then(status => event.ports[0].postMessage(status)));
+      break;
   }
 });
 
@@ -133,6 +135,7 @@ self.addEventListener('message', (event) => {
 // =============================================================================
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
   if (isNoCacheRequest(url)) {
     event.respondWith(fetchNetwork(event.request, DATA_FETCH_TIMEOUT));
   } else if (USE_DATA_CACHE && isDataRequest(url)) {
@@ -150,15 +153,23 @@ self.addEventListener('fetch', (event) => {
 
 function isNoCacheRequest(url) {
   if (!swConfig) return false;
-  if (url.href.includes(swConfig.api.fqdn)) return DATA_NO_CACHE_PATTERNS.some(p => p.test(url.pathname));
+  if (url.href.includes(swConfig.api.fqdn)) {
+    return DATA_NO_CACHE_PATTERNS.some(p => p.test(url.pathname));
+  }
   return false;
 }
+
 function isDataRequest(url) {
   if (!swConfig) return false;
-  if (url.href.includes(swConfig.api.fqdn)) return DATA_CACHE_PATTERNS.some(p => p.test(url.pathname));
+  if (url.href.includes(swConfig.api.fqdn)) {
+    return DATA_CACHE_PATTERNS.some(p => p.test(url.pathname));
+  }
   return false;
 }
-function isTileRequest(url) { return TILE_PATTERNS.some(p => p.test(url.href)); }
+
+function isTileRequest(url) {
+  return TILE_PATTERNS.some(p => p.test(url.href));
+}
 
 // =============================================================================
 // FETCH UTILITIES
@@ -182,8 +193,10 @@ async function timeoutFetch(request, timeout = APP_FETCH_TIMEOUT) {
 }
 
 function errorResponse(url, status = 'Unavailable') {
-  return new Response(JSON.stringify({ error: `${url} ${status}` }),
-    { status: 503, statusText: status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(
+    JSON.stringify({ error: `${url} ${status}` }),
+    { status: 503, statusText: status, headers: { 'Content-Type': 'application/json' } }
+  );
 }
 
 // =============================================================================
@@ -266,25 +279,6 @@ async function precacheApp(urls = URLS_TO_CACHE) {
   sendMessage({ type: 'done', text: 'App Cache Complete' });
 }
 
-const DATA_PRECACHE_URLS = swConfig ? [
-  `${swConfig.api.fqdn}/vtinfo/towns`,
-  `${swConfig.api.fqdn}/vtinfo/counties`,
-  `${swConfig.api.fqdn}/pools/mapped/geojson`,
-] : [];
-
-async function precacheData(urls = DATA_PRECACHE_URLS) {
-  if (!USE_DATA_CACHE || urls.length === 0) return;
-  sendMessage({ type: 'wait', text: 'Loading Data Cache...' });
-  const cache = await caches.open(DATA_CACHE);
-  await Promise.all(urls.map(async (url) => {
-    try {
-      const response = await timeoutFetch(url, DATA_FETCH_TIMEOUT);
-      if (response.ok) await cache.put(url, response);
-    } catch (error) {}
-  }));
-  sendMessage({ type: 'done', text: 'Data Cache Complete' });
-}
-
 // =============================================================================
 // CACHE MANAGEMENT
 // =============================================================================
@@ -292,7 +286,9 @@ async function cleanupOldCaches() {
   const cacheNames = await caches.keys();
   const validCaches = [APP_CACHE, DATA_CACHE, TILE_CACHE];
   await Promise.all(cacheNames.map(name => {
-    if (name.includes('vpAtlas') && !validCaches.includes(name)) return caches.delete(name);
+    if (name.includes('vpAtlas') && !validCaches.includes(name)) {
+      return caches.delete(name);
+    }
   }));
 }
 
@@ -307,4 +303,15 @@ async function clearCache(cacheType) {
       await caches.delete(TILE_CACHE);
       break;
   }
+}
+
+async function getCacheStatus() {
+  const cacheNames = await caches.keys();
+  const status = {};
+  for (const name of cacheNames) {
+    const cache = await caches.open(name);
+    const keys = await cache.keys();
+    status[name] = { count: keys.length };
+  }
+  return status;
 }

@@ -76,7 +76,8 @@ async function authenticate(body) {
         if (user && bcrypt.compareSync(body.password, user.hash)) {
             if (user.status=='confirmed' || body.token) { //confirmed, registration token and new_email token
               delete user.hash; //never return hash via API
-              token = jwt.sign({ sub: user.id, role: user.userrole }, config.secret, { expiresIn: config.token.loginExpiry });
+              var signOpts = config.token.ignoreExpiry ? {} : { expiresIn: config.token.loginExpiry };
+              token = jwt.sign({ sub: user.id, role: user.userrole }, config.secret, signOpts);
               if (body.token) {
                 console.log(update, args);
                 var update = `update vpuser set token=null,status='confirmed' where username=$1 and token=$2 returning *;`;

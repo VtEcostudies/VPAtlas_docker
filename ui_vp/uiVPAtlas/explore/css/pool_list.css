@@ -41,11 +41,11 @@
     font-size: 11px;
     font-weight: 600;
 }
-.status-confirmed { background: #d4edda; color: #155724; }
-.status-probable { background: #d4edda; color: #1b5e20; }
-.status-potential { background: #fff3cd; color: #856404; }
-.status-duplicate { background: #e2e3e5; color: #383d41; }
-.status-eliminated { background: #f8d7da; color: #721c24; }
+.status-confirmed { background: #00008B; color: #fff; }
+.status-probable { background: #00BFFF; color: #000; }
+.status-potential { background: #DAA520; color: #000; }
+.status-duplicate { background: #95a5a6; color: #fff; }
+.status-eliminated { background: #e74c3c; color: #fff; }
 
 /* Pool summary card */
 .pool-summary-card {

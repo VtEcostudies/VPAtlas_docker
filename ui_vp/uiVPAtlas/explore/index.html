@@ -23,6 +23,7 @@
                 <a id="logo_link" href="/explore/">
                     <h3 class="header-name light-foreground">VPAtlas</h3>
                 </a>
+                <span id="app_version" class="app-version"></span>
             </div>
 
             <!-- Filter Container (injected by filter_bar.js) -->
@@ -86,26 +87,36 @@
     <!-- Main app entry point -->
     <script type="module">
         import { initPoolList, loadPools } from './js/pool_list.js';
-        import { initMap, plotPoolRows, zoomToPool, zoomToState } from './js/map.js';
+        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
-        import { loadFromUrl, setPopState, filters, buildSearchTerm } from './js/url_state.js';
+        import { loadFromUrl, loadFromStorage, setPopState, filters, buildSearchTerm } from './js/url_state.js';
         import { getUser, logout } from './js/auth.js';
         import { showModal } from './js/modal.js';
+
+        // Load version from manifest
+        fetch('/explore/manifest.json').then(r => r.json()).then(m => {
+            let el = document.getElementById('app_version');
+            if (el && m.version) el.textContent = 'v' + m.version;
+        }).catch(() => {});
 
         // Initialize on DOM ready
         window.initApp = async function() {
             console.log('VPAtlas explore: initApp()');
 
-            // Load filters from URL
-            loadFromUrl();
+            // Load filters: URL params take priority; if none, restore from IndexedDB
+            let urlFilters = loadFromUrl();
+            let hasUrlParams = window.location.search.length > 1;
+            if (!hasUrlParams) {
+                await loadFromStorage();
+            }
 
             // Initialize components
             let user = await getUser();
-            let username = user ? (user.username || user.email) : null;
-            initPoolList('list_table', 'list_table_title', onPoolSelect, username);
+            let username = user ? (user.handle || user.username || user.email) : null;
+            initPoolList('list_table', 'list_table_title', onPoolSelect, username, zoomToFilteredPools);
             initSummary('pool_summary', 'summary_title');
-            initMap();
+            await initMap();
             initFilterBar(onFilterChange);
 
             // Setup profile icon
@@ -116,6 +127,7 @@
             let poolRows = await loadPools();
             plotPoolRows(poolRows, onMapPoolClick);
             showScopeSummary(poolRows);
+            zoomToFilteredPools();
 
             // Handle browser back/forward
             setPopState(onFilterChange);
@@ -144,6 +156,7 @@
             let poolRows = await loadPools();
             plotPoolRows(poolRows, onMapPoolClick);
             showScopeSummary(poolRows);
+            zoomToFilteredPools();
         }
 
         // Profile icon
@@ -153,8 +166,8 @@
 
             let icon = document.createElement('div');
             icon.className = 'profile-icon' + (user ? ' signed-in' : '');
-            icon.textContent = user ? (user.username || user.firstName || 'U')[0].toUpperCase() : '';
-            icon.title = user ? `Signed in as ${user.username || user.email}` : 'Sign in';
+            icon.textContent = user ? (user.handle || user.username || user.firstName || 'U')[0].toUpperCase() : '';
+            icon.title = user ? `Signed in as ${user.handle || user.username}` : 'Sign in';
 
             icon.addEventListener('click', async () => {
                 if (user) {

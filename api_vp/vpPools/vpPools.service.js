@@ -125,7 +125,7 @@ vpvisit."updatedAt" AS "visitUpdatedAt",
 "reviewPoolStatus",
 vpreview."updatedAt" AS "reviewUpdatedAt",
 "surveyId",
-surveyuser.username AS "surveyUserName",
+COALESCE(surveyuser.handle, surveyuser.username) AS "surveyUserName",
 --surveyamphibuser.username AS "surveyAmphibObsUser", --remove this, it adds too many rows to results
 vpsurvey."updatedAt" AS "surveyUpdatedAt",
 (ARRAY(SELECT "visitId" FROM vpvisit WHERE "visitPoolId"="mappedPoolId")) AS visits,

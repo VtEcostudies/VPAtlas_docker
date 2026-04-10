@@ -186,8 +186,9 @@ export async function showPoolSummary(poolId) {
 
         html += `<div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap;">
             <a href="pool_view.html?poolId=${poolId}" class="summary-link">Full Detail</a>
-            <a href="visit_create.html?poolId=${poolId}" class="summary-link">Add Visit</a>
-            <a href="pool_create.html?poolId=${poolId}" class="summary-link">Edit Pool</a>
+            <a href="visit_create.html?poolId=${poolId}" class="summary-link">Atlas Visit</a>
+            <a href="/explore/survey_create.html?poolId=${poolId}" class="summary-link">Monitor Survey</a>
+            <a href="/survey/survey_start.html?poolId=${poolId}" class="summary-link">Find Pool</a>
         </div>`;
         html += `</div>`;
 

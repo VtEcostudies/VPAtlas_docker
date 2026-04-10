@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VPAtlas - Monitoring Survey</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="/css/map.css">
+    <style>
+        /* Mobile-first monitoring survey form — matches visit_create.html pattern */
+        html, body { height: 100%; overflow: hidden; }
+
+        .survey-app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .survey-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            flex-shrink: 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .survey-header h3 {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 15px;
+            margin: 0;
+        }
+
+        /* Message bar */
+        .survey-message {
+            padding: 4px 10px;
+            font-size: 14px;
+            flex-shrink: 0;
+            display: none;
+        }
+        .survey-message.show { display: block; }
+        .survey-message.info { background: #d1ecf1; color: #0c5460; }
+        .survey-message.success { background: #d4edda; color: #155724; }
+        .survey-message.error { background: #f8d7da; color: #721c24; }
+
+        /* Tab content area */
+        .survey-content {
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            position: relative;
+        }
+        .survey-tab {
+            display: none;
+            height: 100%;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .survey-tab.active { display: block; }
+        .survey-tab-map { padding: 0; }
+        .survey-tab-map #map { height: 100%; width: 100%; }
+
+        /* Bottom tab bar */
+        .survey-tabs {
+            display: flex;
+            flex-shrink: 0;
+            border-top: 1px solid #ddd;
+            background: white;
+        }
+        .survey-tab-btn {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 2px;
+            border: none;
+            background: white;
+            color: var(--text-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 0;
+        }
+        .survey-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+        .survey-tab-btn.active {
+            color: var(--primary-color);
+            border-top: 2px solid var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* Form styling — identical to visit_create.html */
+        .form-section {
+            margin-bottom: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .form-section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+        .form-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .form-field {
+            flex: 1;
+            min-width: 120px;
+        }
+        .form-field label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 2px;
+            color: var(--text-secondary);
+        }
+        .form-field input, .form-field textarea, .form-field select {
+            width: 100%;
+            font-size: 16px;
+            padding: 8px;
+            border: 1px solid var(--primary-color);
+            border-radius: 6px;
+            font-weight: normal;
+        }
+        .form-field textarea { resize: vertical; min-height: 60px; }
+
+        /* Radio/checkbox groups - touch friendly */
+        .choice-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 4px 0 8px;
+        }
+        .choice-group label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: normal;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .choice-group label:has(input:checked) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .choice-group input[type="radio"],
+        .choice-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+            accent-color: var(--primary-color);
+        }
+
+        /* Species cards */
+        .species-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+        .species-card-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--primary-color);
+            margin-bottom: 6px;
+        }
+        .species-counts {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .species-counts .form-field { min-width: 80px; flex: 1; }
+        .species-counts .form-field input { padding: 6px; font-size: 16px; }
+
+        /* Observer section headers */
+        .observer-header {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin: 8px 0 4px;
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* Directional macro grid */
+        .macro-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .macro-dir-card {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 6px 8px;
+        }
+        .macro-dir-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 4px;
+        }
+
+        /* Photo section */
+        .photo-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 6px 0;
+        }
+        .photo-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: 2px dashed var(--primary-color);
+            border-radius: 8px;
+            background: var(--primary-light);
+            color: var(--primary-color);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .photo-btn input[type="file"] { display: none; }
+        .photo-thumbs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .photo-thumb {
+            width: 60px;
+            height: 60px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+        }
+
+        @media (max-width: 500px) {
+            .survey-tab-btn { font-size: 10px; padding: 4px 1px; }
+            .survey-tab-btn i { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="survey-app">
+        <!-- Header -->
+        <div class="survey-header">
+            <button class="exit-button" onclick="history.back()">&times;</button>
+            <h3 class="header-name light-foreground" id="page_title">Monitoring Survey</h3>
+            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+        </div>
+
+        <!-- Message -->
+        <div id="message" class="survey-message"></div>
+
+        <!-- Content tabs -->
+        <div class="survey-content">
+
+            <!-- INFO TAB: Pool & Observer Information + Equipment -->
+            <div class="survey-tab active" id="tab_info">
+                <div class="form-section">
+                    <div class="form-section-title">Pool &amp; Observer Info</div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="surveyPoolId">Pool ID</label><input type="text" id="surveyPoolId" required></div>
+                        <div class="form-field"><label for="combinedTimeDate">Survey Date</label><input type="date" id="combinedTimeDate" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="surveyTime">Survey Time</label><input type="time" id="surveyTime"></div>
+                        <div class="form-field">
+                            <label for="surveyTypeId">Field Visit</label>
+                            <select id="surveyTypeId">
+                                <option value="">-- select --</option>
+                                <option value="1">Visit 1</option>
+                                <option value="2">Visit 2</option>
+                                <option value="3">Visit 3</option>
+                                <option value="4">Visit 4</option>
+                                <option value="5">Supplemental/Extra</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="obs1_surveyAmphibObsEmail">Observer 1 Email</label><input type="email" id="obs1_surveyAmphibObsEmail" required></div>
+                        <div class="form-field"><label for="obs2_surveyAmphibObsEmail">Observer 2 Email</label><input type="email" id="obs2_surveyAmphibObsEmail"></div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Equipment</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Acoustic Monitor</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyAcousticMonitor" value="Deployed"> Deployed</label>
+                        <label><input type="radio" name="surveyAcousticMonitor" value="Already deployed"> Already deployed</label>
+                        <label><input type="radio" name="surveyAcousticMonitor" value="Collected"> Collected</label>
+                        <label><input type="radio" name="surveyAcousticMonitor" value="None"> None</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">HOBO Logger</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyHoboLogger" value="Set on this visit"> Set up</label>
+                        <label><input type="radio" name="surveyHoboLogger" value="Already in pool"> Already in pool</label>
+                        <label><input type="radio" name="surveyHoboLogger" value="Reconfigured"> Reconfigured</label>
+                        <label><input type="radio" name="surveyHoboLogger" value="Removed"> Removed</label>
+                        <label><input type="radio" name="surveyHoboLogger" value="None"> None</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">HOBO Data</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyHoboData" value="Downloaded"> Downloaded</label>
+                        <label><input type="radio" name="surveyHoboData" value="Not downloaded"> Not downloaded</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PHYSICAL TAB: Physical Parameters + Vegetation -->
+            <div class="survey-tab" id="tab_physical">
+                <div class="form-section">
+                    <div class="form-section-title">Physical Parameters</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">% Ice Cover</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyIceCover" value="0"> 0%</label>
+                        <label><input type="radio" name="surveyIceCover" value="1"> 1-10%</label>
+                        <label><input type="radio" name="surveyIceCover" value="2"> 11-25%</label>
+                        <label><input type="radio" name="surveyIceCover" value="3"> 26-50%</label>
+                        <label><input type="radio" name="surveyIceCover" value="4"> 51-75%</label>
+                        <label><input type="radio" name="surveyIceCover" value="5"> 76-95%</label>
+                        <label><input type="radio" name="surveyIceCover" value="6"> >95%</label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="surveyWaterLevel">Water Level (cm)</label><input type="text" id="surveyWaterLevel" inputmode="decimal"></div>
+                    </div>
+                    <div class="form-field"><label for="surveyPhysicalParametersNotes">Physical Parameter Notes</label><textarea id="surveyPhysicalParametersNotes" rows="2"></textarea></div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Vegetation in Pool</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Submerged Aquatic (%)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveySubmergedVeg" value="0"> 0%</label>
+                        <label><input type="radio" name="surveySubmergedVeg" value="1"> 1-10%</label>
+                        <label><input type="radio" name="surveySubmergedVeg" value="2"> 11-25%</label>
+                        <label><input type="radio" name="surveySubmergedVeg" value="3"> 26-50%</label>
+                        <label><input type="radio" name="surveySubmergedVeg" value="4"> 51-75%</label>
+                        <label><input type="radio" name="surveySubmergedVeg" value="5"> >=76%</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Floating Aquatic (%)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyFloatingVeg" value="0"> 0%</label>
+                        <label><input type="radio" name="surveyFloatingVeg" value="1"> 1-10%</label>
+                        <label><input type="radio" name="surveyFloatingVeg" value="2"> 11-25%</label>
+                        <label><input type="radio" name="surveyFloatingVeg" value="3"> 26-50%</label>
+                        <label><input type="radio" name="surveyFloatingVeg" value="4"> 51-75%</label>
+                        <label><input type="radio" name="surveyFloatingVeg" value="5"> >=76%</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Emergents (%)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyEmergentVeg" value="0"> 0%</label>
+                        <label><input type="radio" name="surveyEmergentVeg" value="1"> 1-10%</label>
+                        <label><input type="radio" name="surveyEmergentVeg" value="2"> 11-25%</label>
+                        <label><input type="radio" name="surveyEmergentVeg" value="3"> 26-50%</label>
+                        <label><input type="radio" name="surveyEmergentVeg" value="4"> 51-75%</label>
+                        <label><input type="radio" name="surveyEmergentVeg" value="5"> >=76%</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Shrubs (%)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyShrubs" value="0"> 0%</label>
+                        <label><input type="radio" name="surveyShrubs" value="1"> 1-10%</label>
+                        <label><input type="radio" name="surveyShrubs" value="2"> 11-25%</label>
+                        <label><input type="radio" name="surveyShrubs" value="3"> 26-50%</label>
+                        <label><input type="radio" name="surveyShrubs" value="4"> 51-75%</label>
+                        <label><input type="radio" name="surveyShrubs" value="5"> >=76%</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Trees (%)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyTrees" value="0"> 0%</label>
+                        <label><input type="radio" name="surveyTrees" value="1"> 1-10%</label>
+                        <label><input type="radio" name="surveyTrees" value="2"> 11-25%</label>
+                        <label><input type="radio" name="surveyTrees" value="3"> 26-50%</label>
+                        <label><input type="radio" name="surveyTrees" value="4"> 51-75%</label>
+                        <label><input type="radio" name="surveyTrees" value="5"> >=76%</label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Weather</div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="surveyAirTempF">Air Temp (&deg;F)</label><input type="text" id="surveyAirTempF" inputmode="decimal"></div>
+                        <div class="form-field"><label for="surveyHumidity">Relative Humidity</label><input type="text" id="surveyHumidity" inputmode="decimal"></div>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Wind (Beaufort Force)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyWindBeaufort" value="0"> 0 Calm</label>
+                        <label><input type="radio" name="surveyWindBeaufort" value="1"> 1 Light air</label>
+                        <label><input type="radio" name="surveyWindBeaufort" value="2"> 2 Light breeze</label>
+                        <label><input type="radio" name="surveyWindBeaufort" value="3"> 3 Gentle</label>
+                        <label><input type="radio" name="surveyWindBeaufort" value="4"> 4 Moderate</label>
+                        <label><input type="radio" name="surveyWindBeaufort" value="5"> 5 Fresh</label>
+                        <label><input type="radio" name="surveyWindBeaufort" value="6"> 6 Strong</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Conditions</label>
+                    <div class="choice-group">
+                        <label><input type="checkbox" name="surveyWeatherConditions" value="sunny"> Sunny</label>
+                        <label><input type="checkbox" name="surveyWeatherConditions" value="partlyccloudy"> Partly Cloudy</label>
+                        <label><input type="checkbox" name="surveyWeatherConditions" value="overcast"> Overcast</label>
+                        <label><input type="checkbox" name="surveyWeatherConditions" value="rain"> Rain</label>
+                        <label><input type="checkbox" name="surveyWeatherConditions" value="snow"> Snow</label>
+                        <label><input type="checkbox" name="surveyWeatherConditions" value="hail"> Hail</label>
+                    </div>
+                    <div class="form-field"><label for="surveyWeatherNotes">Weather Notes</label><textarea id="surveyWeatherNotes" rows="2"></textarea></div>
+                </div>
+            </div>
+
+            <!-- EDGE TAB: Edge Egg Mass Survey -->
+            <div class="survey-tab" id="tab_edge">
+                <div class="form-section">
+                    <div class="form-section-title">Edge Egg Mass Survey</div>
+
+                    <div class="observer-header">Observer 1</div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="obs1_surveyAmphibEdgeStart">Start Time</label><input type="time" id="obs1_surveyAmphibEdgeStart"></div>
+                        <div class="form-field"><label for="obs1_surveyAmphibEdgeStop">End Time</label><input type="time" id="obs1_surveyAmphibEdgeStop"></div>
+                    </div>
+                    <div class="species-card">
+                        <div class="species-counts">
+                            <div class="form-field"><label>Wood Frog</label><input type="text" id="obs1_surveyAmphibEdgeWOFR" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Spotted Sal.</label><input type="text" id="obs1_surveyAmphibEdgeSPSA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Jefferson Sal.</label><input type="text" id="obs1_surveyAmphibEdgeJESA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Blue-spotted</label><input type="text" id="obs1_surveyAmphibEdgeBLSA" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                    </div>
+
+                    <div class="observer-header">Observer 2</div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="obs2_surveyAmphibEdgeStart">Start Time</label><input type="time" id="obs2_surveyAmphibEdgeStart"></div>
+                        <div class="form-field"><label for="obs2_surveyAmphibEdgeStop">End Time</label><input type="time" id="obs2_surveyAmphibEdgeStop"></div>
+                    </div>
+                    <div class="species-card">
+                        <div class="species-counts">
+                            <div class="form-field"><label>Wood Frog</label><input type="text" id="obs2_surveyAmphibEdgeWOFR" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Spotted Sal.</label><input type="text" id="obs2_surveyAmphibEdgeSPSA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Jefferson Sal.</label><input type="text" id="obs2_surveyAmphibEdgeJESA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Blue-spotted</label><input type="text" id="obs2_surveyAmphibEdgeBLSA" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Edge Survey Details</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Edge Visual Impairment</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyEdgeVisualImpairment" value="0"> 0 - None</label>
+                        <label><input type="radio" name="surveyEdgeVisualImpairment" value="1"> 1 - <25%</label>
+                        <label><input type="radio" name="surveyEdgeVisualImpairment" value="2"> 2 - 25-50%</label>
+                        <label><input type="radio" name="surveyEdgeVisualImpairment" value="3"> 3 - >50%</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INTERIOR TAB: Interior Egg Mass Survey -->
+            <div class="survey-tab" id="tab_interior">
+                <div class="form-section">
+                    <div class="form-section-title">Interior Egg Mass Survey</div>
+
+                    <div class="observer-header">Observer 1</div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="obs1_surveyAmphibInteriorStart">Start Time</label><input type="time" id="obs1_surveyAmphibInteriorStart"></div>
+                        <div class="form-field"><label for="obs1_surveyAmphibInteriorStop">End Time</label><input type="time" id="obs1_surveyAmphibInteriorStop"></div>
+                    </div>
+                    <div class="species-card">
+                        <div class="species-counts">
+                            <div class="form-field"><label>Wood Frog</label><input type="text" id="obs1_surveyAmphibInteriorWOFR" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Spotted Sal.</label><input type="text" id="obs1_surveyAmphibInteriorSPSA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Jefferson Sal.</label><input type="text" id="obs1_surveyAmphibInteriorJESA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Blue-spotted</label><input type="text" id="obs1_surveyAmphibInteriorBLSA" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                    </div>
+
+                    <div class="observer-header">Observer 2</div>
+                    <div class="form-row">
+                        <div class="form-field"><label for="obs2_surveyAmphibInteriorStart">Start Time</label><input type="time" id="obs2_surveyAmphibInteriorStart"></div>
+                        <div class="form-field"><label for="obs2_surveyAmphibInteriorStop">End Time</label><input type="time" id="obs2_surveyAmphibInteriorStop"></div>
+                    </div>
+                    <div class="species-card">
+                        <div class="species-counts">
+                            <div class="form-field"><label>Wood Frog</label><input type="text" id="obs2_surveyAmphibInteriorWOFR" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Spotted Sal.</label><input type="text" id="obs2_surveyAmphibInteriorSPSA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Jefferson Sal.</label><input type="text" id="obs2_surveyAmphibInteriorJESA" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field"><label>Blue-spotted</label><input type="text" id="obs2_surveyAmphibInteriorBLSA" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Interior Survey Details</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Interior Visual Impairment</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveyInteriorVisualImpairment" value="0"> 0 - None</label>
+                        <label><input type="radio" name="surveyInteriorVisualImpairment" value="1"> 1 - <25%</label>
+                        <label><input type="radio" name="surveyInteriorVisualImpairment" value="2"> 2 - 25-50%</label>
+                        <label><input type="radio" name="surveyInteriorVisualImpairment" value="3"> 3 - >50%</label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Observer Equipment</div>
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Polarized glasses? (Obs 1)</label>
+                            <div class="choice-group">
+                                <label><input type="radio" name="obs1_surveyPolarizedGlasses" value="Yes"> Yes</label>
+                                <label><input type="radio" name="obs1_surveyPolarizedGlasses" value="No"> No</label>
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label>Polarized glasses? (Obs 2)</label>
+                            <div class="choice-group">
+                                <label><input type="radio" name="obs2_surveyPolarizedGlasses" value="Yes"> Yes</label>
+                                <label><input type="radio" name="obs2_surveyPolarizedGlasses" value="No"> No</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Binoculars? (Obs 1)</label>
+                            <div class="choice-group">
+                                <label><input type="radio" name="obs1_surveyBinos" value="Yes"> Yes</label>
+                                <label><input type="radio" name="obs1_surveyBinos" value="No"> No</label>
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label>Binoculars? (Obs 2)</label>
+                            <div class="choice-group">
+                                <label><input type="radio" name="obs2_surveyBinos" value="Yes"> Yes</label>
+                                <label><input type="radio" name="obs2_surveyBinos" value="No"> No</label>
+                            </div>
+                        </div>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Spermatophores observed?</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="surveySpermatophores" value="Yes"> Yes</label>
+                        <label><input type="radio" name="surveySpermatophores" value="No"> No</label>
+                    </div>
+                    <div class="form-field"><label for="surveyAmphibMacroNotes">Amphibian &amp; Macro Notes</label><textarea id="surveyAmphibMacroNotes" rows="2"></textarea></div>
+                </div>
+            </div>
+
+            <!-- MACRO TAB: Macroinvertebrate Survey -->
+            <div class="survey-tab" id="tab_macro">
+                <div class="form-section">
+                    <div class="form-section-title">Macroinvertebrate Survey</div>
+                    <div class="macro-grid">
+                        <div class="macro-dir-card">
+                            <div class="macro-dir-title">North</div>
+                            <div class="form-field"><label>Fairy Shrimp</label><input type="text" id="surveyMacroNorthFASH" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field" style="margin-top:4px;"><label>Caddisfly</label><input type="text" id="surveyMacroNorthCDFY" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                        <div class="macro-dir-card">
+                            <div class="macro-dir-title">East</div>
+                            <div class="form-field"><label>Fairy Shrimp</label><input type="text" id="surveyMacroEastFASH" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field" style="margin-top:4px;"><label>Caddisfly</label><input type="text" id="surveyMacroEastCDFY" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                        <div class="macro-dir-card">
+                            <div class="macro-dir-title">South</div>
+                            <div class="form-field"><label>Fairy Shrimp</label><input type="text" id="surveyMacroSouthFASH" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field" style="margin-top:4px;"><label>Caddisfly</label><input type="text" id="surveyMacroSouthCDFY" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                        <div class="macro-dir-card">
+                            <div class="macro-dir-title">West</div>
+                            <div class="form-field"><label>Fairy Shrimp</label><input type="text" id="surveyMacroWestFASH" inputmode="numeric" placeholder="0"></div>
+                            <div class="form-field" style="margin-top:4px;"><label>Caddisfly</label><input type="text" id="surveyMacroWestCDFY" inputmode="numeric" placeholder="0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Photos</div>
+                    <div class="form-field">
+                        <label>Egg Mass / Species Photos</label>
+                        <label class="photo-btn">
+                            <i class="fa fa-camera"></i> Add Photo
+                            <input type="file" id="surveyPhotos" accept="image/*" capture="environment" multiple>
+                        </label>
+                        <div class="photo-thumbs" id="photo_thumbs"></div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Notes</div>
+                    <div class="form-field"><label for="surveyMiscNotes">Miscellaneous Survey Notes</label><textarea id="surveyMiscNotes" rows="3"></textarea></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Bottom tab bar -->
+        <div class="survey-tabs">
+            <button class="survey-tab-btn active" data-tab="tab_info"><i class="fa fa-clipboard"></i>Info</button>
+            <button class="survey-tab-btn" data-tab="tab_physical"><i class="fa fa-thermometer-half"></i>Physical</button>
+            <button class="survey-tab-btn" data-tab="tab_edge"><i class="fa fa-circle-notch"></i>Edge</button>
+            <button class="survey-tab-btn" data-tab="tab_interior"><i class="fa fa-bullseye"></i>Interior</button>
+            <button class="survey-tab-btn" data-tab="tab_macro"><i class="fa fa-bug"></i>Macro</button>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/leaflet_1.9.4.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/esri-leaflet_3.0.12.js"></script>
+
+    <script type="module">
+        import { fetchSurveyById, fetchMappedPoolById, createSurvey, updateSurvey } from './js/api.js';
+        import { requireAuth, getUser } from './js/auth.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const surveyId = params.get('surveyId');
+        const poolId = params.get('poolId') || params.get('pool_id');
+        const isEdit = !!surveyId;
+
+        // All text/number input IDs
+        const textFields = [
+            'surveyPoolId', 'combinedTimeDate', 'surveyTime', 'surveyTypeId',
+            'obs1_surveyAmphibObsEmail', 'obs2_surveyAmphibObsEmail',
+            'surveyWaterLevel', 'surveyPhysicalParametersNotes',
+            'surveyAirTempF', 'surveyHumidity', 'surveyWeatherNotes',
+            'obs1_surveyAmphibEdgeStart', 'obs1_surveyAmphibEdgeStop',
+            'obs1_surveyAmphibEdgeWOFR', 'obs1_surveyAmphibEdgeSPSA',
+            'obs1_surveyAmphibEdgeJESA', 'obs1_surveyAmphibEdgeBLSA',
+            'obs2_surveyAmphibEdgeStart', 'obs2_surveyAmphibEdgeStop',
+            'obs2_surveyAmphibEdgeWOFR', 'obs2_surveyAmphibEdgeSPSA',
+            'obs2_surveyAmphibEdgeJESA', 'obs2_surveyAmphibEdgeBLSA',
+            'obs1_surveyAmphibInteriorStart', 'obs1_surveyAmphibInteriorStop',
+            'obs1_surveyAmphibInteriorWOFR', 'obs1_surveyAmphibInteriorSPSA',
+            'obs1_surveyAmphibInteriorJESA', 'obs1_surveyAmphibInteriorBLSA',
+            'obs2_surveyAmphibInteriorStart', 'obs2_surveyAmphibInteriorStop',
+            'obs2_surveyAmphibInteriorWOFR', 'obs2_surveyAmphibInteriorSPSA',
+            'obs2_surveyAmphibInteriorJESA', 'obs2_surveyAmphibInteriorBLSA',
+            'surveyMacroNorthFASH', 'surveyMacroNorthCDFY',
+            'surveyMacroEastFASH', 'surveyMacroEastCDFY',
+            'surveyMacroSouthFASH', 'surveyMacroSouthCDFY',
+            'surveyMacroWestFASH', 'surveyMacroWestCDFY',
+            'surveyAmphibMacroNotes', 'surveyMiscNotes'
+        ];
+
+        // All radio group names
+        const radioGroups = [
+            'surveyAcousticMonitor', 'surveyHoboLogger', 'surveyHoboData',
+            'surveyIceCover',
+            'surveySubmergedVeg', 'surveyFloatingVeg', 'surveyEmergentVeg', 'surveyShrubs', 'surveyTrees',
+            'surveyWindBeaufort',
+            'surveyEdgeVisualImpairment', 'surveyInteriorVisualImpairment',
+            'obs1_surveyPolarizedGlasses', 'obs2_surveyPolarizedGlasses',
+            'obs1_surveyBinos', 'obs2_surveyBinos',
+            'surveySpermatophores'
+        ];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!(await requireAuth())) return;
+
+            // Tab navigation
+            document.querySelectorAll('.survey-tab-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.survey-tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.survey-tab').forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    document.getElementById(this.dataset.tab).classList.add('active');
+                });
+            });
+
+            // Photo thumbnails
+            document.getElementById('surveyPhotos').addEventListener('change', function() {
+                let thumbs = document.getElementById('photo_thumbs');
+                for (let file of this.files) {
+                    let img = document.createElement('img');
+                    img.className = 'photo-thumb';
+                    img.src = URL.createObjectURL(file);
+                    thumbs.appendChild(img);
+                }
+            });
+
+            let user = await getUser();
+
+            if (isEdit) {
+                document.getElementById('page_title').textContent = `Edit Survey ${surveyId}`;
+                try {
+                    let data = await fetchSurveyById(surveyId);
+                    let survey = Array.isArray(data) ? data[0] : (data.rows ? data.rows[0] : data);
+                    if (survey) populateForm(survey);
+                } catch(err) { showMsg('Error loading survey: ' + err.message, 'error'); }
+            } else {
+                let title = poolId ? `New Survey for Pool ${poolId}` : 'New Monitoring Survey';
+                document.getElementById('page_title').textContent = title;
+                document.title = `VPAtlas - ${title}`;
+                if (poolId) document.getElementById('surveyPoolId').value = poolId;
+                document.getElementById('combinedTimeDate').value = new Date().toISOString().split('T')[0];
+                let now = new Date();
+                document.getElementById('surveyTime').value =
+                    now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+                if (user) {
+                    document.getElementById('obs1_surveyAmphibObsEmail').value = user.email || '';
+                }
+            }
+
+            // Save handler
+            document.getElementById('btn_save').addEventListener('click', async () => {
+                let body = getFormData();
+                if (!body.surveyPoolId) { showMsg('Pool ID is required', 'error'); return; }
+                if (!body.surveyDate) { showMsg('Survey Date is required', 'error'); return; }
+
+                showMsg('Saving...', 'info');
+                try {
+                    if (isEdit) {
+                        await updateSurvey(surveyId, body);
+                    } else {
+                        await createSurvey(body);
+                    }
+                    showMsg('Saved!', 'success');
+                    setTimeout(() => {
+                        if (poolId || body.surveyPoolId)
+                            window.location.href = `pool_view.html?poolId=${poolId || body.surveyPoolId}`;
+                        else
+                            window.location.href = '/explore/';
+                    }, 1000);
+                } catch(err) {
+                    showMsg('Save failed: ' + (err.message || JSON.stringify(err)), 'error');
+                }
+            });
+        });
+
+        function populateForm(s) {
+            if (!s) return;
+
+            // Text inputs — map DB field names to form IDs
+            textFields.forEach(f => {
+                let el = document.getElementById(f);
+                // Handle date field mapping
+                let dbKey = f;
+                if (f === 'combinedTimeDate') dbKey = 'surveyDate';
+                let val = s[dbKey] != null ? s[dbKey] : s[f];
+                if (el && val != null && val !== 'None') {
+                    if (f === 'combinedTimeDate' && val) {
+                        el.value = new Date(val).toISOString().split('T')[0];
+                    } else {
+                        el.value = val;
+                    }
+                }
+            });
+
+            // Handle amphibian JSON (stored as surveyAmphibJson)
+            if (s.surveyAmphibJson) {
+                for (let [key, obs] of Object.entries(s.surveyAmphibJson)) {
+                    let prefix = key; // 'obs1' or 'obs2'
+                    if (obs.surveyAmphibObsEmail) {
+                        let emailEl = document.getElementById(`${prefix}_surveyAmphibObsEmail`);
+                        if (emailEl) emailEl.value = obs.surveyAmphibObsEmail;
+                    }
+                    // Edge counts
+                    ['surveyAmphibEdgeWOFR','surveyAmphibEdgeSPSA','surveyAmphibEdgeJESA','surveyAmphibEdgeBLSA',
+                     'surveyAmphibEdgeStart','surveyAmphibEdgeStop',
+                     'surveyAmphibInteriorWOFR','surveyAmphibInteriorSPSA','surveyAmphibInteriorJESA','surveyAmphibInteriorBLSA',
+                     'surveyAmphibInteriorStart','surveyAmphibInteriorStop'
+                    ].forEach(field => {
+                        if (obs[field] != null) {
+                            let el = document.getElementById(`${prefix}_${field}`);
+                            if (el) el.value = obs[field];
+                        }
+                    });
+                    // Observer equipment
+                    ['surveyPolarizedGlasses','surveyBinos'].forEach(field => {
+                        if (obs[field]) {
+                            let radio = document.querySelector(`input[name="${prefix}_${field}"][value="${obs[field]}"]`);
+                            if (radio) radio.checked = true;
+                        }
+                    });
+                }
+            }
+
+            // Handle macro JSON (stored as surveyMacroJson)
+            if (s.surveyMacroJson) {
+                ['surveyMacroNorthFASH','surveyMacroNorthCDFY',
+                 'surveyMacroEastFASH','surveyMacroEastCDFY',
+                 'surveyMacroSouthFASH','surveyMacroSouthCDFY',
+                 'surveyMacroWestFASH','surveyMacroWestCDFY'
+                ].forEach(field => {
+                    if (s.surveyMacroJson[field] != null) {
+                        let el = document.getElementById(field);
+                        if (el) el.value = s.surveyMacroJson[field];
+                    }
+                });
+            }
+
+            // Radio groups
+            radioGroups.forEach(name => {
+                let val = s[name];
+                if (val != null && val !== 'None') {
+                    let radio = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                    if (radio) radio.checked = true;
+                }
+            });
+
+            // Weather conditions (multi-select checkboxes)
+            if (s.surveyWeatherConditions) {
+                let conditions = typeof s.surveyWeatherConditions === 'string'
+                    ? s.surveyWeatherConditions.split(',') : s.surveyWeatherConditions;
+                conditions.forEach(c => {
+                    let cb = document.querySelector(`input[name="surveyWeatherConditions"][value="${c.trim()}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+
+            // Update title
+            let title = `Edit Survey ${s.surveyId} — Pool ${s.surveyPoolId || ''}`;
+            document.getElementById('page_title').textContent = title;
+            document.title = `VPAtlas - ${title}`;
+        }
+
+        function getFormData() {
+            let body = {};
+
+            // Map combinedTimeDate → surveyDate for the API
+            let dateEl = document.getElementById('combinedTimeDate');
+            if (dateEl && dateEl.value) body.surveyDate = dateEl.value;
+
+            // Text/number fields
+            textFields.forEach(f => {
+                if (f === 'combinedTimeDate') return; // already handled above
+                let el = document.getElementById(f);
+                if (el && el.value) body[f] = el.value;
+            });
+
+            // Radio groups
+            radioGroups.forEach(name => {
+                let radio = document.querySelector(`input[name="${name}"]:checked`);
+                if (radio) body[name] = radio.value;
+            });
+
+            // Weather conditions — join checked values
+            let conditions = [];
+            document.querySelectorAll('input[name="surveyWeatherConditions"]:checked').forEach(cb => {
+                conditions.push(cb.value);
+            });
+            if (conditions.length) body.surveyWeatherConditions = conditions.join(',');
+
+            // Build amphibian JSON structure
+            let amphibJson = {};
+            ['obs1', 'obs2'].forEach(prefix => {
+                let obs = {};
+                let emailEl = document.getElementById(`${prefix}_surveyAmphibObsEmail`);
+                if (emailEl && emailEl.value) obs.surveyAmphibObsEmail = emailEl.value;
+
+                ['surveyAmphibEdgeStart','surveyAmphibEdgeStop',
+                 'surveyAmphibEdgeWOFR','surveyAmphibEdgeSPSA','surveyAmphibEdgeJESA','surveyAmphibEdgeBLSA',
+                 'surveyAmphibInteriorStart','surveyAmphibInteriorStop',
+                 'surveyAmphibInteriorWOFR','surveyAmphibInteriorSPSA','surveyAmphibInteriorJESA','surveyAmphibInteriorBLSA'
+                ].forEach(field => {
+                    let el = document.getElementById(`${prefix}_${field}`);
+                    if (el && el.value) obs[field] = el.value;
+                });
+
+                ['surveyPolarizedGlasses','surveyBinos'].forEach(field => {
+                    let radio = document.querySelector(`input[name="${prefix}_${field}"]:checked`);
+                    if (radio) obs[field] = radio.value;
+                });
+
+                if (Object.keys(obs).length > 0) amphibJson[prefix] = obs;
+            });
+            if (Object.keys(amphibJson).length > 0) body.surveyAmphibJson = amphibJson;
+
+            // Build macro JSON structure
+            let macroJson = {};
+            ['surveyMacroNorthFASH','surveyMacroNorthCDFY',
+             'surveyMacroEastFASH','surveyMacroEastCDFY',
+             'surveyMacroSouthFASH','surveyMacroSouthCDFY',
+             'surveyMacroWestFASH','surveyMacroWestCDFY'
+            ].forEach(field => {
+                let el = document.getElementById(field);
+                if (el && el.value) macroJson[field] = parseInt(el.value) || 0;
+            });
+            // Compute totals
+            macroJson.surveyMacroTotalFASH = (parseInt(macroJson.surveyMacroNorthFASH) || 0)
+                + (parseInt(macroJson.surveyMacroEastFASH) || 0)
+                + (parseInt(macroJson.surveyMacroSouthFASH) || 0)
+                + (parseInt(macroJson.surveyMacroWestFASH) || 0);
+            macroJson.surveyMacroTotalCDFY = (parseInt(macroJson.surveyMacroNorthCDFY) || 0)
+                + (parseInt(macroJson.surveyMacroEastCDFY) || 0)
+                + (parseInt(macroJson.surveyMacroSouthCDFY) || 0)
+                + (parseInt(macroJson.surveyMacroWestCDFY) || 0);
+            if (Object.keys(macroJson).length > 2) body.surveyMacroJson = macroJson;
+
+            return body;
+        }
+
+        function showMsg(text, type) {
+            let el = document.getElementById('message');
+            el.textContent = text;
+            el.className = 'survey-message show ' + type;
+            if (type === 'info' || type === 'success') {
+                setTimeout(() => { el.className = 'survey-message'; }, 3000);
+            }
+        }
+    </script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

@@ -167,7 +167,9 @@ function parseColumns(body={}, idx=1, cValues=[], staticColumns=[]) {
     if (Object.keys(body).length) {
         for (var key in body) {
             if (staticColumns.includes(key)) { //test for key (db column) in staticColumns, a file-scope array of db columns generated at server startup
-                cValues.push(body[key]);
+                var val = body[key];
+                if (val === '' || val === undefined) continue; // skip empty strings — prevents pg integer cast errors
+                cValues.push(val);
                 cNames += `"${key}",`;
                 cNumbr += `$${idx++},`;
             }

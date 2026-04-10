@@ -1,246 +1,513 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPAtlas Survey Start</title>
-  <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
-  <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
-  <link rel="stylesheet" href="css/survey.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VPAtlas - PoolFinder</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+    <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/css/map.css">
+    <style>
+        html, body { height: 100%; overflow: hidden; }
+        .pf-app { display: flex; flex-direction: column; height: 100vh; }
+
+        /* Header */
+        .pf-header {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 8px; flex-shrink: 0; border-bottom: 1px solid #ddd;
+        }
+        .pf-header h3 { font-size: 15px; margin: 0; white-space: nowrap; }
+
+        /* GPS dot */
+        .pf-gps-dot {
+            width: 12px; height: 12px; border-radius: 50%;
+            background: #999; border: 2px solid white;
+            box-shadow: 0 0 3px rgba(0,0,0,0.3); cursor: pointer; flex-shrink: 0;
+        }
+        .pf-gps-dot.acquiring { animation: gps-pulse 1.5s infinite; background: #f39c12; }
+        .pf-gps-dot.tracking { background: #27ae60; }
+        .pf-gps-dot.denied { background: #e74c3c; }
+        @keyframes gps-pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+        /* Search bar in header */
+        .pf-search {
+            flex: 1; min-width: 0; position: relative;
+        }
+        .pf-search input {
+            width: 100%; font-size: 16px; padding: 6px 10px;
+            border: 1px solid var(--primary-color); border-radius: 8px;
+            font-weight: normal;
+        }
+        .pf-suggestions {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #ddd; border-radius: 0 0 8px 8px;
+            max-height: 250px; overflow-y: auto; z-index: 2000;
+            box-shadow: var(--shadow-medium);
+        }
+        .pf-suggestions.show { display: block; }
+        .pf-suggestion {
+            padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .pf-suggestion:hover, .pf-suggestion:active { background: var(--primary-light); }
+        .pf-suggestion .pool-id { font-weight: 600; }
+        .pf-suggestion .pool-meta { color: var(--text-secondary); font-size: 12px; }
+
+        /* Selected pools chips */
+        .pf-chips {
+            display: flex; flex-wrap: wrap; gap: 4px;
+            padding: 4px 8px; flex-shrink: 0;
+        }
+        .pf-chips:empty { display: none; }
+        .pf-chip {
+            display: flex; align-items: center; gap: 4px;
+            padding: 3px 8px; background: var(--primary-light);
+            border: 1px solid var(--primary-color); border-radius: 12px;
+            font-size: 13px; font-weight: 600; color: var(--primary-color);
+        }
+        .pf-chip .remove {
+            cursor: pointer; font-size: 14px; line-height: 1;
+            color: var(--text-secondary); margin-left: 2px;
+        }
+        .pf-chip .remove:hover { color: var(--danger-color); }
+
+        /* Map */
+        .pf-map-container { flex: 1; min-height: 0; position: relative; }
+        .pf-map-container #map { height: 100%; width: 100%; }
+
+        /* GPS info */
+        .pf-gps-info {
+            position: absolute; bottom: 10px; left: 10px;
+            background: rgba(255,255,255,0.9); padding: 4px 8px;
+            border-radius: 6px; font-size: 12px; z-index: 1000;
+            box-shadow: var(--shadow-light);
+        }
+
+        /* Center button */
+        .pf-center-btn {
+            position: absolute; bottom: 10px; right: 60px; z-index: 1000;
+            background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
+            width: 34px; height: 34px; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; font-size: 16px; color: #333;
+        }
+        .pf-center-btn:hover { background: #f4f4f4; }
+
+        /* Nav panel */
+        .pf-nav-panel {
+            display: none; flex-shrink: 0; background: white;
+            border-top: 2px solid var(--primary-color);
+            padding: 8px 10px; max-height: 40vh; overflow-y: auto;
+        }
+        .pf-nav-panel.active { display: block; }
+        .pf-nav-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 0; border-bottom: 1px solid #eee;
+        }
+        .pf-nav-item:last-child { border-bottom: none; }
+        .pf-nav-compass { font-size: 24px; width: 30px; text-align: center; color: var(--primary-color); }
+        .pf-nav-info { flex: 1; min-width: 0; }
+        .pf-nav-info .pool-name { font-weight: 600; font-size: 14px; }
+        .pf-nav-info .pool-detail { font-size: 12px; color: var(--text-secondary); }
+        .pf-nav-distance { font-size: 16px; font-weight: 600; color: var(--primary-color); text-align: right; min-width: 60px; }
+        .pf-nav-actions {
+            display: flex; gap: 4px; padding-top: 6px; flex-wrap: wrap;
+        }
+        .pf-nav-actions a {
+            font-size: 12px; padding: 3px 8px; border: 1px solid var(--primary-color);
+            border-radius: 6px; color: var(--primary-color); text-decoration: none; white-space: nowrap;
+        }
+        .pf-nav-actions a.near { background: var(--primary-color); color: white; }
+    </style>
 </head>
 <body>
-
-  <!-- Bottom Tabs -->
-  <div class="survey-bottom-tabs">
-    <button class="tab-btn active" data-tab="new-survey">New Survey</button>
-    <button class="tab-btn" data-tab="previous-surveys">Previous Surveys</button>
-  </div>
-
-  <!-- Main Content Area -->
-  <div class="main-content">
-    <div class="container start-container">
-
-      <div class="survey-header-bar">
-        <a href="/" class="exit-button" title="Home">&larr;</a>
-        <h2>VPAtlas Survey</h2>
-      </div>
-
-      <!-- New Survey Tab -->
-      <div id="new-survey" class="tab-content active">
-        <div class="row">
-          <div class="col-12 col-lg-8 mx-auto">
-            <div class="content-card">
-              <form id="surveyForm">
-
-                <!-- Pool ID -->
-                <div class="row mb-3">
-                  <div class="col-12">
-                    <label for="poolId" class="form-label fw-bold">Pool ID</label>
-                    <input type="text" class="form-control" id="poolId"
-                           placeholder="Enter vernal pool ID (e.g. VP-1234)"
-                           autocomplete="off" required>
-                  </div>
-                </div>
-
-                <!-- Survey Type -->
-                <div class="row mb-3">
-                  <div class="col-12">
-                    <label for="surveyType" class="form-label fw-bold">Survey Type</label>
-                    <select class="form-select" id="surveyType" required>
-                      <option value="" disabled selected>Select survey type</option>
-                      <option value="visit">Pool Visit (vpvisit)</option>
-                      <option value="monitor">Monitoring Survey (vpsurvey/vpmon)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Date / Time -->
-                <div class="row mb-3 date-time-row">
-                  <div class="col-6">
-                    <label for="surveyDate" class="form-label fw-bold">Survey Date</label>
-                    <input type="date" class="form-control" id="surveyDate" required>
-                  </div>
-                  <div class="col-6">
-                    <label for="surveyTime" class="form-label fw-bold">Survey Time</label>
-                    <input type="time" class="form-control" id="surveyTime" required>
-                  </div>
-                </div>
-
-                <!-- GPS Toggles -->
-                <div class="row mb-4">
-                  <div class="col-6" id="gpsTrackingDiv">
-                    <label class="form-label fw-bold d-block">GPS Track</label>
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" id="gpsTrack" style="transform: scale(1.2);">
-                      <label class="form-check-label ms-2" for="gpsTrack" id="gpsTrackLabel">
-                        <span class="badge bg-secondary">No</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div class="col-6" id="gpsTestDiv" hidden>
-                    <label class="form-label fw-bold d-block">GPS Simulate</label>
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" id="gpsTesting" style="transform: scale(1.2);">
-                      <label class="form-check-label ms-2" for="gpsTesting" id="gpsTestLabel">
-                        <span class="badge bg-secondary">No</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Start Survey Button -->
-                <div class="row mb-3">
-                  <div class="col-12 text-center">
-                    <button type="submit" class="btn btn-primary btn-lg start-survey-btn" id="startSurveyBtn">
-                      Start Survey
-                    </button>
-                  </div>
-                </div>
-
-              </form>
+    <div class="pf-app">
+        <!-- Header: search + GPS -->
+        <div class="pf-header">
+            <a href="/explore/" class="exit-button" style="text-decoration:none;">&times;</a>
+            <h3 class="header-name light-foreground">PoolFinder</h3>
+            <div class="pf-search">
+                <input type="text" id="pool_search" placeholder="Search pool ID or town..." autocomplete="off">
+                <div class="pf-suggestions" id="suggestions"></div>
             </div>
-          </div>
+            <div class="pf-gps-dot" id="gps_dot" title="GPS Status"></div>
         </div>
-      </div>
 
-      <!-- Previous Surveys Tab -->
-      <div id="previous-surveys" class="tab-content">
-        <div class="row">
-          <div class="col-12 col-lg-8 mx-auto">
-            <div class="content-card">
-              <h4>Saved Surveys</h4>
-              <p class="text-muted">Surveys stored locally on this device.</p>
-              <div id="previousSurveyList" class="survey-list">
-                <p class="text-muted">Loading...</p>
-              </div>
+        <!-- Selected pool chips -->
+        <div class="pf-chips" id="pool_chips"></div>
+
+        <!-- Map -->
+        <div class="pf-map-container">
+            <div id="map"></div>
+            <div class="pf-gps-info" id="gps_info" style="display:none;">
+                <span id="gps_accuracy"></span>
             </div>
-          </div>
+            <div class="pf-center-btn" id="btn_center" title="Center on my location" style="display:none;">
+                <i class="fa fa-crosshairs"></i>
+            </div>
         </div>
-      </div>
 
+        <!-- Navigation panel -->
+        <div class="pf-nav-panel" id="nav_panel"></div>
     </div>
-  </div>
 
-  <script src="/js/config.js"></script>
-  <script src="/js/bootstrap_5.2.3.min.js"></script>
-  <script src="/js/leaflet_1.9.4.js"></script>
-  <script src="/js/idb-keyval_6.esm.js" type="module"></script>
-  <script src="/js/resource_manager.js"></script>
-  <script src="/js/app.js"></script>
-  <script>
-    // Set default date/time to now
-    document.addEventListener('DOMContentLoaded', function() {
-      const now = new Date();
-      document.getElementById('surveyDate').value = now.toISOString().slice(0, 10);
-      document.getElementById('surveyTime').value = now.toTimeString().slice(0, 5);
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/leaflet_1.9.4.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/esri-leaflet_3.0.12.js"></script>
 
-      // Tab switching
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-          this.classList.add('active');
-          document.getElementById(this.dataset.tab).classList.add('active');
+    <script type="module">
+        import { GPSMonitor } from './js/gps_monitor.js';
+        import { createMap, addPoolMarker, getPoolColor, getSurveyLevel,
+                 buildShapeIcon, stateCenter, stateZoom } from '/explore/js/map_common.js';
+        import { getLocal, setLocal } from '/explore/js/storage.js';
+        import { fetchApiRoute } from '/explore/js/api.js';
+
+        let map, gps, userMarker, accuracyCircle;
+        let selectedPools = new Map(); // poolId → { row, marker }
+        let followUser = true;
+        let searchTimer = null;
+
+        // =================================================================
+        // INIT
+        // =================================================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            map = await createMap('map');
+
+            // Search
+            let searchInput = document.getElementById('pool_search');
+            searchInput.addEventListener('input', onSearchInput);
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    let first = document.querySelector('.pf-suggestion');
+                    if (first) first.click();
+                }
+            });
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.pf-search')) closeSuggestions();
+            });
+
+            // Center button
+            document.getElementById('btn_center').addEventListener('click', () => {
+                if (gps && gps.position) {
+                    map.setView([gps.position.lat, gps.position.lng], Math.max(map.getZoom(), 15));
+                    followUser = true;
+                }
+            });
+            map.on('dragstart', () => { followUser = false; });
+
+            // Restore saved pool list
+            await restoreSavedPools();
+
+            // Auto-start GPS
+            startGps();
+
+            // Pre-select from URL
+            let params = new URLSearchParams(window.location.search);
+            let prePoolId = params.get('poolId');
+            if (prePoolId && !selectedPools.has(prePoolId)) {
+                await addPoolById(prePoolId);
+            }
         });
-      });
 
-      // GPS Track toggle shows Simulate option
-      const gpsTrack = document.getElementById('gpsTrack');
-      const gpsTestDiv = document.getElementById('gpsTestDiv');
-      const gpsTrackLabel = document.getElementById('gpsTrackLabel');
-      gpsTrack.addEventListener('change', function() {
-        gpsTestDiv.hidden = !this.checked;
-        gpsTrackLabel.innerHTML = this.checked
-          ? '<span class="badge bg-success">Yes</span>'
-          : '<span class="badge bg-secondary">No</span>';
-      });
-
-      const gpsTesting = document.getElementById('gpsTesting');
-      const gpsTestLabel = document.getElementById('gpsTestLabel');
-      gpsTesting.addEventListener('change', function() {
-        gpsTestLabel.innerHTML = this.checked
-          ? '<span class="badge bg-warning text-dark">Sim</span>'
-          : '<span class="badge bg-secondary">No</span>';
-      });
-
-      // Check URL params for tab selection
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('tab_id') === 'previous') {
-        document.querySelector('[data-tab="previous-surveys"]').click();
-      }
-
-      // Load previous surveys from IndexedDB
-      loadPreviousSurveys();
-
-      // Form submit
-      document.getElementById('surveyForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const poolId = document.getElementById('poolId').value.trim();
-        const surveyType = document.getElementById('surveyType').value;
-        const date = document.getElementById('surveyDate').value;
-        const time = document.getElementById('surveyTime').value;
-        const gpsEnabled = document.getElementById('gpsTrack').checked;
-        const gpsSimulate = document.getElementById('gpsTesting').checked;
-
-        if (!poolId || !surveyType) {
-          alert('Please enter a Pool ID and select a survey type.');
-          return;
+        // =================================================================
+        // SEARCH
+        // =================================================================
+        function onSearchInput() {
+            let val = document.getElementById('pool_search').value.trim();
+            clearTimeout(searchTimer);
+            if (val.length < 2) { closeSuggestions(); return; }
+            searchTimer = setTimeout(() => doSearch(val), 250);
         }
 
-        const qs = new URLSearchParams({
-          pool_id: poolId,
-          survey_type: surveyType,
-          date: date,
-          time: time,
-          gps_track: gpsEnabled,
-          gps_simulate: gpsSimulate
-        });
-        window.location.href = '/survey/survey_main.html?' + qs.toString();
-      });
-    });
+        async function doSearch(term) {
+            try {
+                // Search by pool ID (ILIKE) on mapped pools endpoint
+                let data = await fetchApiRoute('pools/mapped', `mappedPoolId|ILIKE=%${term}%&limit=12`);
+                let rows = data.rows || [];
 
-    async function loadPreviousSurveys() {
-      const listEl = document.getElementById('previousSurveyList');
-      try {
-        // Use idb-keyval pattern: iterate all keys looking for survey entries
-        const { keys, get } = await import('/js/idb-keyval_6.esm.js');
-        const allKeys = await keys();
-        const surveyKeys = allKeys.filter(k => typeof k === 'string' && k.startsWith('vpatlas-survey-'));
-        if (surveyKeys.length === 0) {
-          listEl.innerHTML = '<p class="text-muted">No saved surveys found.</p>';
-          return;
-        }
-        let html = '';
-        for (const key of surveyKeys) {
-          const survey = await get(key);
-          if (!survey) continue;
-          const statusBadge = survey.status === 'complete'
-            ? '<span class="badge bg-success">Complete</span>'
-            : survey.status === 'uploaded'
-              ? '<span class="badge bg-info">Uploaded</span>'
-              : '<span class="badge bg-warning text-dark">Draft</span>';
-          html += `
-            <div class="survey-list-item" onclick="resumeSurvey('${survey.survey_uuid}')">
-              <div class="survey-list-info">
-                <strong>${survey.poolId || 'Unknown Pool'}</strong>
-                <span class="survey-list-type">${survey.surveyType === 'visit' ? 'Visit' : 'Monitoring'}</span>
-              </div>
-              <div class="survey-list-meta">
-                <span>${survey.survey_date || ''}</span>
-                ${statusBadge}
-              </div>
-            </div>`;
-        }
-        listEl.innerHTML = html;
-      } catch (err) {
-        console.error('Failed to load previous surveys:', err);
-        listEl.innerHTML = '<p class="text-muted">Could not load saved surveys.</p>';
-      }
-    }
+                // Also search by town name if few pool ID results
+                if (rows.length < 5) {
+                    try {
+                        let townData = await fetchApiRoute('pools/mapped', `townName|ILIKE=%${term}%&limit=8`);
+                        let townRows = (townData.rows || []).filter(r => {
+                            let pid = r.mappedPoolId;
+                            return !rows.some(existing => existing.mappedPoolId === pid);
+                        });
+                        rows = rows.concat(townRows);
+                    } catch(e) {}
+                }
 
-    function resumeSurvey(survey_uuid) {
-      window.location.href = '/survey/survey_main.html?survey_uuid=' + encodeURIComponent(survey_uuid);
-    }
-  </script>
+                showSuggestions(rows);
+            } catch(err) {
+                closeSuggestions();
+            }
+        }
+
+        function showSuggestions(rows) {
+            let box = document.getElementById('suggestions');
+            if (!rows.length) {
+                box.innerHTML = '<div class="pf-suggestion" style="color:var(--text-muted);">No matches</div>';
+                box.classList.add('show');
+                return;
+            }
+            // Deduplicate
+            let seen = new Set();
+            let html = '';
+            rows.forEach(row => {
+                let pid = row.poolId || row.mappedPoolId || '';
+                if (!pid || seen.has(pid)) return;
+                seen.add(pid);
+                let status = row.poolStatus || row.mappedPoolStatus || '';
+                let town = row.townName || '';
+                let already = selectedPools.has(pid) ? ' <i class="fa fa-check" style="color:var(--success-color);"></i>' : '';
+                html += `<div class="pf-suggestion" data-pool-id="${pid}">
+                    <span class="pool-id">${pid}</span>${already}
+                    <span class="pool-meta">${status} ${town ? '— ' + town : ''}</span>
+                </div>`;
+            });
+            box.innerHTML = html;
+            box.classList.add('show');
+
+            box.querySelectorAll('.pf-suggestion').forEach(el => {
+                el.addEventListener('click', () => {
+                    let pid = el.dataset.poolId;
+                    let row = rows.find(r => (r.poolId || r.mappedPoolId) === pid);
+                    if (row) addPool(row);
+                    closeSuggestions();
+                    document.getElementById('pool_search').value = '';
+                });
+            });
+        }
+
+        function closeSuggestions() {
+            document.getElementById('suggestions').classList.remove('show');
+        }
+
+        // =================================================================
+        // POOL SELECTION
+        // =================================================================
+        async function addPoolById(poolId) {
+            try {
+                let data = await fetchApiRoute(`pools/mapped/${poolId}`);
+                let row = data.rows ? data.rows[0] : data;
+                if (row) addPool(row);
+            } catch(e) { console.warn('PoolFinder: could not load pool', poolId); }
+        }
+
+        function addPool(row) {
+            let pid = row.poolId || row.mappedPoolId || '';
+            if (!pid || selectedPools.has(pid)) return;
+
+            let lat = parseFloat(row.latitude || row.mappedLatitude);
+            let lng = parseFloat(row.longitude || row.mappedLongitude);
+            if (isNaN(lat) || isNaN(lng)) return;
+
+            let status = row.poolStatus || row.mappedPoolStatus || 'Potential';
+            let level = getSurveyLevel(row);
+            let marker = addPoolMarker(map, [lat, lng], {
+                status: status, surveyLevel: level, size: 22,
+                tooltip: `${pid} — ${status}${row.townName ? ', ' + row.townName : ''}`
+            });
+            marker.on('click', () => zoomToPool(pid));
+
+            selectedPools.set(pid, { row, marker, lat, lng });
+            renderChips();
+            renderNavPanel();
+            savePools();
+
+            // Fit map to all selected pools
+            fitToSelectedPools();
+        }
+
+        function removePool(poolId) {
+            let entry = selectedPools.get(poolId);
+            if (entry) {
+                map.removeLayer(entry.marker);
+                selectedPools.delete(poolId);
+                renderChips();
+                renderNavPanel();
+                savePools();
+            }
+        }
+
+        function zoomToPool(poolId) {
+            let entry = selectedPools.get(poolId);
+            if (entry) {
+                map.setView([entry.lat, entry.lng], 17);
+                followUser = false;
+            }
+        }
+
+        function fitToSelectedPools() {
+            if (selectedPools.size === 0) return;
+            if (selectedPools.size === 1) {
+                let e = selectedPools.values().next().value;
+                map.setView([e.lat, e.lng], 16);
+            } else {
+                let group = L.featureGroup([...selectedPools.values()].map(e => e.marker));
+                map.fitBounds(group.getBounds(), { padding: [40, 40] });
+            }
+            followUser = false;
+        }
+
+        // Persist selected pools to IndexedDB
+        async function savePools() {
+            let ids = [...selectedPools.keys()];
+            await setLocal('poolfinder_pools', ids);
+        }
+
+        async function restoreSavedPools() {
+            let ids = await getLocal('poolfinder_pools');
+            if (ids && ids.length) {
+                for (let pid of ids) await addPoolById(pid);
+            }
+        }
+
+        // =================================================================
+        // CHIPS
+        // =================================================================
+        function renderChips() {
+            let container = document.getElementById('pool_chips');
+            let html = '';
+            for (let [pid, entry] of selectedPools) {
+                let town = entry.row.townName || '';
+                html += `<span class="pf-chip">
+                    ${pid}${town ? ' — ' + town : ''}
+                    <span class="remove" data-pool="${pid}">&times;</span>
+                </span>`;
+            }
+            container.innerHTML = html;
+            container.querySelectorAll('.remove').forEach(el => {
+                el.addEventListener('click', () => removePool(el.dataset.pool));
+            });
+        }
+
+        // =================================================================
+        // NAVIGATION PANEL
+        // =================================================================
+        function renderNavPanel() {
+            let panel = document.getElementById('nav_panel');
+            if (selectedPools.size === 0) {
+                panel.classList.remove('active');
+                return;
+            }
+            panel.classList.add('active');
+            updateNavContent();
+        }
+
+        function updateNavContent() {
+            let panel = document.getElementById('nav_panel');
+            let html = '';
+
+            // Sort by distance if GPS available
+            let entries = [...selectedPools.entries()];
+            if (gps && gps.position) {
+                entries.sort((a, b) => {
+                    let da = GPSMonitor.distance(gps.position.lat, gps.position.lng, a[1].lat, a[1].lng);
+                    let db = GPSMonitor.distance(gps.position.lat, gps.position.lng, b[1].lat, b[1].lng);
+                    return da - db;
+                });
+            }
+
+            entries.forEach(([pid, entry]) => {
+                let row = entry.row;
+                let status = row.poolStatus || row.mappedPoolStatus || '';
+                let town = row.townName || '';
+                let county = row.countyName || '';
+                let loc = town ? `${town}${county ? ' (' + county + ')' : ''}` : '';
+
+                let distHtml = '', near = false;
+                if (gps && gps.position) {
+                    let dist = GPSMonitor.distance(gps.position.lat, gps.position.lng, entry.lat, entry.lng);
+                    let bearing = GPSMonitor.bearing(gps.position.lat, gps.position.lng, entry.lat, entry.lng);
+                    let compass = GPSMonitor.compassDir(bearing);
+                    near = dist < 100;
+                    distHtml = `
+                        <div class="pf-nav-compass"><span style="display:inline-block; transform:rotate(${bearing}deg);">&#8593;</span></div>
+                        <div class="pf-nav-distance">${GPSMonitor.formatDistance(dist)}<br><small>${compass}</small></div>`;
+                }
+
+                let nearClass = near ? ' near' : '';
+                let gpsCoords = gps && gps.position ? `&lat=${gps.position.lat.toFixed(6)}&lng=${gps.position.lng.toFixed(6)}` : '';
+
+                html += `<div class="pf-nav-item" onclick="event.target.tagName==='A'||document.dispatchEvent(new CustomEvent('zoom-pool',{detail:'${pid}'}))">
+                    ${distHtml}
+                    <div class="pf-nav-info">
+                        <div class="pool-name">${pid} — ${status}</div>
+                        <div class="pool-detail">${loc}</div>
+                        <div class="pf-nav-actions">
+                            <a href="/explore/visit_create.html?poolId=${pid}${gpsCoords}" class="${nearClass}">Atlas Visit</a>
+                            <a href="/explore/survey_create.html?poolId=${pid}" class="${nearClass}">Monitor Survey</a>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            panel.innerHTML = html;
+        }
+
+        // Listen for zoom-pool events
+        document.addEventListener('zoom-pool', (e) => zoomToPool(e.detail));
+
+        // =================================================================
+        // GPS
+        // =================================================================
+        function startGps() {
+            gps = new GPSMonitor();
+
+            gps.on('position', (pos) => {
+                updateUserMarker(pos);
+                updateGpsDisplay(pos);
+                if (followUser) {
+                    let z = map.getZoom();
+                    if (z < 12) map.setView([pos.lat, pos.lng], 14);
+                    else map.panTo([pos.lat, pos.lng]);
+                }
+                // Update nav distances
+                if (selectedPools.size > 0) updateNavContent();
+            });
+
+            gps.on('status', (s) => {
+                let dot = document.getElementById('gps_dot');
+                dot.className = 'pf-gps-dot' +
+                    (s.denied ? ' denied' : s.acquiring ? ' acquiring' : s.tracking ? ' tracking' : '');
+                document.getElementById('btn_center').style.display = s.tracking ? 'flex' : 'none';
+                document.getElementById('gps_info').style.display = s.tracking ? 'block' : 'none';
+            });
+
+            gps.on('error', (err) => console.warn('GPS:', err.message));
+
+            gps.start();
+        }
+
+        function updateUserMarker(pos) {
+            let ll = [pos.lat, pos.lng];
+            if (!userMarker) {
+                userMarker = L.circleMarker(ll, {
+                    radius: 8, fillColor: '#4285F4', color: 'white',
+                    weight: 3, fillOpacity: 1, zIndexOffset: 1000
+                }).addTo(map);
+                accuracyCircle = L.circle(ll, {
+                    radius: pos.accuracy, color: '#4285F4', fillColor: '#4285F4',
+                    fillOpacity: 0.1, weight: 1, interactive: false
+                }).addTo(map);
+            } else {
+                userMarker.setLatLng(ll);
+                accuracyCircle.setLatLng(ll).setRadius(pos.accuracy);
+            }
+        }
+
+        function updateGpsDisplay(pos) {
+            let q = GPSMonitor.accuracyLabel(pos.accuracy);
+            document.getElementById('gps_accuracy').innerHTML =
+                `<span style="color:${q.color};">\u25cf</span> ${q.label} (${Math.round(pos.accuracy)}m)`;
+        }
+    </script>
+    <script src="/js/app.js"></script>
 </body>
 </html>
