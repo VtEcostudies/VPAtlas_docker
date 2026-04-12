@@ -8,8 +8,8 @@
     Token pattern adapted from CSWG BeeWiki beewiki-filters.js.
 */
 import { filters, putUserState, buildSearchTerm, DEFAULT_STATUSES, DATA_TYPES } from './url_state.js';
-import { fetchTowns, fetchCounties, fetchPools, fetchMappedPoolStats } from './api.js';
-import { getUser } from './auth.js';
+import { fetchTowns, fetchCounties, fetchPools, fetchMappedPoolStats } from '/js/api.js';
+import { getUser } from '/js/auth.js';
 
 var onFilterChange = null;
 var typeaheadTimer = null;
@@ -26,34 +26,32 @@ export function initFilterBar(filterCallback) {
     if (!container) return;
 
     container.innerHTML = `
-        <div id="filter-bar" style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
+        <div id="filter-bar" class="filter-bar">
             <!-- Primary data-type buttons -->
             <div id="data-type-buttons" class="data-type-group"></div>
 
-            <div style="width:1px; height:24px; background:#ccc; margin:0 3px;"></div>
-
             <!-- Pool ID search -->
-            <div style="position:relative;">
+            <div style="position:relative; flex-shrink:1; min-width:0;">
                 <input type="text" id="filter_pool_id"
                     placeholder="Pool ID..." autocomplete="off"
-                    style="font-size:15px; padding:5px 28px 5px 8px; border:1px solid var(--primary-color); border-radius:8px; width:140px;">
+                    class="filter-input" style="width:100%; max-width:120px; padding-right:24px;">
                 <button id="filter_pool_id_clear" class="input-clear-btn" style="display:none;">&times;</button>
                 <div id="pool_id_suggestions" class="dropdown-suggestions"></div>
             </div>
 
             <!-- Town type-ahead -->
-            <div style="position:relative;">
+            <div style="position:relative; flex-shrink:1; min-width:0;">
                 <input type="text" id="filter_town"
                     placeholder="Town..." autocomplete="off"
-                    style="font-size:15px; padding:5px 8px; border:1px solid var(--primary-color); border-radius:8px; width:130px;">
+                    class="filter-input" style="width:100%; max-width:110px;">
                 <div id="town_suggestions" class="dropdown-suggestions"></div>
             </div>
 
             <!-- County type-ahead -->
-            <div style="position:relative;">
+            <div style="position:relative; flex-shrink:1; min-width:0;">
                 <input type="text" id="filter_county"
                     placeholder="County..." autocomplete="off"
-                    style="font-size:15px; padding:5px 8px; border:1px solid var(--primary-color); border-radius:8px; width:130px;">
+                    class="filter-input" style="width:100%; max-width:110px;">
                 <div id="county_suggestions" class="dropdown-suggestions"></div>
             </div>
 

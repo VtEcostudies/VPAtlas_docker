@@ -13,13 +13,10 @@
 </head>
 <body>
     <header>
-        <div class="row controls">
-            <div class="px-1 col-2">
-                <button class="exit-button" onclick="history.back()">&times;</button>
-            </div>
-            <div class="px-1 col-10">
-                <h3 class="header-name light-foreground" id="page_title">Map a Vernal Pool</h3>
-            </div>
+        <div class="detail-header">
+            <button class="exit-button" onclick="history.back()">&times;</button>
+            <h3 class="header-name light-foreground detail-title" id="page_title">Map a Vernal Pool</h3>
+            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
         </div>
     </header>
     <hr class="divider-header">
@@ -125,10 +122,6 @@
                     </div>
                 </div>
 
-                <div class="button-container">
-                    <button type="button" onclick="history.back()">Cancel</button>
-                    <button type="submit" class="default-button" id="btn_save">Save</button>
-                </div>
             </form>
         </div>
 
@@ -145,8 +138,8 @@
     <script src="/js/config.js"></script>
 
     <script type="module">
-        import { fetchMappedPoolById, createMappedPool, updateMappedPool } from './js/api.js';
-        import { requireAuth, getUser } from './js/auth.js';
+        import { fetchMappedPoolById, createMappedPool, updateMappedPool } from '/js/api.js';
+        import { requireAuth, getUser } from '/js/auth.js';
 
         const params = new URLSearchParams(window.location.search);
         const poolId = params.get('poolId');
@@ -200,7 +193,7 @@
             });
 
             // Save
-            document.getElementById('pool_form').addEventListener('submit', async () => {
+            document.getElementById('btn_save').addEventListener('click', async () => {
                 let body = getFormData();
                 showMsg('Saving...', 'info');
                 try {

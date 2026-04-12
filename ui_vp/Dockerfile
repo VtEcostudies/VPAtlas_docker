@@ -12,8 +12,9 @@ RUN chown -R ui:ui /opt/ui
 USER ui
 RUN npm install
 
-# Build service worker with version injection (explore app)
+# Build service workers with version injection
 RUN node uiVPAtlas/explore/sw-build.js patch
+RUN node uiVPAtlas/survey/sw-build.js patch
 
 EXPOSE 8090
 

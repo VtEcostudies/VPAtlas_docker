@@ -4,14 +4,14 @@
     Uses map_common.js for base layers, overlays, and marker styles.
 */
 import { showWait, hideWait } from './utils.js';
-import { fetchMappedPoolGeoJson } from './api.js';
+import { fetchMappedPoolGeoJson } from '/js/api.js';
 import {
     createBaseLayers, loadBoundaryOverlays, addBoundaryControl,
     getPoolColor, getSurveyLevel, buildShapeIcon,
     poolTooltipText, poolPopupHtml,
     stateCenter, stateZoom
-} from './map_common.js';
-import { getLocal, setLocal } from './storage.js';
+} from '/js/map_common.js';
+import { getLocal, setLocal } from '/js/storage.js';
 
 const SETTINGS_KEY = 'map_settings';
 async function loadSettings() { try { return (await getLocal(SETTINGS_KEY)) || {}; } catch(e) { return {}; } }

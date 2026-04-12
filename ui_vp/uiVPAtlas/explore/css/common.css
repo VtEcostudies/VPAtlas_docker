@@ -171,15 +171,19 @@ div.controls {
     color: var(--primary-color);
     background-color: white;
     align-items: center;
+    flex-wrap: wrap;
 }
-@media (max-width: 500px) {
-    div.controls > div {
-        flex: 0 0 auto !important;
-        width: auto !important;
-        max-width: none !important;
-    }
+@media (max-width: 768px) {
     div.controls {
-        gap: 4px;
+        gap: 2px;
+        padding: 2px 4px;
+    }
+    .filter-container {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 2px !important;
+        gap: 2px !important;
     }
 }
 .header-title {
@@ -214,9 +218,10 @@ hr {
 .filter-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
-    padding: 5px;
+    gap: 4px;
+    padding: 4px;
     align-items: center;
+    min-width: 0;
 }
 .filter-description {
     font-size: 0.95em;

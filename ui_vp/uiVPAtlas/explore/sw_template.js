@@ -140,6 +140,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetchNetwork(event.request, DATA_FETCH_TIMEOUT));
   } else if (USE_DATA_CACHE && isDataRequest(url)) {
     event.respondWith(handleDataRequest(event.request, url));
+  } else if (isApiRequest(url)) {
+    // API calls that aren't in the explicit cache/no-cache lists: always network-first
+    event.respondWith(fetchNetwork(event.request, DATA_FETCH_TIMEOUT));
   } else if (USE_TILE_CACHE && isTileRequest(url)) {
     event.respondWith(handleTileRequest(event.request, url));
   } else if (event.request.mode === 'navigate') {
@@ -157,6 +160,11 @@ function isNoCacheRequest(url) {
     return DATA_NO_CACHE_PATTERNS.some(p => p.test(url.pathname));
   }
   return false;
+}
+
+function isApiRequest(url) {
+  if (!swConfig) return false;
+  return url.href.includes(swConfig.api.fqdn);
 }
 
 function isDataRequest(url) {

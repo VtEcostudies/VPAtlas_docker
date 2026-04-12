@@ -44,6 +44,7 @@ try {
   app.use('/visit', require('./vpVisit/vpVisit.routes'));
   app.use('/pools', require('./vpPools/vpPools.routes'));
   app.use('/review', require('./vpReview/vpReview.routes'));
+  app.use('/survey/field', require('./vpSurvey/vpSurvey.field.routes'));
   app.use('/survey', require('./vpSurvey/vpSurvey.routes'));
   app.use('/aws/s3', require('./vpUtil/vp_s3_info.routes'));
   app.use('/parcel', require('./vcgiMapData/vcgiParcel.routes'));

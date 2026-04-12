@@ -38,12 +38,13 @@ function jwt() {
             { url: /^\/visit\/.*/, methods: ['GET'] },
             { url: /^\/visit\/pool\/.*/, methods: ['GET'] },
 
-            { url: /^\/review\/.*/, methods: ['GET'] },
+            { url: /^\/review/, methods: ['GET'] },
 
             { url: /^\/pools/, methods: ['GET'] },
             { url: /^\/pools\/.*/, methods: ['GET'] },
             { url: /^\/pools\/page\/.*/, methods: ['GET'] },
 
+            { url: /^\/survey\/field\/\d+/, methods: ['GET'] },
             { url: /^\/survey\/columns/, methods: ['GET'] },
             { url: /^\/survey/, methods: ['GET'] },
             { url: /^\/survey\/.*/, methods: ['GET'] },

@@ -7,7 +7,7 @@
       ?townName=Stowe                 => WHERE "townName" = 'Stowe'
     Repeated params for the same key become IN(...).
 */
-import { setLocal, getLocal } from './storage.js';
+import { setLocal, getLocal } from '/js/storage.js';
 
 export const DEFAULT_STATUSES = ['Potential', 'Probable', 'Confirmed'];
 

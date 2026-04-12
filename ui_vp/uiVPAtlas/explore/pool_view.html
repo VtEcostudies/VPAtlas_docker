@@ -17,11 +17,11 @@
         <div class="detail-header">
             <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Pool Detail</h3>
-            <div class="detail-actions">
+            <div class="detail-actions" style="display:flex; gap:6px;">
                 <button id="btn_edit" class="action-button" style="display:none;">Edit Pool</button>
-                <button id="btn_add_visit" class="action-button">Atlas Visit</button>
-                <button id="btn_add_survey" class="action-button">Monitor Survey</button>
                 <button id="btn_find_pool" class="action-button">Find Pool</button>
+                <button id="btn_add_visit" class="action-button">+ Atlas Visit</button>
+                <button id="btn_add_survey" class="action-button">+ Monitoring Survey</button>
             </div>
         </div>
     </header>
@@ -50,8 +50,14 @@
         </div>
 
         <!-- Right: Map -->
-        <div class="col-lg-6 col-12" style="height:85vh;">
+        <div class="col-lg-6 col-12" style="height:85vh; position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+            <div id="btn_center_pool" title="Zoom to pool" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;
+                background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
+                width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+                cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                <i class="fa fa-crosshairs"></i>
+            </div>
         </div>
     </div>
 
@@ -64,10 +70,10 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchMappedPoolById, fetchVisitsByPool, fetchSurveysByPool, fetchReviews } from './js/api.js';
+        import { fetchMappedPoolById, fetchVisitsByPool, fetchSurveysByPool, fetchReviews } from '/js/api.js';
         import { formatDate } from './js/utils.js';
-        import { getUser } from './js/auth.js';
-        import { createMap, addPoolMarker, getPoolColor } from './js/map_common.js';
+        import { getUser } from '/js/auth.js';
+        import { createMap, addPoolMarker, getPoolColor } from '/js/map_common.js';
 
         const params = new URLSearchParams(window.location.search);
         const poolId = params.get('poolId');
@@ -130,9 +136,9 @@
             document.getElementById('btn_edit').addEventListener('click', () =>
                 window.location.href = `pool_create.html?poolId=${poolId}`);
             document.getElementById('btn_add_visit').addEventListener('click', () =>
-                window.location.href = `visit_create.html?poolId=${poolId}`);
+                window.location.href = `/survey/visit_create.html?poolId=${poolId}`);
             document.getElementById('btn_add_survey').addEventListener('click', () =>
-                window.location.href = `/explore/survey_create.html?poolId=${poolId}`);
+                window.location.href = `/survey/survey_create.html?poolId=${poolId}`);
             document.getElementById('btn_find_pool').addEventListener('click', () =>
                 window.location.href = `/survey/survey_start.html?poolId=${poolId}`);
         });
@@ -276,7 +282,7 @@
                 <th data-col="reviewStatus">Status${sortIndicator('reviews','reviewStatus')}</th>
             </tr></thead><tbody>`;
             rows.forEach(r => {
-                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='review_view.html?reviewId=${r.reviewId}'">
+                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='/admin/review_view.html?reviewId=${r.reviewId}'">
                     <td>${r.reviewId || ''}</td>
                     <td>${r.reviewQACode || ''}</td>
                     <td>${r.reviewQAPerson || ''}</td>
@@ -304,6 +310,9 @@
                 tooltip: `${pool.mappedPoolId} — ${status}${town ? ', ' + town : ''}`,
                 popup: `Pool ${pool.mappedPoolId} — ${status}`
             });
+            let btn = document.getElementById('btn_center_pool');
+            btn.style.display = 'flex';
+            btn.addEventListener('click', () => map.setView([lat, lng], 16));
         }
     </script>
     <script src="/js/app.js"></script>

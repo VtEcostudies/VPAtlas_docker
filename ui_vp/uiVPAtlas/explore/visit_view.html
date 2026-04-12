@@ -16,7 +16,8 @@
         <div class="detail-header">
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Visit Detail</h3>
-            <div class="detail-actions">
+            <div class="detail-actions" style="display:flex; gap:6px;">
+                <button id="btn_add_review" class="action-button" style="display:none;">+ Review</button>
                 <button id="btn_edit" class="action-button" style="display:none;">Edit Visit</button>
             </div>
         </div>
@@ -37,6 +38,8 @@
             <div id="fish_section"></div>
 
             <div id="landowner_section"></div>
+
+            <div id="reviews_section"></div>
         </div>
 
         <!-- Right: Map -->
@@ -54,10 +57,10 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchVisitById } from './js/api.js';
+        import { fetchVisitById, fetchReviewsByVisit } from '/js/api.js';
         import { formatDate } from './js/utils.js';
-        import { getUser } from './js/auth.js';
-        import { createMap, addPoolMarker } from './js/map_common.js';
+        import { getUser } from '/js/auth.js';
+        import { createMap, addPoolMarker } from '/js/map_common.js';
 
         const params = new URLSearchParams(window.location.search);
         const visitId = params.get('visitId');
@@ -103,13 +106,26 @@
                 renderLandowner(visit);
                 initMap(visit, mapped);
 
-                // Edit button
+                // Reviews for this visit
+                try {
+                    let reviewData = await fetchReviewsByVisit(visitId);
+                    let reviews = reviewData.rows || (Array.isArray(reviewData) ? reviewData : []);
+                    renderReviews(reviews, visit);
+                } catch(err) {}
+
+                // Edit + Review buttons (logged-in users)
                 let user = await getUser();
                 if (user) {
-                    let btn = document.getElementById('btn_edit');
-                    btn.style.display = 'inline-block';
-                    btn.addEventListener('click', () =>
-                        window.location.href = `visit_create.html?visitId=${visitId}`);
+                    let editBtn = document.getElementById('btn_edit');
+                    editBtn.style.display = 'inline-block';
+                    editBtn.addEventListener('click', () =>
+                        window.location.href = `/survey/visit_create.html?visitId=${visitId}`);
+
+                    let reviewBtn = document.getElementById('btn_add_review');
+                    reviewBtn.style.display = 'inline-block';
+                    let poolId = visit.visitPoolId || (mapped && mapped.mappedPoolId) || '';
+                    reviewBtn.addEventListener('click', () =>
+                        window.location.href = `/admin/review_view.html?visitId=${visitId}&poolId=${poolId}`);
                 }
             } catch(err) {
                 document.getElementById('visit_info').innerHTML =
@@ -317,6 +333,27 @@
             items.forEach(([label, v]) => { html += `<tr><td><strong>${label}</strong></td><td>${v}</td></tr>`; });
             html += `</table>`;
             document.getElementById('landowner_section').innerHTML = html;
+        }
+
+        function renderReviews(reviews, visit) {
+            let container = document.getElementById('reviews_section');
+            if (!reviews.length) {
+                container.innerHTML = `<hr><h5>Reviews</h5><p style="font-size:14px; color:var(--text-muted);">No reviews for this visit.</p>`;
+                return;
+            }
+            let html = `<hr><h5>Reviews (${reviews.length})</h5>`;
+            html += `<table class="pool-table" style="font-size:14px;">
+                <thead><tr><th>Review ID</th><th>Date</th><th>QA Code</th><th>Reviewer</th></tr></thead><tbody>`;
+            reviews.forEach(r => {
+                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='/admin/review_view.html?reviewId=${r.reviewId}'">
+                    <td>${r.reviewId || ''}</td>
+                    <td>${formatDate(r.reviewQADate)}</td>
+                    <td>${r.reviewQACode || ''}</td>
+                    <td>${r.reviewUserName || ''}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            container.innerHTML = html;
         }
 
         async function initMap(v, m) {

@@ -5,36 +5,30 @@ appConfig.urlsToCache = [
 '/explore/index.html',
 '/explore/pool_view.html',
 '/explore/pool_create.html',
-'/explore/visit_create.html',
 '/explore/visit_view.html',
 '/explore/survey_view.html',
-'/explore/review_view.html',
-'/explore/review_list.html',
-'/explore/survey_list.html',
 '/explore/login.html',
 '/explore/register.html',
-'/explore/reset.html',
-'/explore/profile.html',
-'/explore/users_admin.html',
 
-// Shared JS
+// Shared JS (promoted from explore/js/)
 '/js/app.js',
 '/js/app_messaging.js',
 '/js/console_manager.js',
 '/js/resource_manager.js',
+'/js/config.js',
 '/js/bootstrap_5.2.3.min.js',
 '/js/leaflet_1.9.4.js',
+'/js/esri-leaflet_3.0.12.js',
 '/js/idb-keyval_6.esm.js',
-'/js/d3.v6.js',
+'/js/api.js',
+'/js/auth.js',
+'/js/storage.js',
+'/js/map_common.js',
 
-// Explore JS modules
-'/explore/js/api.js',
-'/explore/js/auth.js',
-'/explore/js/storage.js',
+// Explore-only JS modules
 '/explore/js/utils.js',
 '/explore/js/modal.js',
 '/explore/js/map.js',
-'/explore/js/map_common.js',
 '/explore/js/pool_list.js',
 '/explore/js/pool_summary.js',
 '/explore/js/filter_bar.js',
@@ -51,6 +45,7 @@ appConfig.urlsToCache = [
 '/explore/css/auth.css',
 '/explore/css/modal.css',
 '/explore/css/pool_list.css',
+'/explore/css/filter_bar.css',
 
 // Images
 '/css/images/vce_favicon.png',

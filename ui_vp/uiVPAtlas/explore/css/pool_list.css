@@ -28,6 +28,12 @@
     background-color: var(--primary-medium);
     font-weight: bold;
 }
+.pool-check {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+}
 .pool-table td {
     padding: 4px 8px;
     font-size: 13px;

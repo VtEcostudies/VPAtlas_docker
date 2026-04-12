@@ -163,6 +163,7 @@ export async function fetchPoolGeoJson(searchTerm) { return fetchApiRoute('pools
 // =============================================================================
 export async function fetchReviews(searchTerm) { return fetchApiRoute('review', searchTerm); }
 export async function fetchReviewById(id) { return fetchApiRoute(`review/${id}`); }
+export async function fetchReviewsByVisit(visitId) { return fetchApiRoute('review', `reviewVisitId=${visitId}`); }
 export async function createReview(body) { return postApiRoute('review', body); }
 export async function updateReview(id, body) { return putApiRoute(`review/${id}`, body); }
 

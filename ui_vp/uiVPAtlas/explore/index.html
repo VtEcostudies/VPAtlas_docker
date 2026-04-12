@@ -19,18 +19,18 @@
     <header>
         <div class="row controls controls-top">
             <!-- Logo -->
-            <div class="col-xl-2 col-lg-3 col-md-3 col-sm-6 col-12 header-title-logo">
+            <div class="col-auto header-title-logo" style="padding:4px 8px;">
                 <a id="logo_link" href="/explore/">
-                    <h3 class="header-name light-foreground">VPAtlas</h3>
+                    <h3 class="header-name light-foreground" style="font-size:16px; margin:0;">VPAtlas</h3>
                 </a>
                 <span id="app_version" class="app-version"></span>
             </div>
 
             <!-- Filter Container (injected by filter_bar.js) -->
-            <div id="filter_container" class="col-xl-7 col-lg-6 col-md-5 col-sm-6 col-12 filter-container"></div>
+            <div id="filter_container" class="col filter-container"></div>
 
             <!-- Profile / Auth -->
-            <div class="col-xl-3 col-lg-3 col-md-4 col-12 info-profile-container" style="justify-content:flex-end;">
+            <div class="col-auto info-profile-container" style="justify-content:flex-end; padding:4px 8px;">
                 <div id="profile_container" class="profile-container"></div>
             </div>
         </div>
@@ -91,7 +91,7 @@
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
         import { loadFromUrl, loadFromStorage, setPopState, filters, buildSearchTerm } from './js/url_state.js';
-        import { getUser, logout } from './js/auth.js';
+        import { getUser, logout } from '/js/auth.js';
         import { showModal } from './js/modal.js';
 
         // Load version from manifest

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VPAtlas - PoolFinder</title>
+    <title>VPAtlas - Pool Finder</title>
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
@@ -31,47 +31,30 @@
         .pf-gps-dot.denied { background: #e74c3c; }
         @keyframes gps-pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
-        /* Search bar in header */
-        .pf-search {
-            flex: 1; min-width: 0; position: relative;
-        }
-        .pf-search input {
-            width: 100%; font-size: 16px; padding: 6px 10px;
-            border: 1px solid var(--primary-color); border-radius: 8px;
-            font-weight: normal;
-        }
-        .pf-suggestions {
-            display: none; position: absolute; top: 100%; left: 0; right: 0;
-            background: white; border: 1px solid #ddd; border-radius: 0 0 8px 8px;
-            max-height: 250px; overflow-y: auto; z-index: 2000;
-            box-shadow: var(--shadow-medium);
-        }
-        .pf-suggestions.show { display: block; }
-        .pf-suggestion {
-            padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
-        }
-        .pf-suggestion:hover, .pf-suggestion:active { background: var(--primary-light); }
-        .pf-suggestion .pool-id { font-weight: 600; }
-        .pf-suggestion .pool-meta { color: var(--text-secondary); font-size: 12px; }
+        /* (search bar removed — pools selected on explore page) */
 
-        /* Selected pools chips */
+        /* Selected pools chips — inline in header, fat-thumb friendly */
         .pf-chips {
             display: flex; flex-wrap: wrap; gap: 4px;
-            padding: 4px 8px; flex-shrink: 0;
+            padding: 0; overflow: hidden; align-items: center;
         }
-        .pf-chips:empty { display: none; }
         .pf-chip {
-            display: flex; align-items: center; gap: 4px;
-            padding: 3px 8px; background: var(--primary-light);
-            border: 1px solid var(--primary-color); border-radius: 12px;
-            font-size: 13px; font-weight: 600; color: var(--primary-color);
+            display: flex; align-items: center;
+            padding: 6px 4px 6px 12px; background: var(--primary-light);
+            border: 1px solid var(--primary-color); border-radius: 16px;
+            font-size: 15px; font-weight: 600; color: var(--primary-color);
+            min-height: 36px; cursor: pointer;
         }
+        .pf-chip .chip-label { white-space: nowrap; }
         .pf-chip .remove {
-            cursor: pointer; font-size: 14px; line-height: 1;
-            color: var(--text-secondary); margin-left: 2px;
+            display: flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; margin-left: 4px;
+            border-radius: 50%; font-size: 18px; line-height: 1;
+            color: var(--text-secondary); cursor: pointer;
         }
-        .pf-chip .remove:hover { color: var(--danger-color); }
+        .pf-chip .remove:hover, .pf-chip .remove:active {
+            background: var(--danger-color); color: white;
+        }
 
         /* Map */
         .pf-map-container { flex: 1; min-height: 0; position: relative; }
@@ -85,14 +68,15 @@
             box-shadow: var(--shadow-light);
         }
 
-        /* Center button */
+        /* Center-on-me button — top-left of map */
         .pf-center-btn {
-            position: absolute; bottom: 10px; right: 60px; z-index: 1000;
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
-            width: 34px; height: 34px; display: flex; align-items: center;
-            justify-content: center; cursor: pointer; font-size: 16px; color: #333;
+            width: 40px; height: 40px; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; font-size: 20px; color: #333;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         }
-        .pf-center-btn:hover { background: #f4f4f4; }
+        .pf-center-btn:hover, .pf-center-btn:active { background: #e8f5e9; }
 
         /* Nav panel */
         .pf-nav-panel {
@@ -126,16 +110,10 @@
         <!-- Header: search + GPS -->
         <div class="pf-header">
             <a href="/explore/" class="exit-button" style="text-decoration:none;">&times;</a>
-            <h3 class="header-name light-foreground">PoolFinder</h3>
-            <div class="pf-search">
-                <input type="text" id="pool_search" placeholder="Search pool ID or town..." autocomplete="off">
-                <div class="pf-suggestions" id="suggestions"></div>
-            </div>
+            <h3 class="header-name light-foreground" style="margin-right:6px; white-space:normal;">Pool Finder</h3>
+            <div class="pf-chips" id="pool_chips" style="flex:1; min-width:0;"></div>
             <div class="pf-gps-dot" id="gps_dot" title="GPS Status"></div>
         </div>
-
-        <!-- Selected pool chips -->
-        <div class="pf-chips" id="pool_chips"></div>
 
         <!-- Map -->
         <div class="pf-map-container">
@@ -162,34 +140,19 @@
     <script type="module">
         import { GPSMonitor } from './js/gps_monitor.js';
         import { createMap, addPoolMarker, getPoolColor, getSurveyLevel,
-                 buildShapeIcon, stateCenter, stateZoom } from '/explore/js/map_common.js';
-        import { getLocal, setLocal } from '/explore/js/storage.js';
-        import { fetchApiRoute } from '/explore/js/api.js';
+                 buildShapeIcon, stateCenter, stateZoom } from '/js/map_common.js';
+        import { getLocal, setLocal } from '/js/storage.js';
+        import { fetchApiRoute } from '/js/api.js';
 
         let map, gps, userMarker, accuracyCircle;
         let selectedPools = new Map(); // poolId → { row, marker }
         let followUser = true;
-        let searchTimer = null;
 
         // =================================================================
         // INIT
         // =================================================================
         document.addEventListener('DOMContentLoaded', async () => {
             map = await createMap('map');
-
-            // Search
-            let searchInput = document.getElementById('pool_search');
-            searchInput.addEventListener('input', onSearchInput);
-            searchInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    let first = document.querySelector('.pf-suggestion');
-                    if (first) first.click();
-                }
-            });
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.pf-search')) closeSuggestions();
-            });
 
             // Center button
             document.getElementById('btn_center').addEventListener('click', () => {
@@ -200,93 +163,40 @@
             });
             map.on('dragstart', () => { followUser = false; });
 
-            // Restore saved pool list
-            await restoreSavedPools();
-
-            // Auto-start GPS
-            startGps();
-
-            // Pre-select from URL
+            // Load pools from URL params
             let params = new URLSearchParams(window.location.search);
+
+            // ?pools=X,Y,Z (multi-select from explore page)
+            let poolsCsv = params.get('pools');
+            if (poolsCsv) {
+                let ids = poolsCsv.split(',').map(s => s.trim()).filter(Boolean);
+                for (let pid of ids) {
+                    if (!selectedPools.has(pid)) await addPoolById(pid);
+                }
+            }
+
+            // ?poolId=X (single pool from pool_view, map popup, etc.)
             let prePoolId = params.get('poolId');
             if (prePoolId && !selectedPools.has(prePoolId)) {
                 await addPoolById(prePoolId);
             }
-        });
 
-        // =================================================================
-        // SEARCH
-        // =================================================================
-        function onSearchInput() {
-            let val = document.getElementById('pool_search').value.trim();
-            clearTimeout(searchTimer);
-            if (val.length < 2) { closeSuggestions(); return; }
-            searchTimer = setTimeout(() => doSearch(val), 250);
-        }
-
-        async function doSearch(term) {
-            try {
-                // Search by pool ID (ILIKE) on mapped pools endpoint
-                let data = await fetchApiRoute('pools/mapped', `mappedPoolId|ILIKE=%${term}%&limit=12`);
-                let rows = data.rows || [];
-
-                // Also search by town name if few pool ID results
-                if (rows.length < 5) {
-                    try {
-                        let townData = await fetchApiRoute('pools/mapped', `townName|ILIKE=%${term}%&limit=8`);
-                        let townRows = (townData.rows || []).filter(r => {
-                            let pid = r.mappedPoolId;
-                            return !rows.some(existing => existing.mappedPoolId === pid);
-                        });
-                        rows = rows.concat(townRows);
-                    } catch(e) {}
+            // Restore from user settings if no URL params
+            if (!poolsCsv && !prePoolId) {
+                let userState = await getLocal('user_state');
+                let saved = userState && userState.poolFinderPools;
+                if (saved && saved.length) {
+                    for (let pid of saved) {
+                        if (!selectedPools.has(pid)) await addPoolById(pid);
+                    }
+                } else {
+                    await restoreSavedPools();
                 }
-
-                showSuggestions(rows);
-            } catch(err) {
-                closeSuggestions();
             }
-        }
 
-        function showSuggestions(rows) {
-            let box = document.getElementById('suggestions');
-            if (!rows.length) {
-                box.innerHTML = '<div class="pf-suggestion" style="color:var(--text-muted);">No matches</div>';
-                box.classList.add('show');
-                return;
-            }
-            // Deduplicate
-            let seen = new Set();
-            let html = '';
-            rows.forEach(row => {
-                let pid = row.poolId || row.mappedPoolId || '';
-                if (!pid || seen.has(pid)) return;
-                seen.add(pid);
-                let status = row.poolStatus || row.mappedPoolStatus || '';
-                let town = row.townName || '';
-                let already = selectedPools.has(pid) ? ' <i class="fa fa-check" style="color:var(--success-color);"></i>' : '';
-                html += `<div class="pf-suggestion" data-pool-id="${pid}">
-                    <span class="pool-id">${pid}</span>${already}
-                    <span class="pool-meta">${status} ${town ? '— ' + town : ''}</span>
-                </div>`;
-            });
-            box.innerHTML = html;
-            box.classList.add('show');
-
-            box.querySelectorAll('.pf-suggestion').forEach(el => {
-                el.addEventListener('click', () => {
-                    let pid = el.dataset.poolId;
-                    let row = rows.find(r => (r.poolId || r.mappedPoolId) === pid);
-                    if (row) addPool(row);
-                    closeSuggestions();
-                    document.getElementById('pool_search').value = '';
-                });
-            });
-        }
-
-        function closeSuggestions() {
-            document.getElementById('suggestions').classList.remove('show');
-        }
+            // Auto-start GPS
+            startGps();
+        });
 
         // =================================================================
         // POOL SELECTION
@@ -325,6 +235,11 @@
         }
 
         function removePool(poolId) {
+            if (selectedPools.size <= 1) {
+                // Last pool — go back to explore to select more
+                window.location.href = '/explore/';
+                return;
+            }
             let entry = selectedPools.get(poolId);
             if (entry) {
                 map.removeLayer(entry.marker);
@@ -345,13 +260,8 @@
 
         function fitToSelectedPools() {
             if (selectedPools.size === 0) return;
-            if (selectedPools.size === 1) {
-                let e = selectedPools.values().next().value;
-                map.setView([e.lat, e.lng], 16);
-            } else {
-                let group = L.featureGroup([...selectedPools.values()].map(e => e.marker));
-                map.fitBounds(group.getBounds(), { padding: [40, 40] });
-            }
+            let group = L.featureGroup([...selectedPools.values()].map(e => e.marker));
+            map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 16 });
             followUser = false;
         }
 
@@ -359,6 +269,12 @@
         async function savePools() {
             let ids = [...selectedPools.keys()];
             await setLocal('poolfinder_pools', ids);
+            // Sync to user_state so explore page checkboxes stay in sync
+            try {
+                let state = await getLocal('user_state') || {};
+                state.poolFinderPools = ids;
+                await setLocal('user_state', state);
+            } catch(e) {}
         }
 
         async function restoreSavedPools() {
@@ -375,15 +291,24 @@
             let container = document.getElementById('pool_chips');
             let html = '';
             for (let [pid, entry] of selectedPools) {
-                let town = entry.row.townName || '';
-                html += `<span class="pf-chip">
-                    ${pid}${town ? ' — ' + town : ''}
-                    <span class="remove" data-pool="${pid}">&times;</span>
+                html += `<span class="pf-chip" data-pool="${pid}">
+                    <span class="chip-label">${pid}</span><span class="remove" data-pool="${pid}">&times;</span>
                 </span>`;
             }
             container.innerHTML = html;
+            // Chip label click → zoom to pool
+            container.querySelectorAll('.chip-label').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    zoomToPool(el.closest('.pf-chip').dataset.pool);
+                });
+            });
+            // Remove button click → remove pool
             container.querySelectorAll('.remove').forEach(el => {
-                el.addEventListener('click', () => removePool(el.dataset.pool));
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removePool(el.dataset.pool);
+                });
             });
         }
 
@@ -441,8 +366,8 @@
                         <div class="pool-name">${pid} — ${status}</div>
                         <div class="pool-detail">${loc}</div>
                         <div class="pf-nav-actions">
-                            <a href="/explore/visit_create.html?poolId=${pid}${gpsCoords}" class="${nearClass}">Atlas Visit</a>
-                            <a href="/explore/survey_create.html?poolId=${pid}" class="${nearClass}">Monitor Survey</a>
+                            <a href="/survey/visit_create.html?poolId=${pid}${gpsCoords}" class="${nearClass}">Atlas Visit</a>
+                            <a href="/survey/survey_create.html?poolId=${pid}" class="${nearClass}">Monitor Survey</a>
                         </div>
                     </div>
                 </div>`;

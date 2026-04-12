@@ -3,7 +3,7 @@
     ES6 module. Manages the left tri-pane with pool list table.
     Pattern from LoonWeb explore/js/signup_table.js
 */
-import { fetchPools, fetchPoolPage, fetchMappedPoolStats } from './api.js';
+import { fetchPools, fetchPoolPage, fetchMappedPoolStats } from '/js/api.js';
 import { showWait, hideWait } from './utils.js';
 import { filters, buildSearchTerm, putUserState, filterRowsByDataType } from './url_state.js';
 
@@ -12,6 +12,7 @@ var listContainer = null;
 var titleContainer = null;
 var currentUsername = null;
 var zoomToFilteredCallback = null;
+var selectedPoolIds = new Set();
 
 // =============================================================================
 // INITIALIZE
@@ -22,6 +23,10 @@ export function initPoolList(containerId, titleId, poolSelectCallback, username=
     onPoolSelect = poolSelectCallback;
     currentUsername = username;
     zoomToFilteredCallback = zoomCallback;
+    // Restore saved pool selections (filters loaded from storage before this call)
+    if (filters.poolFinderPools && filters.poolFinderPools.length) {
+        filters.poolFinderPools.forEach(id => selectedPoolIds.add(id));
+    }
 }
 
 // =============================================================================
@@ -46,15 +51,31 @@ export async function loadPools() {
         if (titleContainer) {
             titleContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between;">
                 <h5 style="margin:0;">Vernal Pools (${rows.length})</h5>
-                <button id="zoom-to-items-btn" title="Zoom map to filtered pools"
-                    style="background:none; border:1px solid var(--border-color,#ccc); border-radius:4px; cursor:pointer; padding:2px 6px; font-size:14px; color:var(--text-secondary,#555);">
-                    <i class="fa fa-crosshairs"></i>
-                </button>
+                <div style="display:flex; gap:4px; align-items:center;">
+                    <a id="poolfinder-btn" href="#" title="Open selected pools in PoolFinder"
+                        style="display:none; font-size:13px; padding:2px 8px; border:1px solid var(--primary-color); border-radius:4px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">
+                        <i class="fa fa-location-arrow"></i> <span id="poolfinder-count"></span>
+                    </a>
+                    <button id="zoom-to-items-btn" title="Zoom map to filtered pools"
+                        style="background:none; border:1px solid var(--border-color,#ccc); border-radius:4px; cursor:pointer; padding:2px 6px; font-size:14px; color:var(--text-secondary,#555);">
+                        <i class="fa fa-crosshairs"></i>
+                    </button>
+                </div>
             </div>`;
             let zoomBtn = document.getElementById('zoom-to-items-btn');
             if (zoomBtn && zoomToFilteredCallback) {
                 zoomBtn.addEventListener('click', zoomToFilteredCallback);
             }
+            let pfBtn = document.getElementById('poolfinder-btn');
+            if (pfBtn) {
+                pfBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (selectedPoolIds.size) {
+                        window.location.href = `/survey/survey_start.html?pools=${[...selectedPoolIds].join(',')}`;
+                    }
+                });
+            }
+            updateSelectionCount();
         }
 
         renderPoolTable(rows);
@@ -132,6 +153,7 @@ function renderPoolTable(rows) {
     let html = `<table class="pool-table">
         <thead>
             <tr>
+                <th style="width:28px; padding:4px;"></th>
                 <th class="sortable" data-col="mappedPoolId">Pool ID</th>
                 <th class="sortable" data-col="townName">Town</th>
                 <th class="sortable" data-col="poolStatus">Status</th>
@@ -149,8 +171,10 @@ function renderPoolTable(rows) {
 
         let visits = row._visitCount || 0;
         let surveys = row._surveyCount || 0;
+        let checked = selectedPoolIds.has(poolId) ? ' checked' : '';
 
         html += `<tr class="pool-row" data-pool-id="${poolId}">
+            <td style="padding:4px; text-align:center;"><input type="checkbox" class="pool-check"${checked}></td>
             <td>${poolId}</td>
             <td>${town}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
@@ -162,13 +186,29 @@ function renderPoolTable(rows) {
     html += '</tbody></table>';
     listContainer.innerHTML = html;
 
-    // Add click handlers
+    // Restore multi-select highlighting
     listContainer.querySelectorAll('.pool-row').forEach(tr => {
-        tr.addEventListener('click', function() {
+        if (selectedPoolIds.has(tr.dataset.poolId)) tr.classList.add('selected');
+    });
+
+    // Add click handlers — single click selects for summary, checkbox toggles multi-select
+    listContainer.querySelectorAll('.pool-row').forEach(tr => {
+        tr.addEventListener('click', function(e) {
             let poolId = this.dataset.poolId;
-            // Highlight selected row
-            listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('selected'));
-            this.classList.add('selected');
+            // Checkbox click → toggle multi-select
+            if (e.target.classList.contains('pool-check')) {
+                if (selectedPoolIds.has(poolId)) {
+                    selectedPoolIds.delete(poolId);
+                    this.classList.remove('selected');
+                } else {
+                    selectedPoolIds.add(poolId);
+                    this.classList.add('selected');
+                }
+                putUserState(0, { poolFinderPools: [...selectedPoolIds] });
+                updateSelectionCount();
+                return;
+            }
+            // Row click → show summary (single focus, doesn't change multi-select)
             if (onPoolSelect) onPoolSelect(poolId);
         });
     });
@@ -204,12 +244,36 @@ function sortTable(rows, col) {
     }
 
     rows.sort((a, b) => {
-        let va = (a[col] || '').toString().toLowerCase();
-        let vb = (b[col] || '').toString().toLowerCase();
+        let va = a[col] != null ? a[col] : '';
+        let vb = b[col] != null ? b[col] : '';
+        // Numeric comparison when both values are numbers (or empty)
+        if (typeof va === 'number' || typeof vb === 'number') {
+            let na = Number(va) || 0;
+            let nb = Number(vb) || 0;
+            return sortAsc ? na - nb : nb - na;
+        }
+        va = va.toString().toLowerCase();
+        vb = vb.toString().toLowerCase();
         if (va < vb) return sortAsc ? -1 : 1;
         if (va > vb) return sortAsc ? 1 : -1;
         return 0;
     });
 
     renderPoolTable(rows);
+}
+
+function updateSelectionCount() {
+    let btn = document.getElementById('poolfinder-btn');
+    let countEl = document.getElementById('poolfinder-count');
+    if (!btn) return;
+    if (selectedPoolIds.size) {
+        btn.style.display = 'inline-flex';
+        countEl.textContent = `Find ${selectedPoolIds.size}`;
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+export function getSelectedPools() {
+    return [...selectedPoolIds];
 }

@@ -233,14 +233,19 @@ async function getAll(params={}) {
         var dir = params.orderBy.split("|")[1]; dir = dir ? dir : '';
         orderClause = `order by "${col}" ${dir}`;
     }
+    delete params.orderBy;
     var pagingClause = '';
     if (params.offset || params.limit) {
-      params.offset = params.offset?params.offset:0;
-      params.limit = params.limit?params.limitt:10;
-      pagingClause = `offset ${params.offset} limit ${params.limit}`;
+      var offset = params.offset ? params.offset : 0;
+      var limit = params.limit ? params.limit : 10;
+      pagingClause = `offset ${offset} limit ${limit}`;
     }
+    delete params.offset;
+    delete params.limit;
+    var hasIndicator = params.visitHasIndicator;
+    delete params.visitHasIndicator;
     var where = pgUtil.whereClause(params, staticColumns);
-    if (params.visitHasIndicator) {where.text += ' AND '; where.text += common.visitHasIndicator();}
+    if (hasIndicator) {where.text += ' AND '; where.text += common.visitHasIndicator();}
     const text = `
 SELECT
 "townId",

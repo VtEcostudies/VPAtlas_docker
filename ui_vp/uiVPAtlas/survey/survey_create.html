@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
-    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="/explore/css/common.css">
     <link rel="stylesheet" href="/css/map.css">
     <style>
         /* Mobile-first monitoring survey form — matches visit_create.html pattern */
@@ -282,14 +282,9 @@
                     <div class="form-row">
                         <div class="form-field"><label for="surveyTime">Survey Time</label><input type="time" id="surveyTime"></div>
                         <div class="form-field">
-                            <label for="surveyTypeId">Field Visit</label>
+                            <label for="surveyTypeId">Survey Type</label>
                             <select id="surveyTypeId">
                                 <option value="">-- select --</option>
-                                <option value="1">Visit 1</option>
-                                <option value="2">Visit 2</option>
-                                <option value="3">Visit 3</option>
-                                <option value="4">Visit 4</option>
-                                <option value="5">Supplemental/Extra</option>
                             </select>
                         </div>
                     </div>
@@ -622,53 +617,47 @@
     <script src="/js/esri-leaflet_3.0.12.js"></script>
 
     <script type="module">
-        import { fetchSurveyById, fetchMappedPoolById, createSurvey, updateSurvey } from './js/api.js';
-        import { requireAuth, getUser } from './js/auth.js';
+        import { fetchFieldSurveyById, createFieldSurvey, updateFieldSurvey, fetchSurveyTypes } from '/js/api.js';
+        import { requireAuth, getUser } from '/js/auth.js';
 
         const params = new URLSearchParams(window.location.search);
         const surveyId = params.get('surveyId');
         const poolId = params.get('poolId') || params.get('pool_id');
         const isEdit = !!surveyId;
 
-        // All text/number input IDs
+        // Parent-table text/number input IDs (amphib + macro handled separately)
         const textFields = [
             'surveyPoolId', 'combinedTimeDate', 'surveyTime', 'surveyTypeId',
-            'obs1_surveyAmphibObsEmail', 'obs2_surveyAmphibObsEmail',
             'surveyWaterLevel', 'surveyPhysicalParametersNotes',
             'surveyAirTempF', 'surveyHumidity', 'surveyWeatherNotes',
-            'obs1_surveyAmphibEdgeStart', 'obs1_surveyAmphibEdgeStop',
-            'obs1_surveyAmphibEdgeWOFR', 'obs1_surveyAmphibEdgeSPSA',
-            'obs1_surveyAmphibEdgeJESA', 'obs1_surveyAmphibEdgeBLSA',
-            'obs2_surveyAmphibEdgeStart', 'obs2_surveyAmphibEdgeStop',
-            'obs2_surveyAmphibEdgeWOFR', 'obs2_surveyAmphibEdgeSPSA',
-            'obs2_surveyAmphibEdgeJESA', 'obs2_surveyAmphibEdgeBLSA',
-            'obs1_surveyAmphibInteriorStart', 'obs1_surveyAmphibInteriorStop',
-            'obs1_surveyAmphibInteriorWOFR', 'obs1_surveyAmphibInteriorSPSA',
-            'obs1_surveyAmphibInteriorJESA', 'obs1_surveyAmphibInteriorBLSA',
-            'obs2_surveyAmphibInteriorStart', 'obs2_surveyAmphibInteriorStop',
-            'obs2_surveyAmphibInteriorWOFR', 'obs2_surveyAmphibInteriorSPSA',
-            'obs2_surveyAmphibInteriorJESA', 'obs2_surveyAmphibInteriorBLSA',
-            'surveyMacroNorthFASH', 'surveyMacroNorthCDFY',
-            'surveyMacroEastFASH', 'surveyMacroEastCDFY',
-            'surveyMacroSouthFASH', 'surveyMacroSouthCDFY',
-            'surveyMacroWestFASH', 'surveyMacroWestCDFY',
             'surveyAmphibMacroNotes', 'surveyMiscNotes'
         ];
 
-        // All radio group names
+        // Parent-table radio group names (observer equipment handled in amphib builder)
         const radioGroups = [
             'surveyAcousticMonitor', 'surveyHoboLogger', 'surveyHoboData',
             'surveyIceCover',
             'surveySubmergedVeg', 'surveyFloatingVeg', 'surveyEmergentVeg', 'surveyShrubs', 'surveyTrees',
             'surveyWindBeaufort',
             'surveyEdgeVisualImpairment', 'surveyInteriorVisualImpairment',
-            'obs1_surveyPolarizedGlasses', 'obs2_surveyPolarizedGlasses',
-            'obs1_surveyBinos', 'obs2_surveyBinos',
             'surveySpermatophores'
         ];
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!(await requireAuth())) return;
+
+            // Populate survey type dropdown from DB
+            try {
+                let types = await fetchSurveyTypes();
+                let rows = types.rows || (Array.isArray(types) ? types : []);
+                let sel = document.getElementById('surveyTypeId');
+                rows.forEach(t => {
+                    let opt = document.createElement('option');
+                    opt.value = t.surveyTypeId;
+                    opt.textContent = t.surveyTypeName;
+                    sel.appendChild(opt);
+                });
+            } catch(err) { console.warn('Could not load survey types:', err); }
 
             // Tab navigation
             document.querySelectorAll('.survey-tab-btn').forEach(btn => {
@@ -696,8 +685,7 @@
             if (isEdit) {
                 document.getElementById('page_title').textContent = `Edit Survey ${surveyId}`;
                 try {
-                    let data = await fetchSurveyById(surveyId);
-                    let survey = Array.isArray(data) ? data[0] : (data.rows ? data.rows[0] : data);
+                    let survey = await fetchFieldSurveyById(surveyId);
                     if (survey) populateForm(survey);
                 } catch(err) { showMsg('Error loading survey: ' + err.message, 'error'); }
             } else {
@@ -722,10 +710,16 @@
 
                 showMsg('Saving...', 'info');
                 try {
+                    let result;
                     if (isEdit) {
-                        await updateSurvey(surveyId, body);
+                        result = await updateFieldSurvey(surveyId, body);
                     } else {
-                        await createSurvey(body);
+                        result = await createFieldSurvey(body);
+                    }
+                    // Check for validation errors returned as 400
+                    if (result.errors) {
+                        showMsg('Validation: ' + result.errors.join(', '), 'error');
+                        return;
                     }
                     showMsg('Saved!', 'success');
                     setTimeout(() => {
@@ -759,15 +753,14 @@
                 }
             });
 
-            // Handle amphibian JSON (stored as surveyAmphibJson)
-            if (s.surveyAmphibJson) {
-                for (let [key, obs] of Object.entries(s.surveyAmphibJson)) {
-                    let prefix = key; // 'obs1' or 'obs2'
+            // Amphib child rows — array of observer objects from field API
+            if (s.amphib && Array.isArray(s.amphib)) {
+                s.amphib.forEach((obs, i) => {
+                    let prefix = `obs${i + 1}`; // obs1, obs2
                     if (obs.surveyAmphibObsEmail) {
                         let emailEl = document.getElementById(`${prefix}_surveyAmphibObsEmail`);
                         if (emailEl) emailEl.value = obs.surveyAmphibObsEmail;
                     }
-                    // Edge counts
                     ['surveyAmphibEdgeWOFR','surveyAmphibEdgeSPSA','surveyAmphibEdgeJESA','surveyAmphibEdgeBLSA',
                      'surveyAmphibEdgeStart','surveyAmphibEdgeStop',
                      'surveyAmphibInteriorWOFR','surveyAmphibInteriorSPSA','surveyAmphibInteriorJESA','surveyAmphibInteriorBLSA',
@@ -778,26 +771,31 @@
                             if (el) el.value = obs[field];
                         }
                     });
-                    // Observer equipment
-                    ['surveyPolarizedGlasses','surveyBinos'].forEach(field => {
-                        if (obs[field]) {
-                            let radio = document.querySelector(`input[name="${prefix}_${field}"][value="${obs[field]}"]`);
-                            if (radio) radio.checked = true;
-                        }
-                    });
-                }
+                    // Polarized glasses: DB stores boolean, form uses Yes/No radio
+                    if (obs.surveyAmphibPolarizedGlasses != null) {
+                        let val = obs.surveyAmphibPolarizedGlasses ? 'Yes' : 'No';
+                        let radio = document.querySelector(`input[name="${prefix}_surveyPolarizedGlasses"][value="${val}"]`);
+                        if (radio) radio.checked = true;
+                    }
+                    // Binoculars: same pattern
+                    if (obs.surveyAmphibBinoculars != null) {
+                        let val = obs.surveyAmphibBinoculars ? 'Yes' : 'No';
+                        let radio = document.querySelector(`input[name="${prefix}_surveyBinos"][value="${val}"]`);
+                        if (radio) radio.checked = true;
+                    }
+                });
             }
 
-            // Handle macro JSON (stored as surveyMacroJson)
-            if (s.surveyMacroJson) {
+            // Macro child row — flat object from field API
+            if (s.macro) {
                 ['surveyMacroNorthFASH','surveyMacroNorthCDFY',
                  'surveyMacroEastFASH','surveyMacroEastCDFY',
                  'surveyMacroSouthFASH','surveyMacroSouthCDFY',
                  'surveyMacroWestFASH','surveyMacroWestCDFY'
                 ].forEach(field => {
-                    if (s.surveyMacroJson[field] != null) {
+                    if (s.macro[field] != null) {
                         let el = document.getElementById(field);
-                        if (el) el.value = s.surveyMacroJson[field];
+                        if (el) el.value = s.macro[field];
                     }
                 });
             }
@@ -805,10 +803,11 @@
             // Radio groups
             radioGroups.forEach(name => {
                 let val = s[name];
-                if (val != null && val !== 'None') {
-                    let radio = document.querySelector(`input[name="${name}"][value="${val}"]`);
-                    if (radio) radio.checked = true;
-                }
+                if (val == null || val === 'None') return;
+                // Boolean fields (surveySpermatophores) → map to Yes/No
+                if (typeof val === 'boolean') val = val ? 'Yes' : 'No';
+                let radio = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (radio) radio.checked = true;
             });
 
             // Weather conditions (multi-select checkboxes)
@@ -841,10 +840,19 @@
                 if (el && el.value) body[f] = el.value;
             });
 
+            // surveyUserEmail is required by DB — use observer 1 email
+            let obs1Email = document.getElementById('obs1_surveyAmphibObsEmail');
+            if (obs1Email && obs1Email.value) body.surveyUserEmail = obs1Email.value;
+
             // Radio groups
             radioGroups.forEach(name => {
                 let radio = document.querySelector(`input[name="${name}"]:checked`);
-                if (radio) body[name] = radio.value;
+                if (radio) {
+                    let val = radio.value;
+                    // Boolean DB columns use Yes/No in the form
+                    if (name === 'surveySpermatophores') val = (val === 'Yes');
+                    body[name] = val;
+                }
             });
 
             // Weather conditions — join checked values
@@ -854,51 +862,62 @@
             });
             if (conditions.length) body.surveyWeatherConditions = conditions.join(',');
 
-            // Build amphibian JSON structure
-            let amphibJson = {};
+            // Build amphib array — one object per observer, using DB column names
+            let amphib = [];
             ['obs1', 'obs2'].forEach(prefix => {
                 let obs = {};
                 let emailEl = document.getElementById(`${prefix}_surveyAmphibObsEmail`);
-                if (emailEl && emailEl.value) obs.surveyAmphibObsEmail = emailEl.value;
+                if (!emailEl || !emailEl.value) return; // skip observer without email
+                obs.surveyAmphibObsEmail = emailEl.value;
 
-                ['surveyAmphibEdgeStart','surveyAmphibEdgeStop',
-                 'surveyAmphibEdgeWOFR','surveyAmphibEdgeSPSA','surveyAmphibEdgeJESA','surveyAmphibEdgeBLSA',
-                 'surveyAmphibInteriorStart','surveyAmphibInteriorStop',
+                // Polarized glasses + binoculars → boolean for DB
+                let glasses = document.querySelector(`input[name="${prefix}_surveyPolarizedGlasses"]:checked`);
+                if (glasses) obs.surveyAmphibPolarizedGlasses = glasses.value === 'Yes';
+                let binos = document.querySelector(`input[name="${prefix}_surveyBinos"]:checked`);
+                if (binos) obs.surveyAmphibBinoculars = binos.value === 'Yes';
+
+                // Count fields — always include (default 0)
+                ['surveyAmphibEdgeWOFR','surveyAmphibEdgeSPSA','surveyAmphibEdgeJESA','surveyAmphibEdgeBLSA',
                  'surveyAmphibInteriorWOFR','surveyAmphibInteriorSPSA','surveyAmphibInteriorJESA','surveyAmphibInteriorBLSA'
+                ].forEach(field => {
+                    let el = document.getElementById(`${prefix}_${field}`);
+                    obs[field] = (el && el.value) ? parseInt(el.value) || 0 : 0;
+                });
+                // Time fields — only include if set
+                ['surveyAmphibEdgeStart','surveyAmphibEdgeStop',
+                 'surveyAmphibInteriorStart','surveyAmphibInteriorStop'
                 ].forEach(field => {
                     let el = document.getElementById(`${prefix}_${field}`);
                     if (el && el.value) obs[field] = el.value;
                 });
 
-                ['surveyPolarizedGlasses','surveyBinos'].forEach(field => {
-                    let radio = document.querySelector(`input[name="${prefix}_${field}"]:checked`);
-                    if (radio) obs[field] = radio.value;
-                });
-
-                if (Object.keys(obs).length > 0) amphibJson[prefix] = obs;
+                amphib.push(obs);
             });
-            if (Object.keys(amphibJson).length > 0) body.surveyAmphibJson = amphibJson;
+            if (amphib.length) body.amphib = amphib;
 
-            // Build macro JSON structure
-            let macroJson = {};
+            // Build macro object — flat, using DB column names directly
+            let macro = {};
+            let hasMacroData = false;
             ['surveyMacroNorthFASH','surveyMacroNorthCDFY',
              'surveyMacroEastFASH','surveyMacroEastCDFY',
              'surveyMacroSouthFASH','surveyMacroSouthCDFY',
              'surveyMacroWestFASH','surveyMacroWestCDFY'
             ].forEach(field => {
                 let el = document.getElementById(field);
-                if (el && el.value) macroJson[field] = parseInt(el.value) || 0;
+                let val = parseInt(el && el.value) || 0;
+                macro[field] = val;
+                if (val > 0) hasMacroData = true;
             });
             // Compute totals
-            macroJson.surveyMacroTotalFASH = (parseInt(macroJson.surveyMacroNorthFASH) || 0)
-                + (parseInt(macroJson.surveyMacroEastFASH) || 0)
-                + (parseInt(macroJson.surveyMacroSouthFASH) || 0)
-                + (parseInt(macroJson.surveyMacroWestFASH) || 0);
-            macroJson.surveyMacroTotalCDFY = (parseInt(macroJson.surveyMacroNorthCDFY) || 0)
-                + (parseInt(macroJson.surveyMacroEastCDFY) || 0)
-                + (parseInt(macroJson.surveyMacroSouthCDFY) || 0)
-                + (parseInt(macroJson.surveyMacroWestCDFY) || 0);
-            if (Object.keys(macroJson).length > 2) body.surveyMacroJson = macroJson;
+            macro.surveyMacroTotalFASH = (macro.surveyMacroNorthFASH || 0)
+                + (macro.surveyMacroEastFASH || 0)
+                + (macro.surveyMacroSouthFASH || 0)
+                + (macro.surveyMacroWestFASH || 0);
+            macro.surveyMacroTotalCDFY = (macro.surveyMacroNorthCDFY || 0)
+                + (macro.surveyMacroEastCDFY || 0)
+                + (macro.surveyMacroSouthCDFY || 0)
+                + (macro.surveyMacroWestCDFY || 0);
+            if (hasMacroData) body.macro = macro;
 
             return body;
         }

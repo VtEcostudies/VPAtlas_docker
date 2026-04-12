@@ -9,7 +9,7 @@
     All summaries are computed from the same filtered rows that drive the
     pool list and map — ensuring all three panes always agree.
 */
-import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchSurveysByPool } from './api.js';
+import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchSurveysByPool } from '/js/api.js';
 import { formatDate } from './utils.js';
 import { filters, getCurrentScope } from './url_state.js';
 
@@ -87,12 +87,19 @@ function describeCurrentView(scope, dataType, rows) {
         : scope.type === 'county' ? `in ${Array.isArray(scope.value) ? scope.value.join(', ') : scope.value}`
         : `in ${Array.isArray(scope.value) ? scope.value.join(', ') : scope.value}`;
 
+    let statusDesc = '';
+    let statuses = filters.poolStatuses || [];
+    let allStatuses = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
+    if (statuses.length && statuses.length < allStatuses.length) {
+        statusDesc = ` (${statuses.join(', ')})`;
+    }
+
     switch (dataType) {
-        case 'Visited':   return `${count.toLocaleString()} visited pools ${geoDesc}`;
-        case 'Monitored': return `${count.toLocaleString()} monitored pools ${geoDesc}`;
-        case 'Mine':      return `${count.toLocaleString()} pools associated with your account ${geoDesc}`;
-        case 'Review':    return `${count.toLocaleString()} pools needing review ${geoDesc}`;
-        default:          return `${count.toLocaleString()} pools ${geoDesc}`;
+        case 'Visited':   return `${count.toLocaleString()} visited pools ${geoDesc}${statusDesc}`;
+        case 'Monitored': return `${count.toLocaleString()} monitored pools ${geoDesc}${statusDesc}`;
+        case 'Mine':      return `${count.toLocaleString()} pools associated with your account ${geoDesc}${statusDesc}`;
+        case 'Review':    return `${count.toLocaleString()} pools needing review ${geoDesc}${statusDesc}`;
+        default:          return `${count.toLocaleString()} pools ${geoDesc}${statusDesc}`;
     }
 }
 
@@ -186,25 +193,26 @@ export async function showPoolSummary(poolId) {
 
         html += `<div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap;">
             <a href="pool_view.html?poolId=${poolId}" class="summary-link">Full Detail</a>
-            <a href="visit_create.html?poolId=${poolId}" class="summary-link">Atlas Visit</a>
-            <a href="/explore/survey_create.html?poolId=${poolId}" class="summary-link">Monitor Survey</a>
             <a href="/survey/survey_start.html?poolId=${poolId}" class="summary-link">Find Pool</a>
+            <a href="/survey/visit_create.html?poolId=${poolId}" class="summary-link">+ Atlas Visit</a>
+            <a href="/survey/survey_create.html?poolId=${poolId}" class="summary-link">+ Monitoring Survey</a>
         </div>`;
         html += `</div>`;
 
         // Visits
         try {
             let visits = await fetchVisitsByPool(poolId);
-            if (visits.rows && visits.rows.length) {
-                html += `<div class="summary-section"><h6>Visits (${visits.rows.length})</h6>`;
-                visits.rows.slice(0, 10).forEach(v => {
-                    html += `<div class="summary-list-item">
+            let visitRows = visits.rows || (Array.isArray(visits) ? visits : []);
+            if (visitRows.length) {
+                html += `<div class="summary-section"><h6>Visits (${visitRows.length})</h6>`;
+                visitRows.slice(0, 10).forEach(v => {
+                    html += `<a href="visit_view.html?visitId=${v.visitId}" class="summary-list-item" style="text-decoration:none; color:inherit;">
                         <span>${formatDate(v.visitDate)}</span>
                         <span>${v.visitObserverUserName || v.visitUserName || ''}</span>
-                    </div>`;
+                    </a>`;
                 });
-                if (visits.rows.length > 10) {
-                    html += `<div class="summary-list-item" style="color:var(--text-muted);">+${visits.rows.length - 10} more</div>`;
+                if (visitRows.length > 10) {
+                    html += `<div class="summary-list-item" style="color:var(--text-muted);">+${visitRows.length - 10} more</div>`;
                 }
                 html += `</div>`;
             }
@@ -213,14 +221,19 @@ export async function showPoolSummary(poolId) {
         // Surveys
         try {
             let surveys = await fetchSurveysByPool(poolId);
-            if (surveys.rows && surveys.rows.length) {
-                html += `<div class="summary-section"><h6>Surveys (${surveys.rows.length})</h6>`;
-                surveys.rows.slice(0, 10).forEach(s => {
-                    html += `<div class="summary-list-item">
+            let surveyRows = surveys.rows || (Array.isArray(surveys) ? surveys : []);
+            if (surveyRows.length) {
+                html += `<div class="summary-section"><h6>Surveys (${surveyRows.length})</h6>`;
+                surveyRows.slice(0, 10).forEach(s => {
+                    html += `<a href="survey_view.html?surveyId=${s.surveyId}" class="summary-list-item" style="text-decoration:none; color:inherit;">
                         <span>${formatDate(s.surveyDate)}</span>
                         <span>${s.surveyTypeName || ''}</span>
-                    </div>`;
+                        <span>${s.surveyUserLogin || ''}</span>
+                    </a>`;
                 });
+                if (surveyRows.length > 10) {
+                    html += `<div class="summary-list-item" style="color:var(--text-muted);">+${surveyRows.length - 10} more</div>`;
+                }
                 html += `</div>`;
             }
         } catch(err) {}

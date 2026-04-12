@@ -1,15 +1,23 @@
+/* Filter bar — unified row of buttons + inputs */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    max-width: 100%;
+}
+
 /* Data-type buttons (All, Visited, Monitored, Mine, Review) */
 .data-type-group {
-    display: flex;
-    gap: 3px;
-    flex-wrap: wrap;
+    display: contents;
 }
 .data-type-btn {
     font-size: 13px;
     font-weight: 500;
-    padding: 4px 10px;
+    padding: 4px 8px;
+    height: 32px;
     border: 1px solid var(--primary-color);
-    border-radius: 8px;
+    border-radius: 6px;
     background: white;
     color: var(--primary-color);
     cursor: pointer;
@@ -23,6 +31,58 @@
     color: white;
 }
 
+/* Filter inputs — same height as buttons */
+.filter-input {
+    font-size: 14px;
+    padding: 4px 8px;
+    height: 32px;
+    border: 1px solid var(--primary-color);
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+/* Mobile: smaller, everything must wrap and fit */
+@media (max-width: 768px) {
+    .filter-bar {
+        gap: 3px;
+    }
+    .data-type-btn {
+        font-size: 11px;
+        padding: 2px 5px;
+        height: 26px;
+    }
+    .filter-input {
+        font-size: 13px;
+        padding: 2px 6px;
+        height: 26px;
+        min-width: 0;
+        max-width: 80px !important;
+    }
+    .filter-dropdown-btn {
+        font-size: 11px;
+        padding: 2px 6px;
+        height: 26px;
+        line-height: 20px;
+    }
+}
+@media (max-width: 420px) {
+    .data-type-btn {
+        font-size: 10px;
+        padding: 2px 4px;
+        height: 24px;
+    }
+    .filter-input {
+        font-size: 12px;
+        height: 24px;
+        max-width: 70px !important;
+    }
+    .filter-dropdown-btn {
+        font-size: 10px;
+        height: 24px;
+        line-height: 18px;
+    }
+}
+
 /* Filter bar and token styles */
 
 /* Filter tokens (chips) */
@@ -30,7 +90,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    padding: 2px 10px;
+    padding: 2px 0;
     min-height: 4px;
 }
 .filter-token {
@@ -142,15 +202,18 @@
     padding: 2px 8px;
 }
 
-/* Filter dropdown button */
+/* Filter dropdown button — same height as other filter elements */
 .filter-dropdown-btn {
     cursor: pointer;
-    font-size: 14px;
-    padding: 5px 12px;
+    font-size: 13px;
+    padding: 4px 10px;
+    height: 32px;
+    line-height: 22px;
     border: 1px solid var(--primary-color);
-    border-radius: 8px;
+    border-radius: 6px;
     display: inline-block;
     font-weight: normal;
+    box-sizing: border-box;
 }
 .filter-dropdown-btn:hover {
     background-color: var(--primary-light);

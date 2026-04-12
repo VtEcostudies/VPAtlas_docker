@@ -6,9 +6,9 @@
     <title>VPAtlas - Reviews</title>
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
-    <link rel="stylesheet" href="./css/common.css">
-    <link rel="stylesheet" href="./css/modal.css">
-    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/explore/css/modal.css">
+    <link rel="stylesheet" href="/explore/css/pool_list.css">
     <link rel="stylesheet" href="/css/map.css">
 </head>
 <body>
@@ -72,9 +72,9 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchReviews } from './js/api.js';
-        import { formatDate } from './js/utils.js';
-        import { getUser } from './js/auth.js';
+        import { fetchReviews } from '/js/api.js';
+        import { formatDate } from '/explore/js/utils.js';
+        import { getUser } from '/js/auth.js';
 
         document.addEventListener('DOMContentLoaded', async () => {
             // Auth check for create button
@@ -136,7 +136,7 @@
                 <th>Review ID</th><th>Pool ID</th><th>QA Code</th><th>QA Person</th><th>Date</th><th>Status</th>
             </tr></thead><tbody>`;
             rows.forEach(r => {
-                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='pool_view.html?poolId=${r.reviewPoolId || ''}'">
+                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='/explore/pool_view.html?poolId=${r.reviewPoolId || ''}'">
                     <td>${r.reviewId || ''}</td>
                     <td>${r.reviewPoolId || ''}</td>
                     <td>${r.reviewQACode || ''}</td>

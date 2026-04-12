@@ -3,20 +3,26 @@ appConfig.urlsToCache = [
 '/survey/',
 '/survey/manifest.json',
 '/survey/survey_start.html',
-'/survey/survey_main.html',
+'/survey/survey_create.html',
+'/survey/visit_create.html',
 
 // Shared JS
 '/js/app.js',
 '/js/app_messaging.js',
 '/js/console_manager.js',
 '/js/resource_manager.js',
+'/js/config.js',
 '/js/bootstrap_5.2.3.min.js',
 '/js/leaflet_1.9.4.js',
+'/js/esri-leaflet_3.0.12.js',
 '/js/idb-keyval_6.esm.js',
+'/js/api.js',
+'/js/auth.js',
+'/js/storage.js',
+'/js/map_common.js',
 
 // Survey JS
-'/survey/survey_state.js',
-'/survey/survey_main.js',
+'/survey/js/gps_monitor.js',
 
 // Shared CSS
 '/css/bootstrap_5.2.3.min.css',
@@ -24,14 +30,17 @@ appConfig.urlsToCache = [
 '/css/leaflet_1.9.4.css',
 '/css/map.css',
 
-// Survey CSS
-'/survey/css/survey.css',
+// Explore CSS (used by survey forms)
+'/explore/css/common.css',
+'/explore/css/filter_bar.css',
 
 // Images
 '/css/images/vce_favicon.png',
 '/css/images/marker-icon.png',
 '/css/images/marker-icon-2x.png',
 '/css/images/marker-shadow.png',
+'/css/images/layers.png',
+'/css/images/layers-2x.png',
 
 // Webfonts
 '/webfonts/fa-solid-900.woff2',

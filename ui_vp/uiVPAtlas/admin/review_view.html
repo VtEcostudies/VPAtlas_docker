@@ -7,8 +7,8 @@
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
-    <link rel="stylesheet" href="./css/common.css">
-    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/explore/css/pool_list.css">
     <link rel="stylesheet" href="/css/map.css">
 </head>
 <body>
@@ -49,9 +49,9 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchReviewById } from './js/api.js';
-        import { formatDate } from './js/utils.js';
-        import { createMap, addPoolMarker } from './js/map_common.js';
+        import { fetchReviewById } from '/js/api.js';
+        import { formatDate } from '/explore/js/utils.js';
+        import { createMap, addPoolMarker } from '/js/map_common.js';
 
         const params = new URLSearchParams(window.location.search);
         const reviewId = params.get('reviewId');
@@ -102,7 +102,7 @@
         function renderReviewInfo(r) {
             let html = `<table class="pool-table" style="font-size:15px;">
                 <tr><td><strong>Review ID</strong></td><td>${r.reviewId || ''}</td></tr>
-                <tr><td><strong>Pool ID</strong></td><td><a href="pool_view.html?poolId=${r.reviewPoolId}">${r.reviewPoolId || ''}</a></td></tr>
+                <tr><td><strong>Pool ID</strong></td><td><a href="/explore/pool_view.html?poolId=${r.reviewPoolId}">${r.reviewPoolId || ''}</a></td></tr>
                 <tr><td><strong>QA Code</strong></td><td>${r.reviewQACode || ''}</td></tr>
                 <tr><td><strong>QA Alt</strong></td><td>${r.reviewQAAlt || ''}</td></tr>
                 <tr><td><strong>QA Person</strong></td><td>${r.reviewQAPerson || ''}</td></tr>
@@ -122,7 +122,7 @@
                 return;
             }
             let html = `<table class="pool-table" style="font-size:14px;">
-                <tr><td><strong>Visit ID</strong></td><td><a href="visit_create.html?visitId=${r.visitId}">${r.visitId}</a></td></tr>
+                <tr><td><strong>Visit ID</strong></td><td><a href="/survey/visit_create.html?visitId=${r.visitId}">${r.visitId}</a></td></tr>
                 <tr><td><strong>Date</strong></td><td>${formatDate(r.visitDate)}</td></tr>
                 <tr><td><strong>Observer</strong></td><td>${r.visitObserverUserName || r.visitUserName || ''}</td></tr>
                 <tr><td><strong>Pool Located</strong></td><td>${r.visitLocatePool || ''}</td></tr>
@@ -136,7 +136,7 @@
                 return;
             }
             let html = `<table class="pool-table" style="font-size:14px;">
-                <tr><td><strong>Pool ID</strong></td><td><a href="pool_view.html?poolId=${r.mappedPoolId}">${r.mappedPoolId}</a></td></tr>
+                <tr><td><strong>Pool ID</strong></td><td><a href="/explore/pool_view.html?poolId=${r.mappedPoolId}">${r.mappedPoolId}</a></td></tr>
                 <tr><td><strong>Status</strong></td><td>${r.mappedPoolStatus || ''}</td></tr>
                 <tr><td><strong>Town</strong></td><td>${r.townName || ''}</td></tr>
                 <tr><td><strong>County</strong></td><td>${r.countyName || ''}</td></tr>
