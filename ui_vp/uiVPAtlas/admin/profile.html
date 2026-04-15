@@ -3,59 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VPAtlas - Profile</title>
+    <title>VPAtlas - My Profile</title>
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/explore/css/common.css">
     <link rel="stylesheet" href="/explore/css/modal.css">
     <link rel="stylesheet" href="/explore/css/pool_list.css">
-    <link rel="stylesheet" href="/css/map.css">
+    <style>
+        .profile-page { padding: 20px; max-width: 700px; margin: 0 auto; }
+        .form-section {
+            margin-bottom: 16px; border: 1px solid #ddd; border-radius: 8px; padding: 12px;
+        }
+        .form-section-title {
+            font-size: 15px; font-weight: 600; color: var(--primary-color); margin-bottom: 10px;
+        }
+        .form-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .form-field { flex: 1; min-width: 140px; }
+        .form-field.full { flex: 0 0 100%; }
+        .form-field label {
+            display: block; font-size: 13px; font-weight: 600; margin-bottom: 3px; color: var(--text-secondary);
+        }
+        .form-field input, .form-field textarea, .form-field select {
+            width: 100%; font-size: 16px; padding: 8px; border: 1px solid var(--primary-color); border-radius: 6px;
+        }
+        .form-field input[disabled], .form-field select[disabled] {
+            background: #f5f5f5; color: #888;
+        }
+        .form-field textarea { resize: vertical; min-height: 50px; }
+        .msg { padding: 8px 12px; font-size: 14px; border-radius: 6px; margin-bottom: 12px; display: none; }
+        .msg.show { display: block; }
+        .msg.info { background: #d1ecf1; color: #0c5460; }
+        .msg.success { background: #d4edda; color: #155724; }
+        .msg.error { background: #f8d7da; color: #721c24; }
+        .profile-meta { font-size: 13px; color: var(--text-secondary); margin-top: 8px; }
+    </style>
 </head>
 <body>
     <header>
-        <div class="row controls">
-            <div class="px-1 col-xl-1 col-2">
-                <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
-            </div>
-            <div class="px-1 col-xl-3 col-4">
-                <h3 class="header-name light-foreground" id="page_title">My Profile</h3>
-            </div>
-            <div class="px-1 col-xl-8 col-6" style="display:flex; gap:10px; justify-content:flex-end;">
-                <button id="btn_save" class="action-button" style="display:none; font-size:16px;">Save Changes</button>
-            </div>
+        <div class="detail-header">
+            <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            <h3 class="header-name light-foreground detail-title" id="page_title">My Profile</h3>
+            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
     <hr class="divider-header">
 
-    <!-- Message -->
-    <div id="message" class="auth-message" style="display:none;"></div>
+    <div class="profile-page">
+        <div id="message" class="msg"></div>
 
-    <!-- Profile Form -->
-    <div class="row" style="padding:20px;">
-        <div class="col-lg-6 col-md-8 col-12">
-            <div id="profile_form" style="display:none;">
-                <table class="pool-table" style="font-size:15px;">
-                    <tr>
-                        <td><strong>Username</strong></td>
-                        <td><input type="text" id="field_username" class="form-control form-control-sm" disabled></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Email</strong></td>
-                        <td><input type="email" id="field_email" class="form-control form-control-sm" disabled></td>
-                    </tr>
-                    <tr>
-                        <td><strong>First Name</strong></td>
-                        <td><input type="text" id="field_firstName" class="form-control form-control-sm"></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Last Name</strong></td>
-                        <td><input type="text" id="field_lastName" class="form-control form-control-sm"></td>
-                    </tr>
-                </table>
+        <div id="profile_loading"><p>Loading profile...</p></div>
+
+        <div id="profile_form" style="display:none;">
+            <div class="form-section">
+                <div class="form-section-title">Account</div>
+                <div class="form-row">
+                    <div class="form-field"><label for="f_username">Username</label><input type="text" id="f_username" disabled></div>
+                    <div class="form-field"><label for="f_email">Email</label><input type="email" id="f_email" disabled></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field"><label for="f_handle">Handle (display name)</label><input type="text" id="f_handle"></div>
+                    <div class="form-field"><label for="f_userrole">Role</label><input type="text" id="f_userrole" disabled></div>
+                </div>
             </div>
-            <div id="profile_loading">
-                <p style="font-size:14px;">Loading profile...</p>
+
+            <div class="form-section">
+                <div class="form-section-title">Personal</div>
+                <div class="form-row">
+                    <div class="form-field"><label for="f_firstname">First Name</label><input type="text" id="f_firstname"></div>
+                    <div class="form-field"><label for="f_middleName">Middle Name</label><input type="text" id="f_middleName"></div>
+                    <div class="form-field"><label for="f_lastname">Last Name</label><input type="text" id="f_lastname"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field"><label for="f_userPhone">Phone</label><input type="tel" id="f_userPhone"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field full"><label for="f_userAddress">Address</label><textarea id="f_userAddress" rows="2"></textarea></div>
+                </div>
             </div>
+
+            <div class="form-section">
+                <div class="form-section-title">Credentials &amp; Training</div>
+                <div class="form-row">
+                    <div class="form-field full"><label for="f_userCredentials">Credentials</label><textarea id="f_userCredentials" rows="2" placeholder="e.g., wetland ecologist, volunteer monitor"></textarea></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Trained Volunteer?</label>
+                        <div style="display:flex; gap:10px; margin-top:4px;">
+                            <label style="display:flex; align-items:center; gap:4px; font-weight:normal; cursor:pointer;">
+                                <input type="radio" name="f_userTrained" value="true" style="width:auto;"> Yes
+                            </label>
+                            <label style="display:flex; align-items:center; gap:4px; font-weight:normal; cursor:pointer;">
+                                <input type="radio" name="f_userTrained" value="false" style="width:auto;"> No
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="profile_meta" class="profile-meta"></div>
         </div>
     </div>
 
@@ -68,14 +115,19 @@
     <script type="module">
         import { fetchUserById, updateUser } from '/js/api.js';
         import { getUser, requireAuth } from '/js/auth.js';
+        import { setLocal } from '/js/storage.js';
         import { formatDate } from '/explore/js/utils.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         let currentUser = null;
 
+        // Fields that map to input IDs
+        const readOnlyFields = ['username', 'email', 'userrole'];
+        const editableFields = ['handle', 'firstname', 'middleName', 'lastname', 'userPhone', 'userAddress', 'userCredentials'];
+
         document.addEventListener('DOMContentLoaded', async () => {
-            // Auth required
-            let authOk = await requireAuth();
-            if (!authOk) return;
+            if (!(await requireAuth())) return;
 
             let user = await getUser();
             if (!user || !user.id) {
@@ -84,27 +136,44 @@
                 return;
             }
 
-            // Load full user data from API
             try {
                 let data = await fetchUserById(user.id);
                 currentUser = data.rows ? data.rows[0] : data;
                 renderProfile(currentUser);
             } catch(err) {
                 document.getElementById('profile_loading').innerHTML =
-                    `<p style="color:var(--danger-color);">Error loading profile: ${err.message || err}</p>`;
+                    `<p style="color:var(--danger-color);">Error: ${err.message || err}</p>`;
                 return;
             }
 
-            // Show save button and bind
-            document.getElementById('btn_save').style.display = 'inline-block';
             document.getElementById('btn_save').addEventListener('click', saveProfile);
         });
 
-        function renderProfile(user) {
-            document.getElementById('field_username').value = user.username || '';
-            document.getElementById('field_email').value = user.email || '';
-            document.getElementById('field_firstName').value = user.firstName || '';
-            document.getElementById('field_lastName').value = user.lastName || '';
+        function renderProfile(u) {
+            // Read-only fields
+            readOnlyFields.forEach(f => {
+                let el = document.getElementById('f_' + f);
+                if (el && u[f] != null) el.value = u[f];
+            });
+
+            // Editable fields
+            editableFields.forEach(f => {
+                let el = document.getElementById('f_' + f);
+                if (el && u[f] != null) el.value = u[f];
+            });
+
+            // Trained radio
+            if (u.userTrained != null) {
+                let radio = document.querySelector(`input[name="f_userTrained"][value="${u.userTrained}"]`);
+                if (radio) radio.checked = true;
+            }
+
+            // Meta
+            let meta = [];
+            if (u.status) meta.push(`Status: ${u.status}`);
+            if (u.createdAt) meta.push(`Joined: ${formatDate(u.createdAt)}`);
+            if (u.updatedAt) meta.push(`Updated: ${formatDate(u.updatedAt)}`);
+            document.getElementById('profile_meta').textContent = meta.join(' | ');
 
             document.getElementById('profile_loading').style.display = 'none';
             document.getElementById('profile_form').style.display = 'block';
@@ -113,24 +182,46 @@
         async function saveProfile() {
             if (!currentUser || !currentUser.id) return;
 
-            let body = {
-                firstName: document.getElementById('field_firstName').value.trim(),
-                lastName: document.getElementById('field_lastName').value.trim()
-            };
+            let body = {};
+            editableFields.forEach(f => {
+                let el = document.getElementById('f_' + f);
+                if (el) body[f] = el.value.trim();
+            });
 
-            let msgEl = document.getElementById('message');
+            // Trained
+            let trainedRadio = document.querySelector('input[name="f_userTrained"]:checked');
+            if (trainedRadio) body.userTrained = trainedRadio.value === 'true';
+
+            showMsg('Saving...', 'info');
             try {
                 await updateUser(currentUser.id, body);
-                msgEl.textContent = 'Profile updated successfully.';
-                msgEl.style.color = 'var(--success-color, green)';
-                msgEl.style.display = 'block';
+                // Re-fetch to get the canonical DB record, then update both views
+                let freshData = await fetchUserById(currentUser.id);
+                let freshUser = freshData.rows ? freshData.rows[0] : freshData;
+                if (freshUser) {
+                    currentUser = freshUser;
+                    // Update the cached auth_user so profile popup and other pages see changes
+                    let authUser = await getUser();
+                    Object.assign(authUser, freshUser);
+                    await setLocal('auth_user', authUser);
+                    renderProfile(currentUser);
+                }
+                showMsg('Profile updated.', 'success');
             } catch(err) {
-                msgEl.textContent = `Error saving profile: ${err.message || err}`;
-                msgEl.style.color = 'var(--danger-color)';
-                msgEl.style.display = 'block';
+                showMsg('Error: ' + (err.message || err), 'error');
+            }
+        }
+
+        function showMsg(text, type) {
+            let el = document.getElementById('message');
+            el.textContent = text;
+            el.className = 'msg show ' + type;
+            if (type === 'info' || type === 'success') {
+                setTimeout(() => { el.className = 'msg'; }, 3000);
             }
         }
     </script>
+    <script>if (typeof appConfig !== "undefined") appConfig.useServiceWorker = false;</script>
     <script src="/js/app.js"></script>
 </body>
 </html>

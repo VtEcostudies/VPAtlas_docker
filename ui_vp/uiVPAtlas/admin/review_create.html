@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VPAtlas - Review</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+    <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/explore/css/modal.css">
+    <link rel="stylesheet" href="/explore/css/pool_list.css">
+    <link rel="stylesheet" href="/css/map.css">
+    <style>
+        .form-section {
+            margin-bottom: 12px; border: 1px solid #ddd; border-radius: 8px; padding: 10px;
+        }
+        .form-section-title {
+            font-size: 15px; font-weight: 600; color: var(--primary-color); margin-bottom: 8px;
+        }
+        .form-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .form-field { flex: 1; min-width: 120px; }
+        .form-field label {
+            display: block; font-size: 13px; font-weight: 600; margin-bottom: 2px; color: var(--text-secondary);
+        }
+        .form-field input, .form-field textarea, .form-field select {
+            width: 100%; font-size: 16px; padding: 8px; border: 1px solid var(--primary-color); border-radius: 6px;
+        }
+        .form-field textarea { resize: vertical; min-height: 60px; }
+        .choice-group { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+        .choice-group label {
+            display: flex; align-items: center; gap: 4px; padding: 6px 10px;
+            border: 1px solid #ccc; border-radius: 6px; font-size: 14px;
+            font-weight: normal; cursor: pointer; white-space: nowrap;
+        }
+        .choice-group label:has(input:checked) {
+            background: var(--primary-color); color: white; border-color: var(--primary-color);
+        }
+        .choice-group input[type="radio"] { width: auto; margin: 0; accent-color: var(--primary-color); }
+        .msg { padding: 4px 10px; font-size: 14px; display: none; }
+        .msg.show { display: block; }
+        .msg.info { background: #d1ecf1; color: #0c5460; }
+        .msg.success { background: #d4edda; color: #155724; }
+        .msg.error { background: #f8d7da; color: #721c24; }
+
+        /* Two-pane: review form left, visit detail right */
+        .rc-pane { max-height: 85vh; overflow-y: auto; padding: 10px; }
+
+        /* Visit pane inner tabs (always visible in the right pane) */
+        .vp-inner-tabs {
+            display: flex; border-bottom: 2px solid #ddd; margin-bottom: 8px;
+        }
+        .vp-inner-tab {
+            flex: 1; padding: 8px 4px; border: none; background: none; cursor: pointer;
+            font-size: 13px; font-weight: 600; color: var(--text-secondary); text-align: center;
+            border-bottom: 2px solid transparent; margin-bottom: -2px;
+        }
+        .vp-inner-tab.active {
+            color: var(--primary-color); border-bottom-color: var(--primary-color);
+        }
+        .vp-inner-panel { display: none; }
+        .vp-inner-panel.active { display: block; }
+        #visit_map_container { height: 50vh; min-height: 300px; position: relative; }
+        #visit_map { height: 100%; width: 100%; border-radius: var(--border-radius); }
+        #visit_map_center {
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
+            width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 16px; color: #333; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Mobile tabs */
+        .rc-tabs { display: none; }
+        @media (max-width: 900px) {
+            .rc-pane {
+                display: none !important; max-height: none !important;
+                height: calc(100dvh - 90px - 52px) !important; min-height: 0;
+            }
+            .rc-content[data-active-tab="review"] .rc-pane-review { display: block !important; }
+            .rc-content[data-active-tab="visit"]  .rc-pane-visit  { display: block !important; }
+            .rc-content[data-active-tab] .rc-pane { flex: 0 0 100%; max-width: 100%; }
+            .rc-tabs {
+                display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+                border-top: 1px solid #ddd; background: white; box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+            }
+            .rc-tab-btn {
+                flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                padding: 6px 2px; border: none; background: white; color: var(--text-secondary);
+                font-size: 11px; cursor: pointer; border-radius: 0;
+            }
+            .rc-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+            .rc-tab-btn.active { color: var(--primary-color); border-top: 2px solid var(--primary-color); font-weight: 600; }
+            body { padding-bottom: 52px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="detail-header">
+            <button class="exit-button" onclick="history.back()">&times;</button>
+            <h3 class="header-name light-foreground detail-title" id="page_title">Review</h3>
+            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+            <div id="profile_container" style="margin-left:auto;"></div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <div id="message" class="msg"></div>
+
+    <div class="row rc-content" id="rc_content">
+        <!-- Left: Review form -->
+        <div class="col-lg-6 col-12 rc-pane rc-pane-review">
+            <div class="form-section">
+                <div class="form-section-title">Review Info</div>
+                <div class="form-row">
+                    <div class="form-field"><label for="reviewPoolId">Pool ID</label><input type="text" id="reviewPoolId" readonly></div>
+                    <div class="form-field"><label for="reviewVisitId">Visit ID</label><input type="text" id="reviewVisitId" readonly></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field"><label for="reviewQADate">QA Date</label><input type="date" id="reviewQADate"></div>
+                    <div class="form-field"><label for="reviewQAPerson">QA Person</label><input type="text" id="reviewQAPerson"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">QA Code</div>
+                <div class="choice-group">
+                    <label><input type="radio" name="reviewQACode" value="CONF"> Confirmed</label>
+                    <label><input type="radio" name="reviewQACode" value="PROB-VPMP"> Probable (VPMP)</label>
+                    <label><input type="radio" name="reviewQACode" value="PROB-OTHER"> Probable (Other)</label>
+                    <label><input type="radio" name="reviewQACode" value="LANDOWNER"> Landowner</label>
+                    <label><input type="radio" name="reviewQACode" value="NOT FOUND"> Not Found</label>
+                    <label><input type="radio" name="reviewQACode" value="NOT POOL"> Not Pool</label>
+                    <label><input type="radio" name="reviewQACode" value="DUPLICATE"> Duplicate</label>
+                    <label><input type="radio" name="reviewQACode" value="ERROR_Eliminate"> Error/Eliminate</label>
+                    <label><input type="radio" name="reviewQACode" value="ERROR_LocAcc"> Error (Location)</label>
+                </div>
+                <div class="form-field"><label for="reviewQAAlt">QA Alt Code</label><input type="text" id="reviewQAAlt"></div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">Pool Status</div>
+                <div class="choice-group">
+                    <label><input type="radio" name="reviewPoolStatus" value="Potential"> Potential</label>
+                    <label><input type="radio" name="reviewPoolStatus" value="Probable"> Probable</label>
+                    <label><input type="radio" name="reviewPoolStatus" value="Confirmed"> Confirmed</label>
+                    <label><input type="radio" name="reviewPoolStatus" value="Eliminated"> Eliminated</label>
+                    <label><input type="radio" name="reviewPoolStatus" value="Duplicate"> Duplicate</label>
+                </div>
+                <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Pool Locator?</label>
+                <div class="choice-group">
+                    <label><input type="radio" name="reviewPoolLocator" value="true"> Yes</label>
+                    <label><input type="radio" name="reviewPoolLocator" value="false"> No</label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">Notes</div>
+                <div class="form-field"><label for="reviewQANotes">QA Notes</label><textarea id="reviewQANotes" rows="3"></textarea></div>
+            </div>
+        </div>
+
+        <!-- Right: Full visit view with Detail/Map inner tabs -->
+        <div class="col-lg-6 col-12 rc-pane rc-pane-visit">
+            <div id="visit_loading" style="font-size:14px;">
+                <p style="color:var(--text-muted);"><i class="fa fa-spinner fa-spin"></i> Loading visit data...</p>
+            </div>
+            <div id="visit_pane" style="display:none;">
+                <div class="vp-inner-tabs">
+                    <button class="vp-inner-tab active" data-panel="detail"><i class="fa fa-info-circle"></i> Detail</button>
+                    <button class="vp-inner-tab" data-panel="map"><i class="fa fa-map"></i> Map</button>
+                </div>
+                <div id="vp_panel_detail" class="vp-inner-panel active">
+                    <div id="visit_info"></div>
+                    <div id="habitat_section"></div>
+                    <div id="pool_char_section"></div>
+                    <div id="species_section"></div>
+                    <div id="fish_section"></div>
+                </div>
+                <div id="vp_panel_map" class="vp-inner-panel">
+                    <div id="visit_map_container">
+                        <div id="visit_map"></div>
+                        <div id="visit_map_center" title="Zoom to pool"><i class="fa fa-crosshairs"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile tab bar -->
+    <div class="rc-tabs" id="rc_tabs">
+        <button class="rc-tab-btn active" data-tab="review"><i class="fa fa-clipboard-check"></i>Review</button>
+        <button class="rc-tab-btn" data-tab="visit"><i class="fa fa-eye"></i>Visit</button>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/leaflet_1.9.4.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/esri-leaflet_3.0.12.js"></script>
+    <script src="/js/app_messaging.js"></script>
+
+    <script type="module">
+        import { fetchReviewById, fetchVisitById, createReview, updateReview } from '/js/api.js';
+        import { requireAuth, getUser } from '/js/auth.js';
+        import { formatDate } from '/explore/js/utils.js';
+        import { createMap, addPoolMarker } from '/js/map_common.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
+
+        const params = new URLSearchParams(window.location.search);
+        const reviewId = params.get('reviewId');
+        const visitId = params.get('visitId');
+        const poolId = params.get('poolId');
+        const isEdit = !!reviewId;
+
+        const textFields = ['reviewPoolId', 'reviewVisitId', 'reviewQADate', 'reviewQAPerson', 'reviewQAAlt', 'reviewQANotes'];
+        const radioGroups = ['reviewQACode', 'reviewPoolStatus', 'reviewPoolLocator'];
+
+        let visitMap = null;
+        let visitLat = null, visitLng = null;
+
+        // Mobile tab switching (review vs visit panes)
+        const rcMobile = window.matchMedia('(max-width: 900px)');
+        function rcSwitchTab(t) {
+            let el = document.getElementById('rc_content');
+            if (!el) return;
+            el.dataset.activeTab = t;
+            document.querySelectorAll('.rc-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            if (t === 'visit' && visitMap) setTimeout(() => visitMap.invalidateSize(), 100);
+        }
+        document.querySelectorAll('.rc-tab-btn').forEach(b => b.addEventListener('click', () => rcSwitchTab(b.dataset.tab)));
+        rcMobile.addEventListener('change', (e) => {
+            let el = document.getElementById('rc_content');
+            if (!el) return;
+            if (e.matches) { if (!el.dataset.activeTab) el.dataset.activeTab = 'review'; }
+            else { delete el.dataset.activeTab; }
+        });
+        if (rcMobile.matches) { let el = document.getElementById('rc_content'); if (el) el.dataset.activeTab = 'review'; }
+
+        // Visit inner tab switching (detail vs map within the visit pane)
+        document.querySelectorAll('.vp-inner-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                let panel = btn.dataset.panel;
+                document.querySelectorAll('.vp-inner-tab').forEach(b => b.classList.toggle('active', b.dataset.panel === panel));
+                document.querySelectorAll('.vp-inner-panel').forEach(p => p.classList.toggle('active', p.id === `vp_panel_${panel}`));
+                if (panel === 'map' && visitMap) setTimeout(() => visitMap.invalidateSize(), 100);
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!(await requireAuth())) return;
+            let user = await getUser();
+            if (!user || user.userrole !== 'admin') {
+                document.getElementById('message').textContent = 'Admin access required.';
+                document.getElementById('message').className = 'msg show error';
+                return;
+            }
+
+            if (isEdit) {
+                document.getElementById('page_title').textContent = `Edit Review ${reviewId}`;
+                try {
+                    let data = await fetchReviewById(reviewId);
+                    let review = data.rows ? data.rows[0] : (Array.isArray(data) ? data[0] : data);
+                    if (review) {
+                        populateForm(review);
+                        showVisitPane(review, review);
+                    }
+                } catch(err) { showMsg('Error: ' + err.message, 'error'); }
+            } else {
+                document.getElementById('page_title').textContent = 'New Review';
+                if (poolId) document.getElementById('reviewPoolId').value = poolId;
+                if (visitId) document.getElementById('reviewVisitId').value = visitId;
+                document.getElementById('reviewQADate').value = new Date().toISOString().split('T')[0];
+                if (user) {
+                    document.getElementById('reviewQAPerson').value = user.handle || user.username || '';
+                }
+                if (visitId) {
+                    try {
+                        let vdata = await fetchVisitById(visitId);
+                        let row = vdata.rows ? vdata.rows[0] : vdata;
+                        let visit = row.both ? row.both.visit : row;
+                        let mapped = row.both ? row.both.mapped : row;
+                        showVisitPane(visit, mapped);
+                    } catch(err) {
+                        document.getElementById('visit_loading').innerHTML =
+                            `<p style="color:var(--danger-color);">Could not load visit: ${err.message}</p>`;
+                    }
+                }
+            }
+
+            // Save
+            document.getElementById('btn_save').addEventListener('click', async () => {
+                let body = getFormData();
+                if (!body.reviewPoolId) { showMsg('Pool ID is required', 'error'); return; }
+                if (user) {
+                    body.reviewUserName = user.handle || user.username || user.email;
+                    body.reviewUserId = user.id;
+                }
+                showMsg('Saving...', 'info');
+                try {
+                    if (isEdit) { await updateReview(reviewId, body); }
+                    else { await createReview(body); }
+                    showMsg('Saved!', 'success');
+                    setTimeout(() => {
+                        let vid = visitId || body.reviewVisitId;
+                        if (vid) window.location.href = `/explore/visit_view.html?visitId=${vid}`;
+                        else if (poolId) window.location.href = `/explore/pool_view.html?poolId=${poolId}`;
+                        else window.location.href = '/explore/';
+                    }, 1000);
+                } catch(err) {
+                    showMsg('Save failed: ' + (err.message || JSON.stringify(err)), 'error');
+                }
+            });
+        });
+
+        // ─── Full visit rendering (mirrors visit_view.html) ───
+
+        function val(v) { return (v && v !== 'None' && v !== 'none') ? v : ''; }
+
+        function inatLink(url) {
+            if (!url) return '';
+            return ` <a href="${url}" target="_blank" title="iNaturalist"><i class="fa fa-external-link-alt" style="font-size:12px;"></i></a>`;
+        }
+
+        function showVisitPane(visit, mapped) {
+            let v = visit || {};
+            let m = mapped || {};
+            if (!v.visitId) {
+                document.getElementById('visit_loading').innerHTML = '<p>No visit data available.</p>';
+                return;
+            }
+            document.getElementById('visit_loading').style.display = 'none';
+            document.getElementById('visit_pane').style.display = 'block';
+
+            renderVisitInfo(v, m);
+            renderHabitat(v);
+            renderPoolCharacteristics(v);
+            renderSpecies(v);
+            renderFish(v);
+            initVisitMap(v, m);
+        }
+
+        function renderVisitInfo(v, m) {
+            let poolIdVal = v.visitPoolId || m.mappedPoolId || '';
+            let html = `<h5>Visit ${v.visitId} — ${poolIdVal}</h5>`;
+            html += `<table class="pool-table" style="font-size:14px;">
+                <tr><td><strong>Visit ID</strong></td><td>${v.visitId || ''}</td></tr>
+                <tr><td><strong>Pool ID</strong></td><td><a href="/explore/pool_view.html?poolId=${poolIdVal}">${poolIdVal}</a></td></tr>
+                <tr><td><strong>Date</strong></td><td>${formatDate(v.visitDate)}</td></tr>
+                <tr><td><strong>Observer</strong></td><td>${v.visitObserverUserName || v.visitUserName || ''}</td></tr>
+                <tr><td><strong>Town</strong></td><td>${v.townName || m.townName || ''}</td></tr>
+                <tr><td><strong>County</strong></td><td>${v.countyName || m.countyName || ''}</td></tr>
+                <tr><td><strong>Pool Located</strong></td><td>${val(v.visitLocatePool)}</td></tr>`;
+            if (val(v.visitPoolType)) {
+                let poolType = v.visitPoolType;
+                try { let arr = JSON.parse(poolType); if (Array.isArray(arr)) poolType = arr.join(', '); } catch(e) {}
+                html += `<tr><td><strong>Basin Type</strong></td><td>${poolType}${val(v.visitPoolTypeOther) ? ' — ' + v.visitPoolTypeOther : ''}</td></tr>`;
+            }
+            if (val(v.visitCoordSource)) html += `<tr><td><strong>Coord Source</strong></td><td>${v.visitCoordSource}</td></tr>`;
+            if (v.visitLatitude && v.visitLongitude) {
+                html += `<tr><td><strong>Location</strong></td><td>${Number(v.visitLatitude).toFixed(5)}, ${Number(v.visitLongitude).toFixed(5)}</td></tr>`;
+            }
+            if (val(v.visitLocationUncertainty)) html += `<tr><td><strong>Location Uncertainty (m)</strong></td><td>${v.visitLocationUncertainty}</td></tr>`;
+            if (val(v.visitLocationComments)) html += `<tr><td><strong>Location Notes</strong></td><td>${v.visitLocationComments}</td></tr>`;
+            if (val(v.visitInletType)) html += `<tr><td><strong>Inlet</strong></td><td>${v.visitInletType}</td></tr>`;
+            if (val(v.visitOutletType)) html += `<tr><td><strong>Outlet</strong></td><td>${v.visitOutletType}</td></tr>`;
+            if (val(v.visitPoolPhoto)) html += `<tr><td><strong>Pool Photo</strong></td><td>${v.visitPoolPhoto}</td></tr>`;
+            html += `<tr><td><strong>Created</strong></td><td>${formatDate(v.visitCreatedAt || v.createdAt)}</td></tr>`;
+            html += `<tr><td><strong>Updated</strong></td><td>${formatDate(v.visitUpdatedAt || v.updatedAt)}</td></tr>`;
+            html += `</table>`;
+            document.getElementById('visit_info').innerHTML = html;
+        }
+
+        function renderHabitat(v) {
+            let items = [];
+            if (v.visitForestUpland) items.push(['Forest/Upland', v.visitForestUpland]);
+            if (v.visitForestCondition) items.push(['Forest Condition', v.visitForestCondition]);
+            let disturbances = [];
+            if (v.visitDisturbDumping) disturbances.push('Dumping');
+            if (v.visitDisturbSiltation) disturbances.push('Siltation');
+            if (v.visitDisturbVehicleRuts) disturbances.push('Vehicle Ruts');
+            if (v.visitDisturbRunoff) disturbances.push('Runoff');
+            if (v.visitDisturbDitching) disturbances.push('Ditching');
+            if (v.visitDisturbOther) disturbances.push(v.visitDisturbOther);
+            if (disturbances.length) items.push(['Disturbances', disturbances.join(', ')]);
+            let adjacent = [];
+            if (v.visitHabitatAgriculture) adjacent.push('Agriculture');
+            if (v.visitHabitatLightDev) adjacent.push('Light Development');
+            if (v.visitHabitatHeavyDev) adjacent.push('Heavy Development');
+            if (v.visitHabitatPavedRd) adjacent.push('Paved Road');
+            if (v.visitHabitatDirtRd) adjacent.push('Dirt Road');
+            if (v.visitHabitatPowerline) adjacent.push('Powerline');
+            if (v.visitHabitatOther) adjacent.push(v.visitHabitatOther);
+            if (adjacent.length) items.push(['Adjacent Habitat', adjacent.join(', ')]);
+            if (v.visitHabitatComment) items.push(['Habitat Notes', v.visitHabitatComment]);
+            if (!items.length) return;
+            let html = `<hr><h5>Habitat</h5><table class="pool-table" style="font-size:14px;">`;
+            items.forEach(([label, val]) => { html += `<tr><td><strong>${label}</strong></td><td>${val}</td></tr>`; });
+            html += `</table>`;
+            document.getElementById('habitat_section').innerHTML = html;
+        }
+
+        function renderPoolCharacteristics(v) {
+            let items = [];
+            if (v.visitMaxDepth) items.push(['Max Depth', v.visitMaxDepth]);
+            if (v.visitWaterLevelObs) items.push(['Water Level', v.visitWaterLevelObs]);
+            if (v.visitHydroPeriod) items.push(['Hydroperiod', v.visitHydroPeriod]);
+            if (v.visitMaxWidth) items.push(['Max Width', v.visitMaxWidth]);
+            if (v.visitMaxLength) items.push(['Max Length', v.visitMaxLength]);
+            if (v.visitSubstrate) items.push(['Substrate', v.visitSubstrate + (v.visitSubstrateOther ? ' — ' + v.visitSubstrateOther : '')]);
+            let veg = [];
+            if (v.visitPoolTrees) veg.push(`Trees: ${v.visitPoolTrees}%`);
+            if (v.visitPoolShrubs) veg.push(`Shrubs: ${v.visitPoolShrubs}%`);
+            if (v.visitPoolEmergents) veg.push(`Emergents: ${v.visitPoolEmergents}%`);
+            if (v.visitPoolFloatingVeg) veg.push(`Floating: ${v.visitPoolFloatingVeg}%`);
+            if (veg.length) items.push(['Canopy/Vegetation', veg.join(', ')]);
+            if (val(v.visitPoolCharComments)) items.push(['Comments', v.visitPoolCharComments]);
+            if (!items.length) return;
+            let html = `<hr><h5>Pool Characteristics</h5><table class="pool-table" style="font-size:14px;">`;
+            items.forEach(([label, val]) => { html += `<tr><td><strong>${label}</strong></td><td>${val}</td></tr>`; });
+            html += `</table>`;
+            document.getElementById('pool_char_section').innerHTML = html;
+        }
+
+        function renderSpecies(v) {
+            let species = [];
+            function addSpecies(name, eggs, eggHow, adults, larvae, notes, photo, inat) {
+                if (eggs || adults || larvae) {
+                    species.push({ name, eggs, eggHow: val(eggHow), adults, larvae,
+                        notes: val(notes), photo: val(photo), inat: val(inat) });
+                }
+            }
+            addSpecies('Wood Frog', v.visitWoodFrogEgg||0, v.visitWoodFrogEggHow,
+                v.visitWoodFrogAdults||0, v.visitWoodFrogLarvae||0,
+                v.visitWoodFrogNotes, v.visitWoodFrogPhoto, v.visitWoodFrogiNat);
+            addSpecies('Spotted Salamander', v.visitSpsEgg||0, v.visitSpsEggHow,
+                v.visitSpsAdults||0, v.visitSpsLarvae||0,
+                v.visitSpsNotes, v.visitSpsPhoto, v.visitSpsiNat);
+            addSpecies('Jefferson Salamander', v.visitJesaEgg||0, v.visitJesaEggHow,
+                v.visitJesaAdults||0, v.visitJesaLarvae||0,
+                v.visitJesaNotes, v.visitJesaPhoto, v.visitJesaiNat);
+            addSpecies('Blue-spotted Salamander', v.visitBssaEgg||0, v.visitBssaEggHow,
+                v.visitBssaAdults||0, v.visitBssaLarvae||0,
+                v.visitBssaNotes, v.visitBssaPhoto, v.visitBssaiNat);
+            if (v.visitFairyShrimp) {
+                species.push({ name: 'Fairy Shrimp', eggs: 0, eggHow: '', adults: v.visitFairyShrimp,
+                    larvae: 0, notes: val(v.visitFairyShrimpNotes),
+                    photo: val(v.visitFairyShrimpPhoto), inat: val(v.visitFairyShrimpiNat) });
+            }
+            if (v.visitFingerNailClams) {
+                species.push({ name: 'Fingernail Clams', eggs: 0, eggHow: '', adults: v.visitFingerNailClams,
+                    larvae: 0, notes: val(v.visitFingerNailClamsNotes),
+                    photo: val(v.visitFingerNailClamsPhoto), inat: val(v.visitFingerNailClamsiNat) });
+            }
+            if (val(v.visitSpeciesOtherName) || v.visitSpeciesOtherCount) {
+                species.push({ name: val(v.visitSpeciesOtherName) || 'Other Species', eggs: 0, eggHow: '',
+                    adults: v.visitSpeciesOtherCount || 0, larvae: 0,
+                    notes: val(v.visitSpeciesOtherNotes),
+                    photo: val(v.visitSpeciesOtherPhoto), inat: val(v.visitSpeciesOtheriNat) });
+            }
+            if (val(v.visitSpeciesOther1)) species.push({ name: v.visitSpeciesOther1, eggs:0, eggHow:'', adults:0, larvae:0, notes:'', photo:'', inat:'' });
+            if (val(v.visitSpeciesOther2)) species.push({ name: v.visitSpeciesOther2, eggs:0, eggHow:'', adults:0, larvae:0, notes:'', photo:'', inat:'' });
+            if (!species.length && !val(v.visitSpeciesComments)) return;
+            let html = `<hr><h5>Indicator Species</h5>`;
+            if (species.length) {
+                html += `<table class="pool-table" style="font-size:14px;">
+                    <thead><tr><th>Species</th><th>Egg Masses</th><th>Adults</th><th>Larvae/Tadpoles</th><th>Notes</th></tr></thead><tbody>`;
+                species.forEach(s => {
+                    let eggStr = s.eggs ? `${s.eggs}${s.eggHow ? ' (' + s.eggHow + ')' : ''}` : '';
+                    let nameStr = s.name + inatLink(s.inat);
+                    html += `<tr><td>${nameStr}</td><td>${eggStr}</td><td>${s.adults || ''}</td><td>${s.larvae || ''}</td><td>${s.notes || ''}</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+            if (val(v.visitSpeciesComments)) {
+                html += `<p style="font-size:14px; margin-top:8px;"><strong>Notes:</strong> ${v.visitSpeciesComments}</p>`;
+            }
+            document.getElementById('species_section').innerHTML = html;
+        }
+
+        function renderFish(v) {
+            if (!v.visitFish && !v.visitFishCount) return;
+            let items = [];
+            if (v.visitFish != null) items.push(['Fish Present', v.visitFish ? 'Yes' : 'No']);
+            if (val(v.visitFishCount)) items.push(['Fish Count', v.visitFishCount]);
+            if (val(v.visitFishSize)) items.push(['Fish Size', v.visitFishSize]);
+            if (v.visitFishSizeSmall) items.push(['Small', v.visitFishSizeSmall]);
+            if (v.visitFishSizeMedium) items.push(['Medium', v.visitFishSizeMedium]);
+            if (v.visitFishSizeLarge) items.push(['Large', v.visitFishSizeLarge]);
+            if (!items.length) return;
+            let html = `<hr><h5>Fish</h5><table class="pool-table" style="font-size:14px;">`;
+            items.forEach(([label, v]) => { html += `<tr><td><strong>${label}</strong></td><td>${v}</td></tr>`; });
+            html += `</table>`;
+            document.getElementById('fish_section').innerHTML = html;
+        }
+
+        async function initVisitMap(v, m) {
+            visitLat = parseFloat(v.visitLatitude || m.mappedLatitude);
+            visitLng = parseFloat(v.visitLongitude || m.mappedLongitude);
+            if (isNaN(visitLat) || isNaN(visitLng)) return;
+            let status = m.mappedPoolStatus || m.poolStatus || 'Potential';
+            let map = await createMap('visit_map', { center: [visitLat, visitLng], zoom: 16 });
+            visitMap = map;
+            let pid = v.visitPoolId || m.mappedPoolId || '';
+            let town = v.townName || m.townName || '';
+            addPoolMarker(map, [visitLat, visitLng], {
+                status: status,
+                surveyLevel: 'visited',
+                size: 22,
+                tooltip: `${pid} — ${status}${town ? ', ' + town : ''}`,
+                popup: `Visit ${v.visitId} — Pool ${pid}`
+            });
+            document.getElementById('visit_map_center').addEventListener('click', () =>
+                map.setView([visitLat, visitLng], 16));
+        }
+
+        // ─── Review form helpers ───
+
+        function populateForm(r) {
+            textFields.forEach(f => {
+                let el = document.getElementById(f);
+                let val = r[f];
+                if (el && val != null && val !== 'None') {
+                    if (f === 'reviewQADate' && val) el.value = new Date(val).toISOString().split('T')[0];
+                    else el.value = val;
+                }
+            });
+            radioGroups.forEach(name => {
+                let val = r[name];
+                if (val == null || val === 'None') return;
+                if (typeof val === 'boolean') val = val.toString();
+                let radio = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (radio) radio.checked = true;
+            });
+        }
+
+        function getFormData() {
+            let body = {};
+            textFields.forEach(f => {
+                let el = document.getElementById(f);
+                if (el && el.value) body[f] = el.value;
+            });
+            radioGroups.forEach(name => {
+                let radio = document.querySelector(`input[name="${name}"]:checked`);
+                if (radio) {
+                    let val = radio.value;
+                    if (name === 'reviewPoolLocator') val = (val === 'true');
+                    body[name] = val;
+                }
+            });
+            return body;
+        }
+
+        function showMsg(text, type) {
+            let el = document.getElementById('message');
+            el.textContent = text;
+            el.className = 'msg show ' + type;
+            if (type === 'info' || type === 'success') {
+                setTimeout(() => { el.className = 'msg'; }, 3000);
+            }
+        }
+    </script>
+    <script>if (typeof appConfig !== "undefined") appConfig.useServiceWorker = false;</script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

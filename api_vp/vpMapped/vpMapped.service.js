@@ -80,8 +80,8 @@ inner join vpmapped on "mappedPoolId"="surveyPoolId"
 (select count(distinct("mappedPoolId")) from vpmapped
 left join vpvisit on "mappedPoolId"="visitPoolId"
 left join vpsurvey on "mappedPoolId"="surveyPoolId"
-where "mappedByUser"='${params.username}'
-OR "visitUserName"='${params.username}'
+where "mappedUserId"=(SELECT id from vpuser WHERE username='${params.username}')
+OR "visitUserId"=(SELECT id from vpuser WHERE username='${params.username}')
 OR "surveyUserId"=(SELECT id from vpuser WHERE username='${params.username}')
 ) as mine;`;
     return await query(text); //this can't work with a multi-command statement. results are returned per-command.

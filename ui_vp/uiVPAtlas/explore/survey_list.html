@@ -21,6 +21,7 @@
                 <h3 class="header-name light-foreground" id="page_title">Surveys (Monitoring)</h3>
             </div>
             <div class="px-1 col-xl-8 col-6" style="display:flex; gap:10px; justify-content:flex-end;">
+                <div id="profile_container" style="margin-left:auto;"></div>
             </div>
         </div>
     </header>
@@ -70,6 +71,8 @@
         import { fetchSurveys, fetchSurveyTypes } from '/js/api.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         document.addEventListener('DOMContentLoaded', async () => {
             // Load survey types for dropdown

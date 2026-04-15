@@ -8,36 +8,72 @@
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
     <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/explore/css/modal.css">
     <link rel="stylesheet" href="/explore/css/pool_list.css">
     <link rel="stylesheet" href="/css/map.css">
+    <style>
+        .dv-tabs { display: none; }
+        @media (max-width: 900px) {
+            .dv-pane { display: none !important; height: calc(100dvh - 90px - 52px) !important; max-height: none !important; min-height: 0; }
+            .dv-content[data-active-tab="detail"] .dv-pane-detail { display: block !important; }
+            .dv-content[data-active-tab="map"]    .dv-pane-map    { display: block !important; }
+            .dv-content[data-active-tab] .dv-pane { flex: 0 0 100%; max-width: 100%; }
+            .dv-tabs {
+                display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+                border-top: 1px solid #ddd; background: white; box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+            }
+            .dv-tab-btn {
+                flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                padding: 6px 2px; border: none; background: white; color: var(--text-secondary);
+                font-size: 11px; cursor: pointer; border-radius: 0;
+            }
+            .dv-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+            .dv-tab-btn.active { color: var(--primary-color); border-top: 2px solid var(--primary-color); font-weight: 600; }
+            body { padding-bottom: 52px; }
+        }
+        .map-center-btn {
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
+            width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 20px; color: #333; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        .map-center-btn:hover, .map-center-btn:active { background: #e8f5e9; }
+    </style>
 </head>
 <body>
     <header>
         <div class="detail-header">
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Review Detail</h3>
+            <button id="btn_edit" class="action-button" style="display:none;">Edit Review</button>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
     <hr class="divider-header">
 
-    <div class="row">
+    <div class="row dv-content" id="dv_content">
         <!-- Left: Review info -->
-        <div class="col-lg-6 col-12" style="max-height:85vh; overflow-y:auto; padding:10px;">
+        <div class="col-lg-6 col-12 dv-pane dv-pane-detail" style="max-height:85vh; overflow-y:auto; padding:10px;">
             <div id="review_info"></div>
-
             <hr>
             <h5>Associated Visit</h5>
             <div id="visit_info"></div>
-
             <hr>
             <h5>Pool Info</h5>
             <div id="pool_info"></div>
         </div>
 
         <!-- Right: Map -->
-        <div class="col-lg-6 col-12" style="height:85vh;">
+        <div class="col-lg-6 col-12 dv-pane dv-pane-map" style="height:85vh; position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+            <div id="btn_center" class="map-center-btn" title="Zoom to pool"><i class="fa fa-crosshairs"></i></div>
         </div>
+    </div>
+
+    <!-- Mobile tab bar -->
+    <div class="dv-tabs" id="dv_tabs">
+        <button class="dv-tab-btn active" data-tab="detail"><i class="fa fa-info-circle"></i>Detail</button>
+        <button class="dv-tab-btn" data-tab="map"><i class="fa fa-map"></i>Map</button>
     </div>
 
     <script src="/js/console_manager.js"></script>
@@ -52,9 +88,33 @@
         import { fetchReviewById } from '/js/api.js';
         import { formatDate } from '/explore/js/utils.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
+        import { getUser } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
         const reviewId = params.get('reviewId');
+        let reviewMap = null;
+        let poolLat = null, poolLng = null;
+
+        // Mobile tab switching
+        const dvMobile = window.matchMedia('(max-width: 900px)');
+        function dvSwitchTab(t) {
+            let el = document.getElementById('dv_content');
+            if (!el) return;
+            el.dataset.activeTab = t;
+            document.querySelectorAll('.dv-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            if (t === 'map' && reviewMap) setTimeout(() => reviewMap.invalidateSize(), 100);
+        }
+        document.querySelectorAll('.dv-tab-btn').forEach(b => b.addEventListener('click', () => dvSwitchTab(b.dataset.tab)));
+        dvMobile.addEventListener('change', (e) => {
+            let el = document.getElementById('dv_content');
+            if (!el) return;
+            if (e.matches) { if (!el.dataset.activeTab) el.dataset.activeTab = 'detail'; }
+            else { delete el.dataset.activeTab; }
+            if (reviewMap) setTimeout(() => reviewMap.invalidateSize(), 150);
+        });
+        if (dvMobile.matches) { let el = document.getElementById('dv_content'); if (el) el.dataset.activeTab = 'detail'; }
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!reviewId) {
@@ -72,8 +132,7 @@
                     return;
                 }
 
-                // Descriptive title
-                let poolId = review.reviewPoolId || review.mappedPoolId || '';
+                let poolIdVal = review.reviewPoolId || review.mappedPoolId || '';
                 let town = review.townName || '';
                 let county = review.countyName || '';
                 let date = formatDate(review.reviewQADate);
@@ -82,7 +141,7 @@
                 let loc = town ? `${town}${county ? ' (' + county + ')' : ''}` : '';
                 let title = `Review ${reviewId}`;
                 if (qaCode) title += ` [${qaCode}]`;
-                title += ` of pool ${poolId}`;
+                title += ` of pool ${poolIdVal}`;
                 if (loc) title += ` in ${loc}`;
                 if (date) title += ` on ${date}`;
                 if (person) title += ` by ${person}`;
@@ -92,7 +151,16 @@
                 renderReviewInfo(review);
                 renderVisitInfo(review);
                 renderPoolInfo(review);
-                initMap(review);
+                await initMap(review);
+
+                // Edit button for admin users only
+                let user = await getUser();
+                if (user && user.userrole === 'admin') {
+                    let btn = document.getElementById('btn_edit');
+                    btn.style.display = 'inline-block';
+                    btn.addEventListener('click', () =>
+                        window.location.href = `review_create.html?reviewId=${reviewId}`);
+                }
             } catch(err) {
                 document.getElementById('review_info').innerHTML =
                     `<p style="color:var(--danger-color);">Error: ${err.message || JSON.stringify(err)}</p>`;
@@ -147,22 +215,26 @@
         }
 
         async function initMap(r) {
-            let lat = parseFloat(r.mappedLatitude || r.visitLatitude);
-            let lng = parseFloat(r.mappedLongitude || r.visitLongitude);
-            if (isNaN(lat) || isNaN(lng)) return;
+            poolLat = parseFloat(r.mappedLatitude || r.visitLatitude);
+            poolLng = parseFloat(r.mappedLongitude || r.visitLongitude);
+            if (isNaN(poolLat) || isNaN(poolLng)) return;
             let status = r.mappedPoolStatus || r.reviewPoolStatus || 'Potential';
-            let map = await createMap('map', { center: [lat, lng], zoom: 16 });
+            let map = await createMap('map', { center: [poolLat, poolLng], zoom: 16 });
+            reviewMap = map;
             let town = r.townName || '';
             let poolId = r.reviewPoolId || r.mappedPoolId || '';
-            addPoolMarker(map, [lat, lng], {
+            addPoolMarker(map, [poolLat, poolLng], {
                 status: status,
                 surveyLevel: 'visited',
                 size: 22,
                 tooltip: `${poolId} — ${status}${town ? ', ' + town : ''}`,
                 popup: `Review ${r.reviewId} — Pool ${poolId}`
             });
+            document.getElementById('btn_center').addEventListener('click', () =>
+                map.setView([poolLat, poolLng], 16));
         }
     </script>
+    <script>if (typeof appConfig !== "undefined") appConfig.useServiceWorker = false;</script>
     <script src="/js/app.js"></script>
 </body>
 </html>

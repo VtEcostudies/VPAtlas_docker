@@ -219,83 +219,65 @@ export async function loadBoundaryOverlays(map) {
     return boundaries;
 }
 
-// Add a custom radio-button boundary control to the map, with persistence
-export function addBoundaryControl(map, boundaries, position = 'topright', savedBoundary = 'none') {
-    let currentBoundary = null;
+// Add boundary overlays to an existing L.control.layers as overlay checkboxes.
+// Enforces mutual exclusivity: only one boundary visible at a time.
+export function addBoundaryOverlays(map, layerControl, boundaries, savedBoundary = 'none') {
+    let boundaryNames = {
+        state: 'State Boundary',
+        county: 'County Boundaries',
+        town: 'Town Boundaries'
+    };
+    let boundaryLayers = {};
 
+    ['state', 'county', 'town'].forEach(key => {
+        if (!boundaries[key]) return;
+        let name = boundaryNames[key];
+        boundaryLayers[name] = boundaries[key];
+        layerControl.addOverlay(boundaries[key], name);
+        if (key === savedBoundary) boundaries[key].addTo(map);
+    });
+
+    map.on('overlayadd', function(e) {
+        if (!boundaryLayers[e.name]) return;
+        let boundaryKey = Object.keys(boundaryNames).find(k => boundaryNames[k] === e.name);
+        Object.entries(boundaryLayers).forEach(([name, layer]) => {
+            if (name !== e.name && map.hasLayer(layer)) map.removeLayer(layer);
+        });
+        if (boundaryKey) saveSettings({ boundary: boundaryKey });
+    });
+
+    map.on('overlayremove', function(e) {
+        if (!boundaryLayers[e.name]) return;
+        let anyActive = Object.values(boundaryLayers).some(l => map.hasLayer(l));
+        if (!anyActive) saveSettings({ boundary: 'none' });
+    });
+}
+
+// =============================================================================
+// LEGEND — pool status colors + survey level shapes
+// =============================================================================
+export function addLegend(map, position = 'bottomleft') {
     let ctl = L.Control.extend({
         options: { position: position },
         onAdd: function() {
-            let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control boundary-radio-control');
-            div.style.cssText = 'background:white; font-size:13px; line-height:1.6; cursor:pointer;';
+            let div = L.DomUtil.create('div', 'leaflet-control pool-legend');
             L.DomEvent.disableClickPropagation(div);
-
-            // Collapsed toggle header
-            let header = document.createElement('div');
-            header.innerHTML = '<i class="fa fa-layer-group" style="margin-right:4px;"></i> Bounds';
-            header.style.cssText = 'padding:4px 8px; font-weight:600; color:#333; white-space:nowrap;';
-            div.appendChild(header);
-
-            // Expandable body
-            let body = document.createElement('div');
-            body.style.cssText = 'display:none; padding:2px 10px 6px;';
-            div.appendChild(body);
-
-            header.addEventListener('click', function() {
-                body.style.display = body.style.display === 'none' ? 'block' : 'none';
-            });
-
-            let items = [
-                { key: 'none', label: 'None' },
-                { key: 'state', label: 'State' },
-                { key: 'county', label: 'Counties' },
-                { key: 'town', label: 'Towns' }
-            ];
-
-            items.forEach(item => {
-                if (item.key !== 'none' && !boundaries[item.key]) return;
-                let isChecked = item.key === savedBoundary;
-                let label = createRadioLabel('boundary_radio', item.key, item.label, isChecked);
-                body.appendChild(label);
-            });
-
-            // Apply saved selection
-            if (savedBoundary !== 'none' && boundaries[savedBoundary]) {
-                boundaries[savedBoundary].addTo(map);
-                currentBoundary = boundaries[savedBoundary];
-            }
-
-            // Wire radio change
-            body.addEventListener('change', function(e) {
-                if (e.target.name !== 'boundary_radio') return;
-                if (currentBoundary) { map.removeLayer(currentBoundary); currentBoundary = null; }
-                let val = e.target.value;
-                if (val !== 'none' && boundaries[val]) {
-                    boundaries[val].addTo(map);
-                    currentBoundary = boundaries[val];
-                }
-                saveSettings({ boundary: val });
-            });
-
+            div.innerHTML = `
+                <div class="pool-legend-title">Pool Status</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#DAA520" stroke="#333" stroke-width="1"/></svg> Potential</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#00BFFF" stroke="#333" stroke-width="1"/></svg> Probable</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#00008B" stroke="#333" stroke-width="1"/></svg> Confirmed</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#95a5a6" stroke="#333" stroke-width="1"/></svg> Duplicate</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#e74c3c" stroke="#333" stroke-width="1"/></svg> Eliminated</div>
+                <div class="pool-legend-title" style="margin-top:6px;">Survey Level</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#ccc" stroke="#333" stroke-width="1"/></svg> Mapped</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><polygon points="6,1 11,11 1,11" fill="#ccc" stroke="#333" stroke-width="1"/></svg> Visited</div>
+                <div class="pool-legend-item"><svg width="12" height="12"><polygon points="6,1 11,6 6,11 1,6" fill="#ccc" stroke="#333" stroke-width="1"/></svg> Monitored</div>
+            `;
             return div;
         }
     });
-
     new ctl().addTo(map);
-}
-
-function createRadioLabel(name, value, text, checked) {
-    let label = document.createElement('label');
-    label.style.cssText = 'display:block; cursor:pointer; white-space:nowrap;';
-    let radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = name;
-    radio.value = value;
-    radio.checked = checked;
-    radio.style.marginRight = '4px';
-    label.appendChild(radio);
-    label.appendChild(document.createTextNode(text));
-    return label;
 }
 
 // =============================================================================
@@ -328,14 +310,17 @@ export async function createMap(elementId, opts = {}) {
 
     // Controls
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    L.control.layers(baseLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
+    let layerControl = L.control.layers(baseLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
 
-    // Boundary overlays (radio-button) — restore saved selection
+    // Boundary overlays — added to the same layer control
     let boundaries = await loadBoundaryOverlays(map);
     if (Object.keys(boundaries).length) {
         let savedBoundary = settings.boundary || 'none';
-        addBoundaryControl(map, boundaries, 'topright', savedBoundary);
+        addBoundaryOverlays(map, layerControl, boundaries, savedBoundary);
     }
+
+    // Legend
+    addLegend(map, 'bottomleft');
 
     return map;
 }

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Import S123 Atlas Visits</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/css/map.css">
+    <style>
+        .import-form { padding: 15px; }
+        .import-form label { font-weight: 600; font-size: 13px; margin-right: 6px; }
+        .import-form .form-control { font-size: 13px; }
+        .stats-table th, .stats-table td { text-align: center; font-size: 13px; padding: 4px 10px; }
+        .results-table { font-size: 13px; margin-top: 10px; }
+        .results-table th { position: sticky; top: 0; background: #495057; color: #fff; }
+        .results-table td { padding: 4px 8px; vertical-align: middle; }
+        .results-table a { color: var(--link-color, #0d6efd); }
+        .section-title { text-align: center; margin: 15px 0 5px; font-size: 16px; font-weight: 600; }
+        .spinner { display: none; width: 18px; height: 18px; border: 3px solid #ccc; border-top-color: #333; border-radius: 50%; animation: spin 0.8s linear infinite; margin-left: 8px; vertical-align: middle; }
+        .spinner.active { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-link { cursor: pointer; color: var(--link-color, #0d6efd); text-decoration: underline; }
+        #message { padding: 8px 15px; margin: 0 15px; font-size: 13px; border-radius: 4px; }
+        #message.success { background: #d4edda; color: #155724; }
+        #message.error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="row controls">
+            <div class="px-1 col-xl-1 col-2">
+                <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            </div>
+            <div class="px-1 col-xl-4 col-6">
+                <h3 class="header-name light-foreground">Import S123 Atlas Visit Data</h3>
+            </div>
+            <div class="px-1 col-xl-7 col-4" style="display:flex; justify-content:flex-end;">
+                <div id="profile_container"></div>
+            </div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <div id="message" style="display:none;"></div>
+
+    <div class="import-form">
+        <div class="row">
+            <!-- Left: Service ID + Overwrite -->
+            <div class="col-md-4">
+                <div class="mb-2">
+                    <label for="service_select">S123 Visit Service ID</label>
+                    <select id="service_select" class="form-control form-control-sm" style="width:100%;"></select>
+                </div>
+                <div class="mb-2">
+                    <label for="chk_overwrite">Overwrite existing visit data?</label>
+                    <input type="checkbox" id="chk_overwrite"> <span style="font-size:13px;">Yes</span>
+                </div>
+            </div>
+
+            <!-- Center: Buttons + Offset/Limit -->
+            <div class="col-md-4">
+                <div class="mb-2">
+                    <button id="btn_load" class="btn btn-primary btn-sm">Load Data</button>
+                    <span id="spinner" class="spinner"></span>
+                    <button id="btn_cancel" class="btn btn-outline-secondary btn-sm">Cancel</button>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <label for="inp_offset">Offset</label>
+                        <input id="inp_offset" type="number" class="form-control form-control-sm" min="1" max="9999" value="1" style="width:90px;">
+                    </div>
+                    <div class="col-6">
+                        <label for="inp_limit">Limit</label>
+                        <input id="inp_limit" type="number" class="form-control form-control-sm" min="1" max="500" value="1" style="width:90px;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Stats -->
+            <div class="col-md-4">
+                <table class="table table-sm table-striped stats-table" id="stats_table" style="display:none;">
+                    <thead><tr><th>Success</th><th>Errors</th><th>Target</th><th>Total</th><th>Aborted</th></tr></thead>
+                    <tbody><tr>
+                        <td id="stat_success">0</td>
+                        <td id="stat_errors">0</td>
+                        <td id="stat_target">0</td>
+                        <td id="stat_total">0</td>
+                        <td id="stat_aborted">0</td>
+                    </tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <hr>
+
+    <!-- Previous Uploads -->
+    <div id="prev_section" style="display:none; padding: 0 15px;">
+        <div class="section-title">Previous Uploads</div>
+        <div style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-striped results-table">
+                <thead><tr>
+                    <th>Visit ID</th><th>Pool ID</th><th>Created</th><th>Updated</th>
+                    <th>S123 Object</th><th>S123 Global ID</th>
+                </tr></thead>
+                <tbody id="prev_body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Success Results -->
+    <div id="results_section" style="display:none; padding: 0 15px;">
+        <div class="section-title">Successful Upload Results</div>
+        <div style="max-height:400px; overflow-y:auto;">
+            <table class="table table-sm table-striped results-table">
+                <thead><tr>
+                    <th>Visit ID</th><th>Pool ID</th><th>S123 Object ID</th>
+                    <th>S123 Global ID</th><th>Attachments</th><th>Updated?</th>
+                </tr></thead>
+                <tbody id="results_body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Errors -->
+    <div id="errors_section" style="display:none; padding: 0 15px;">
+        <div class="section-title" style="color:#721c24;">Failed Upload Errors</div>
+        <div style="max-height:400px; overflow-y:auto;">
+            <table class="table table-sm table-striped results-table">
+                <thead><tr>
+                    <th>Object ID</th><th>Name</th><th>Message</th>
+                    <th>Table</th><th>Column</th><th>Routine</th>
+                </tr></thead>
+                <tbody id="errors_body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/app_messaging.js"></script>
+
+    <script type="module">
+        import { fetchVisitS123Services, fetchVisitS123Uploads, postVisitS123All } from '/js/api.js';
+        import { getUser, requireAuth } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
+
+        const STORAGE_KEY = 's123_visit_import_state';
+        let services = [];
+        let serviceId = '';
+        const MAX_OFFSET = 9999;
+        const MAX_LIMIT = 100;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            let authOk = await requireAuth();
+            if (!authOk) return;
+
+            let user = await getUser();
+            if (!user || (user.role !== 'admin' && user.userrole !== 'admin')) {
+                showMsg('You do not have permission to access this page.', true);
+                return;
+            }
+
+            document.getElementById('btn_load').addEventListener('click', loadData);
+            document.getElementById('btn_cancel').addEventListener('click', () => { clearState(); window.location.href = '/explore/'; });
+
+            // Try restoring saved state (returning from a detail view)
+            if (restoreState()) return;
+
+            await loadServices();
+        });
+
+        // ── Session state persistence ──────────────────────────────────
+        function saveState() {
+            let state = {
+                serviceId,
+                services,
+                offset: document.getElementById('inp_offset').value,
+                limit: document.getElementById('inp_limit').value,
+                overwrite: document.getElementById('chk_overwrite').checked,
+                statsDisplay: document.getElementById('stats_table').style.display,
+                stats: {
+                    success: document.getElementById('stat_success').textContent,
+                    errors: document.getElementById('stat_errors').textContent,
+                    target: document.getElementById('stat_target').textContent,
+                    total: document.getElementById('stat_total').textContent,
+                    aborted: document.getElementById('stat_aborted').textContent,
+                },
+                prevHtml: document.getElementById('prev_body').innerHTML,
+                prevVisible: document.getElementById('prev_section').style.display,
+                resultsHtml: document.getElementById('results_body').innerHTML,
+                resultsVisible: document.getElementById('results_section').style.display,
+                errorsHtml: document.getElementById('errors_body').innerHTML,
+                errorsVisible: document.getElementById('errors_section').style.display,
+                msgText: document.getElementById('message').textContent,
+                msgClass: document.getElementById('message').className,
+                msgVisible: document.getElementById('message').style.display,
+            };
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function restoreState() {
+            let raw = sessionStorage.getItem(STORAGE_KEY);
+            if (!raw) return false;
+            try {
+                let s = JSON.parse(raw);
+                services = s.services || [];
+                serviceId = s.serviceId || '';
+
+                // Rebuild service dropdown
+                let sel = document.getElementById('service_select');
+                sel.innerHTML = '';
+                services.forEach(svc => {
+                    let opt = document.createElement('option');
+                    opt.value = svc.visitServiceId;
+                    opt.textContent = svc.visitServiceId;
+                    if (svc.visitServiceId === serviceId) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                let optNew = document.createElement('option');
+                optNew.value = '__new__';
+                optNew.textContent = 'Enter New Service ID';
+                sel.appendChild(optNew);
+                sel.addEventListener('change', onServiceChange);
+
+                document.getElementById('inp_offset').value = s.offset || 1;
+                document.getElementById('inp_limit').value = s.limit || 1;
+                document.getElementById('chk_overwrite').checked = s.overwrite || false;
+
+                // Restore stats
+                document.getElementById('stats_table').style.display = s.statsDisplay || 'none';
+                document.getElementById('stat_success').textContent = s.stats.success;
+                document.getElementById('stat_errors').textContent = s.stats.errors;
+                document.getElementById('stat_target').textContent = s.stats.target;
+                document.getElementById('stat_total').textContent = s.stats.total;
+                document.getElementById('stat_aborted').textContent = s.stats.aborted;
+
+                // Restore tables
+                document.getElementById('prev_body').innerHTML = s.prevHtml || '';
+                document.getElementById('prev_section').style.display = s.prevVisible || 'none';
+                document.getElementById('results_body').innerHTML = s.resultsHtml || '';
+                document.getElementById('results_section').style.display = s.resultsVisible || 'none';
+                document.getElementById('errors_body').innerHTML = s.errorsHtml || '';
+                document.getElementById('errors_section').style.display = s.errorsVisible || 'none';
+
+                // Restore message
+                if (s.msgVisible !== 'none' && s.msgText) {
+                    document.getElementById('message').textContent = s.msgText;
+                    document.getElementById('message').className = s.msgClass;
+                    document.getElementById('message').style.display = s.msgVisible;
+                }
+
+                return true;
+            } catch(e) {
+                console.warn('Failed to restore S123 visit import state', e);
+                sessionStorage.removeItem(STORAGE_KEY);
+                return false;
+            }
+        }
+
+        function clearState() { sessionStorage.removeItem(STORAGE_KEY); }
+
+        // Save state before navigating away via link clicks
+        document.addEventListener('click', (e) => {
+            let link = e.target.closest('a[href]');
+            if (link && !link.target && link.hostname === location.hostname) {
+                saveState();
+            }
+        });
+
+        // ── UI helpers ─────────────────────────────────────────────────
+        function showMsg(text, isError) {
+            let el = document.getElementById('message');
+            el.textContent = text;
+            el.className = isError ? 'error' : 'success';
+            el.style.display = 'block';
+        }
+        function hideMsg() { document.getElementById('message').style.display = 'none'; }
+
+        async function loadServices() {
+            try {
+                let data = await fetchVisitS123Services();
+                services = data.rows || [];
+                let sel = document.getElementById('service_select');
+                sel.innerHTML = '';
+                services.forEach(s => {
+                    let opt = document.createElement('option');
+                    opt.value = s.visitServiceId;
+                    opt.textContent = s.visitServiceId;
+                    sel.appendChild(opt);
+                });
+                let optNew = document.createElement('option');
+                optNew.value = '__new__';
+                optNew.textContent = 'Enter New Service ID';
+                sel.appendChild(optNew);
+
+                sel.addEventListener('change', onServiceChange);
+
+                if (services.length) {
+                    serviceId = services[0].visitServiceId;
+                    document.getElementById('inp_offset').value = (services[0].visitObjectId || 0) + 1;
+                    loadUploads(serviceId);
+                }
+            } catch(err) {
+                showMsg('Error loading S123 services: ' + (err.message || err), true);
+            }
+        }
+
+        function onServiceChange() {
+            let val = document.getElementById('service_select').value;
+            if (val === '__new__') {
+                let input = prompt('Please enter a new S123 Visit ServiceId', 'service_');
+                if (input) {
+                    services.push({ visitServiceId: input, visitObjectId: 0 });
+                    let opt = document.createElement('option');
+                    opt.value = input;
+                    opt.textContent = input;
+                    let sel = document.getElementById('service_select');
+                    sel.insertBefore(opt, sel.lastElementChild);
+                    sel.value = input;
+                    serviceId = input;
+                    document.getElementById('inp_offset').value = 1;
+                    loadUploads(input);
+                }
+            } else {
+                serviceId = val;
+                let svc = services.find(s => s.visitServiceId === val);
+                if (svc) document.getElementById('inp_offset').value = (svc.visitObjectId || 0) + 1;
+                loadUploads(val);
+            }
+        }
+
+        async function loadUploads(svcId) {
+            hideMsg();
+            document.getElementById('results_section').style.display = 'none';
+            document.getElementById('errors_section').style.display = 'none';
+            try {
+                let data = await fetchVisitS123Uploads(svcId);
+                let rows = data.rows || [];
+                renderPreviousUploads(rows);
+                showStats({ success: rows.length, errors: null, target: null, total: rows.length, aborted: null });
+            } catch(err) {
+                showMsg('Error loading uploads: ' + (err.message || err), true);
+            }
+        }
+
+        function showStats(c) {
+            document.getElementById('stats_table').style.display = 'table';
+            document.getElementById('stat_success').textContent = c.success ?? '-';
+            document.getElementById('stat_errors').textContent = c.errors ?? '-';
+            document.getElementById('stat_target').textContent = c.target ?? '-';
+            document.getElementById('stat_total').textContent = c.total ?? '-';
+            document.getElementById('stat_aborted').textContent = c.aborted ?? '-';
+        }
+
+        function renderPreviousUploads(rows) {
+            let section = document.getElementById('prev_section');
+            let body = document.getElementById('prev_body');
+            if (!rows.length) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+            body.innerHTML = rows.map(v => {
+                let objLink = v.visitDataUrl
+                    ? `<a href="${v.visitDataUrl.split('?')[0]}" target="_blank">${v.visitObjectId}</a>`
+                    : (v.visitObjectId || '');
+                return `<tr>
+                    <td><a href="/explore/visit_view.html?visitId=${v.visitId}">${v.visitId}</a></td>
+                    <td><a href="/explore/pool_view.html?poolId=${v.visitPoolId}">${v.visitPoolId}</a></td>
+                    <td>${v.createdAt || ''}</td>
+                    <td>${v.updatedAt || ''}</td>
+                    <td>${objLink}</td>
+                    <td>${v.visitGlobalId || ''}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function loadData() {
+            if (!serviceId) { alert('Please select an S123 Service ID to proceed.'); return; }
+            let offset = parseInt(document.getElementById('inp_offset').value) || 1;
+            let limit = parseInt(document.getElementById('inp_limit').value) || 1;
+            let update = document.getElementById('chk_overwrite').checked;
+
+            if (offset > MAX_OFFSET) {
+                if (!confirm(`There are not more than ${MAX_OFFSET} atlas visits to load. Are you sure you want to load Object ID ${offset}?`)) return;
+            }
+            if (limit > MAX_LIMIT) {
+                if (!confirm(`${limit} is a lot of atlas visits to load. Are you sure you want to proceed?`)) return;
+            }
+
+            hideMsg();
+            document.getElementById('prev_section').style.display = 'none';
+            document.getElementById('results_section').style.display = 'none';
+            document.getElementById('errors_section').style.display = 'none';
+            showStats({ success: 0, errors: 0, target: 0, total: 0, aborted: 0 });
+            document.getElementById('spinner').classList.add('active');
+            document.getElementById('btn_load').disabled = true;
+
+            try {
+                let data = await postVisitS123All(serviceId, update, offset, limit);
+                showStats(data.counts || {});
+                renderResults(data.results || []);
+                renderErrors(data.errors || []);
+
+                let msg = `Loaded ${data.counts.success}/${data.counts.target} S123 Atlas Visits.`;
+                if (data.counts.errors) msg += ` There were ${data.counts.errors} errors.`;
+                if (data.counts.aborted) msg += ` Aborted at ${data.counts.total}/${data.counts.target}.`;
+                showMsg(msg, false);
+            } catch(err) {
+                showMsg('Error loading S123 data: ' + (err.message || err), true);
+            } finally {
+                document.getElementById('spinner').classList.remove('active');
+                document.getElementById('btn_load').disabled = false;
+            }
+        }
+
+        function renderResults(rows) {
+            let section = document.getElementById('results_section');
+            let body = document.getElementById('results_body');
+            if (!rows.length) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+            body.innerHTML = rows.map(r => {
+                let d = r.data || r;
+                let objLink = d.visitDataUrl
+                    ? `<a href="${d.visitDataUrl.split('?')[0]}" target="_blank">${d.visitObjectId}</a>`
+                    : (d.visitObjectId || '');
+                let attachCount = r.attachments ? r.attachments.length : 0;
+                return `<tr>
+                    <td><a href="/explore/visit_view.html?visitId=${d.visitId}">${d.visitId}</a></td>
+                    <td><a href="/explore/pool_view.html?poolId=${d.visitPoolId}">${d.visitPoolId}</a></td>
+                    <td>${objLink}</td>
+                    <td>${d.visitGlobalId || ''}</td>
+                    <td>${attachCount}</td>
+                    <td>${d.updated || ''}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderErrors(rows) {
+            let section = document.getElementById('errors_section');
+            let body = document.getElementById('errors_body');
+            if (!rows.length) { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+            body.innerHTML = rows.map(e => {
+                let objLink = e.dataUrl
+                    ? `<a href="${e.dataUrl}" target="_blank">${e.objectId}</a>`
+                    : (e.objectId || '');
+                return `<tr>
+                    <td>${objLink}</td>
+                    <td class="error-link" onclick="alert('Detail: ' + this.dataset.detail + '\\nWhere: ' + this.dataset.where)"
+                        data-detail="${(e.detail||'').replace(/"/g,'&quot;')}" data-where="${(e.where||'').replace(/"/g,'&quot;')}">${e.name || ''}</td>
+                    <td>${e.hint || e.message || ''}</td>
+                    <td>${e.table || ''}</td>
+                    <td>${e.column || ''}</td>
+                    <td>${e.routine || ''}</td>
+                </tr>`;
+            }).join('');
+        }
+    </script>
+    <script>if (typeof appConfig !== "undefined") appConfig.useServiceWorker = false;</script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

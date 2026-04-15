@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="/css/map.css">
 </head>
 <body>
-    <header>
+    <header style="position:relative;">
         <div class="row controls controls-top">
             <!-- Logo -->
             <div class="col-auto header-title-logo" style="padding:4px 8px;">
@@ -27,11 +27,20 @@
             </div>
 
             <!-- Filter Container (injected by filter_bar.js) -->
-            <div id="filter_container" class="col filter-container"></div>
+            <div id="filter_container" class="col filter-container" style="position:relative;"></div>
 
-            <!-- Profile / Auth -->
-            <div class="col-auto info-profile-container" style="justify-content:flex-end; padding:4px 8px;">
+            <!-- Filter overflow button (mobile) -->
+            <div class="col-auto" style="padding:4px;">
+                <button class="filter-overflow-btn" id="filter_overflow_btn"><i class="fa fa-sliders"></i></button>
+            </div>
+
+            <!-- Profile / Auth + App Menu -->
+            <div class="col-auto info-profile-container" style="justify-content:flex-end; padding:4px 8px; gap:6px;">
                 <div id="profile_container" class="profile-container"></div>
+                <div style="position:relative;">
+                    <button class="action-overflow-btn" id="app_menu_btn" style="display:block;"><i class="fa fa-bars"></i></button>
+                    <div class="action-overflow-panel" id="app_menu_panel" style="right:0; min-width:200px;"></div>
+                </div>
             </div>
         </div>
 
@@ -46,23 +55,42 @@
     <hr class="divider-header">
 
     <!-- Three-pane content layout -->
-    <div class="row content-row">
+    <div class="content-row" id="content_row">
         <!-- Left pane: Pool list -->
-        <div class="col-lg-4 col-md-4 col-12 tri-pane tri-pane-left">
+        <div class="tri-pane tri-pane-left" id="pane_left">
             <div id="list_table_title"></div>
             <div id="list_table" style="overflow-y:auto; flex:1;"></div>
         </div>
 
+        <!-- Divider -->
+        <div class="pane-divider" id="divider_left"></div>
+
         <!-- Center pane: Map -->
-        <div class="col-lg-4 col-md-4 col-12 tri-pane tri-pane-center">
+        <div class="tri-pane tri-pane-center" id="pane_center" style="position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+            <div id="map_zoom_btn" title="Zoom to filtered pools" style="position:absolute; top:10px; left:10px; z-index:1000;
+                background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
+                width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+                cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                <i class="fa fa-crosshairs"></i>
+            </div>
         </div>
 
+        <!-- Divider -->
+        <div class="pane-divider" id="divider_right"></div>
+
         <!-- Right pane: Summary -->
-        <div class="col-lg-4 col-md-4 col-12 tri-pane tri-pane-right">
+        <div class="tri-pane tri-pane-right" id="pane_right">
             <div id="summary_title"></div>
             <div id="pool_summary" style="overflow-y:auto; flex:1;"></div>
         </div>
+    </div>
+
+    <!-- Mobile tab bar (hidden on desktop via CSS) -->
+    <div class="explore-tabs" id="explore_tabs">
+        <button class="explore-tab-btn active" data-tab="list"><i class="fa fa-list"></i>List</button>
+        <button class="explore-tab-btn" data-tab="map"><i class="fa fa-map"></i>Map</button>
+        <button class="explore-tab-btn" data-tab="info"><i class="fa fa-info-circle"></i>Info</button>
     </div>
 
     <!-- Core libraries (non-module) -->
@@ -86,13 +114,19 @@
 
     <!-- Main app entry point -->
     <script type="module">
-        import { initPoolList, loadPools } from './js/pool_list.js';
-        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools } from './js/map.js';
+        import { initPoolList, loadPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId } from './js/pool_list.js';
+        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
-        import { loadFromUrl, loadFromStorage, setPopState, filters, buildSearchTerm } from './js/url_state.js';
+        import { loadFromUrl, loadFromStorage, setPopState, filters, buildSearchTerm, filterRowsByDataType, putUserState } from './js/url_state.js';
+        import { getPoolColor } from '/js/map_common.js';
         import { getUser, logout } from '/js/auth.js';
         import { showModal } from './js/modal.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+
+        // Master pool dataset — loaded once, filtered client-side
+        var masterRows = [];
+        var currentUser = null;
 
         // Load version from manifest
         fetch('/explore/manifest.json').then(r => r.json()).then(m => {
@@ -113,89 +147,425 @@
 
             // Initialize components
             let user = await getUser();
-            let username = user ? (user.handle || user.username || user.email) : null;
-            initPoolList('list_table', 'list_table_title', onPoolSelect, username, zoomToFilteredPools);
+            currentUser = user;
+            let currentUsername = user ? (user.handle || user.username || user.email) : null;
+            initPoolList('list_table', 'list_table_title', onPoolSelect, currentUsername, zoomToFilteredPools, onPoolDeselect);
             initSummary('pool_summary', 'summary_title');
-            await initMap();
+            await initMap({ isAdmin: user && user.userrole === 'admin' });
             initFilterBar(onFilterChange);
 
-            // Setup profile icon
-            setupProfile(user);
+            // Setup profile icon + app menu
+            setupProfileIcon('profile_container');
+            setupAppMenu(user);
 
-            // Load data — pool list returns the deduplicated, filtered rows.
-            // Map and summary are driven from the same rows.
-            let poolRows = await loadPools();
-            plotPoolRows(poolRows, onMapPoolClick);
-            showScopeSummary(poolRows);
-            zoomToFilteredPools();
+            // Load pool data (instant from cache, or fetch if no cache).
+            // All filtering is client-side after this point.
+            masterRows = await loadPools(onDataRefresh);
+            refreshUI();
+
+            // Wire map zoom button
+            document.getElementById('map_zoom_btn').addEventListener('click', zoomToFilteredPools);
+
+            // Map layer toggles → re-filter list + summary (map already updated its own markers)
+            document.addEventListener('map:layer-filter', () => {
+                let poolRows = applyClientFilters(masterRows);
+                let visibleRows = applyMapVisibility(poolRows);
+                renderFilteredRows(visibleRows);
+                showScopeSummary(visibleRows);
+                renderStatusChips();
+            });
+
+            // Wire filter overflow toggle (sticky — persisted in user settings)
+            let filterBtn = document.getElementById('filter_overflow_btn');
+            let filterContainer = document.getElementById('filter_container');
+            if (filterBtn && filterContainer) {
+                // Restore saved state
+                if (filters.showFilters) {
+                    filterContainer.classList.add('show');
+                    filterBtn.classList.add('active');
+                }
+                filterBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let showing = filterContainer.classList.toggle('show');
+                    filterBtn.classList.toggle('active', showing);
+                    filters.showFilters = showing;
+                    putUserState(0, { showFilters: showing });
+                });
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#filter_container') && !e.target.closest('#filter_overflow_btn')) {
+                        filterContainer.classList.remove('show');
+                        filterBtn.classList.remove('active');
+                        if (filters.showFilters) {
+                            filters.showFilters = false;
+                            putUserState(0, { showFilters: false });
+                        }
+                    }
+                });
+            }
 
             // Handle browser back/forward
             setPopState(onFilterChange);
         };
 
-        // Called when a pool is selected from the list
-        function onPoolSelect(poolId) {
-            showPoolSummary(poolId);
-            zoomToPool(poolId);
-        }
+        // =================================================================
+        // Mobile tab switching
+        // =================================================================
+        const mobileQuery = window.matchMedia('(max-width: 1150px)');
 
-        // Called when a pool is clicked on the map
-        function onMapPoolClick(props) {
-            let poolId = props.mappedPoolId || props.poolId;
-            if (poolId) {
-                showPoolSummary(poolId);
-                // Highlight in list
-                document.querySelectorAll('.pool-row').forEach(r => {
-                    r.classList.toggle('selected', r.dataset.poolId === poolId);
-                });
+        function switchTab(tabName) {
+            let contentRow = document.getElementById('content_row');
+            if (!contentRow) return;
+            contentRow.dataset.activeTab = tabName;
+            document.querySelectorAll('.explore-tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+            if (tabName === 'map') {
+                let m = getMap();
+                if (m) setTimeout(() => m.invalidateSize(), 100);
             }
         }
 
-        // Called when filters change — reload all three panes from the same data
-        async function onFilterChange(updatedFilters) {
-            let poolRows = await loadPools();
-            plotPoolRows(poolRows, onMapPoolClick);
-            showScopeSummary(poolRows);
+        function switchToInfoIfMobile() {
+            if (mobileQuery.matches) switchTab('info');
+        }
+
+        // Wire tab buttons
+        document.querySelectorAll('.explore-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+        });
+
+        // Handle crossing the breakpoint
+        mobileQuery.addEventListener('change', (e) => {
+            let contentRow = document.getElementById('content_row');
+            if (!contentRow) return;
+            if (e.matches) {
+                if (!contentRow.dataset.activeTab) contentRow.dataset.activeTab = 'list';
+            } else {
+                delete contentRow.dataset.activeTab;
+            }
+            let m = getMap();
+            if (m) setTimeout(() => m.invalidateSize(), 150);
+        });
+
+        // Set initial mobile state
+        if (mobileQuery.matches) {
+            let cr = document.getElementById('content_row');
+            if (cr) cr.dataset.activeTab = 'list';
+        }
+
+        // =================================================================
+        // Pool selection callbacks
+        // =================================================================
+        function onPoolSelect(poolId) {
+            showPoolSummary(poolId, onPoolDeselect);
+            zoomToPool(poolId);
+            switchToInfoIfMobile();
+        }
+
+        function onPoolDeselect() {
+            clearFocus();
+            let poolRows = applyClientFilters(masterRows);
+            let visibleRows = applyMapVisibility(poolRows);
+            showScopeSummary(visibleRows);
             zoomToFilteredPools();
         }
 
-        // Profile icon
-        async function setupProfile(user) {
-            let profileContainer = document.getElementById('profile_container');
-            if (!profileContainer) return;
+        function onMapPoolClick(props) {
+            let poolId = props.mappedPoolId || props.poolId;
+            if (!poolId) return;
+            // Toggle: if already focused, deselect
+            if (getFocusedPoolId() === poolId) {
+                onPoolDeselect();
+                return;
+            }
+            showPoolSummary(poolId, onPoolDeselect);
+            setFocusedPoolId(poolId);
+            switchToInfoIfMobile();
+        }
 
-            let icon = document.createElement('div');
-            icon.className = 'profile-icon' + (user ? ' signed-in' : '');
-            icon.textContent = user ? (user.handle || user.username || user.firstName || 'U')[0].toUpperCase() : '';
-            icon.title = user ? `Signed in as ${user.handle || user.username}` : 'Sign in';
+        // Render all three panes from masterRows through all filters
+        function refreshUI() {
+            let poolRows = applyClientFilters(masterRows);
+            plotPoolRows(poolRows, onMapPoolClick);       // map creates ALL markers, handles status/level visibility internally
+            let visibleRows = applyMapVisibility(poolRows);
+            renderFilteredRows(visibleRows);
+            showScopeSummary(visibleRows);
+            renderStatusChips();
+            zoomToFilteredPools();
+        }
 
-            icon.addEventListener('click', async () => {
-                if (user) {
-                    let result = await showModal('Account',
-                        `<p><strong>User:</strong> ${user.username || ''}</p>
-                         <p><strong>Email:</strong> ${user.email || ''}</p>
-                         <p><strong>Name:</strong> ${user.firstName || ''} ${user.lastName || ''}</p>`,
-                        { buttons: [
-                            { text: 'Close', value: 'close', isDefault: true },
-                            { text: 'Sign Out', value: 'signout' }
-                        ]}
-                    );
-                    if (result === 'signout') {
-                        await logout();
-                        window.location.reload();
-                    }
-                } else {
-                    window.location.href = '/explore/login.html';
+        // Called when top-bar filters change — filter cached data, no DB reload
+        function onFilterChange(updatedFilters) {
+            refreshUI();
+        }
+
+        // Called if background freshness check finds stale data and re-fetches
+        function onDataRefresh(newRows) {
+            console.log('explore: data refreshed from DB, updating UI');
+            masterRows = newRows;
+            refreshUI();
+        }
+
+        // Apply all client-side filters (pool ID, town, county, data type, indicator species)
+        // NOTE: map layer visibility (status/level checkboxes) is NOT applied here —
+        // plotPoolRows() handles marker visibility internally, and list/summary use applyMapVisibility().
+        function applyClientFilters(rows) {
+            let filtered = rows;
+
+            // Pool ID partial match
+            if (filters.poolIdSearch) {
+                let term = filters.poolIdSearch.toLowerCase();
+                filtered = filtered.filter(r => {
+                    let id = (r.poolId || r.mappedPoolId || '').toLowerCase();
+                    return id.includes(term);
+                });
+            }
+
+            // Town filter
+            if (filters.townNames.length) {
+                let towns = filters.townNames.map(t => t.toLowerCase());
+                filtered = filtered.filter(r => {
+                    let t = (r.townName || '').toLowerCase();
+                    return towns.includes(t);
+                });
+            }
+
+            // County filter
+            if (filters.countyNames.length) {
+                let counties = filters.countyNames.map(c => c.toUpperCase());
+                filtered = filtered.filter(r => {
+                    let c = (r.countyName || '').toUpperCase();
+                    return counties.includes(c);
+                });
+            }
+
+            // Indicator species filter — check obligate vernal pool species columns
+            if (filters.hasIndicator) {
+                filtered = filtered.filter(r =>
+                    r.visitWoodFrogEgg > 0 || r.visitWoodFrogAdults > 0 || r.visitWoodFrogLarvae > 0 ||
+                    r.visitSpsEgg > 0 || r.visitSpsAdults > 0 || r.visitSpsLarvae > 0 ||
+                    r.visitJesaEgg > 0 || r.visitJesaAdults > 0 || r.visitJesaLarvae > 0 ||
+                    r.visitBssaEgg > 0 || r.visitBssaAdults > 0 || r.visitBssaLarvae > 0 ||
+                    r.visitFairyShrimp > 0
+                );
+            }
+
+            // Data type (Mine, Review)
+            filtered = filterRowsByDataType(filtered, currentUser);
+
+            return filtered;
+        }
+
+        // Apply map layer visibility (status + survey level) for list/summary rendering
+        function applyMapVisibility(rows) {
+            let mf = getMapFilters();
+            return rows.filter(r => {
+                let status = r.poolStatus || r.mappedPoolStatus || '';
+                let level = r.surveyId ? 'monitored' : r.visitId ? 'visited' : 'potential';
+                return mf.statusVisible[status] !== false && mf.levelVisible[level] !== false;
+            });
+        }
+
+
+
+        // =================================================================
+        // Status chips — show active pool statuses in filter header area
+        // Visible on mobile list/info tabs where the map legend isn't visible
+        // =================================================================
+        const ALL_STATUS_NAMES = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
+        const ADMIN_ONLY = ['Duplicate', 'Eliminated'];
+
+        function renderStatusChips() {
+            let container = document.getElementById('filter_description');
+            if (!container) return;
+            let mf = getMapFilters();
+            let userIsAdmin = currentUser && currentUser.userrole === 'admin';
+            let chipStatuses = userIsAdmin ? ALL_STATUS_NAMES : ALL_STATUS_NAMES.filter(s => !ADMIN_ONLY.includes(s));
+            let html = chipStatuses.map(status => {
+                let active = mf.statusVisible[status] !== false;
+                let color = getPoolColor(status);
+                let style = active
+                    ? `background:${color}; color:white; border-color:${color}; opacity:1;`
+                    : `background:transparent; color:#999; border-color:#ccc; opacity:0.5;`;
+                return `<span class="status-chip" data-status="${status}"
+                    style="display:inline-block; padding:1px 8px; margin:1px 2px; border-radius:12px;
+                    font-size:11px; font-weight:600; cursor:pointer; border:1.5px solid; ${style}">${status}</span>`;
+            }).join('');
+            container.innerHTML = html;
+
+            container.querySelectorAll('.status-chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    let status = chip.dataset.status;
+                    let mf = getMapFilters();
+                    let nowVisible = !(mf.statusVisible[status] !== false);
+                    setStatusVisible(status, nowVisible);
+                });
+            });
+        }
+
+        // App hamburger menu — navigation + admin links
+        function setupAppMenu(user) {
+            let btn = document.getElementById('app_menu_btn');
+            let panel = document.getElementById('app_menu_panel');
+            if (!btn || !panel) return;
+
+            let items = [
+                { label: 'About VPAtlas', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/', icon: 'fa-info-circle', external: true },
+                { label: 'Volunteer How To', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/help-us-find-and-map-vernal-pools/', icon: 'fa-book', external: true },
+            ];
+            if (user && user.userrole === 'admin') {
+                items.push({ divider: true });
+                items.push({ label: 'Users', href: '/admin/users_admin.html', icon: 'fa-users-cog' });
+                items.push({ label: 'Import S123 Atlas Visits', href: '/admin/s123_visit_import.html', icon: 'fa-file-import' });
+                items.push({ label: 'Import S123 Monitoring Surveys', href: '/admin/s123_survey_import.html', icon: 'fa-file-import' });
+            }
+
+            items.forEach(item => {
+                if (item.divider) {
+                    let hr = document.createElement('hr');
+                    hr.style.cssText = 'margin:4px 0; border-color:#eee;';
+                    panel.appendChild(hr);
+                    return;
                 }
+                let el = document.createElement('button');
+                el.className = 'action-button';
+                el.innerHTML = `<i class="fa ${item.icon}" style="width:20px;"></i> ${item.label}`;
+                el.addEventListener('click', () => {
+                    panel.classList.remove('show');
+                    if (item.action) item.action();
+                    else if (item.external) window.open(item.href, '_blank');
+                    else if (item.href) window.location.href = item.href;
+                });
+                panel.appendChild(el);
             });
 
-            profileContainer.appendChild(icon);
+            btn.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.toggle('show'); });
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#app_menu_panel') && !e.target.closest('#app_menu_btn'))
+                    panel.classList.remove('show');
+            });
         }
 
         // If SW is disabled or app.js isn't loaded, init directly
         if (typeof appConfig !== 'undefined' && appConfig.useServiceWorker === false) {
             document.addEventListener('DOMContentLoaded', () => window.initApp());
         }
+    </script>
+
+    <!-- Resizable pane dividers (desktop only) -->
+    <script type="module">
+        import { getLocal, setLocal } from '/js/storage.js';
+        import { getMap } from './js/map.js';
+
+        const STORAGE_KEY = 'paneSizes';
+        const DEFAULT_SIZES = [33.33, 33.34, 33.33]; // left, center, right %
+        const MIN_PCT = 15; // minimum pane width %
+
+        const row = document.getElementById('content_row');
+        const panes = [
+            document.getElementById('pane_left'),
+            document.getElementById('pane_center'),
+            document.getElementById('pane_right')
+        ];
+        const dividers = [
+            document.getElementById('divider_left'),
+            document.getElementById('divider_right')
+        ];
+
+        function isDesktop() {
+            return window.matchMedia('(min-width: 1151px)').matches;
+        }
+
+        function applyPaneSizes(sizes) {
+            if (!isDesktop()) return;
+            panes[0].style.flex = `0 0 ${sizes[0]}%`;
+            panes[1].style.flex = `0 0 ${sizes[1]}%`;
+            panes[2].style.flex = `0 0 ${sizes[2]}%`;
+        }
+
+        async function loadSizes() {
+            let sizes = await getLocal(STORAGE_KEY);
+            if (!sizes || !Array.isArray(sizes) || sizes.length !== 3) sizes = [...DEFAULT_SIZES];
+            applyPaneSizes(sizes);
+            return sizes;
+        }
+
+        let currentSizes = [...DEFAULT_SIZES];
+        loadSizes().then(s => { currentSizes = s; });
+
+        // Reset to flex defaults on mobile
+        window.matchMedia('(min-width: 1151px)').addEventListener('change', (e) => {
+            if (e.matches) {
+                applyPaneSizes(currentSizes);
+            } else {
+                panes.forEach(p => p.style.flex = '');
+            }
+        });
+
+        // Drag logic
+        dividers.forEach((div, idx) => {
+            function onPointerDown(e) {
+                if (!isDesktop()) return;
+                e.preventDefault();
+                let startX = e.clientX || (e.touches && e.touches[0].clientX);
+                let rowWidth = row.getBoundingClientRect().width;
+
+                // Overlay to prevent map/iframe stealing events
+                let overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;cursor:col-resize;';
+                document.body.appendChild(overlay);
+
+                function onMove(e2) {
+                    let clientX = e2.clientX || (e2.touches && e2.touches[0].clientX);
+                    let dx = clientX - startX;
+                    let dPct = (dx / rowWidth) * 100;
+
+                    let newSizes = [...currentSizes];
+                    // idx 0: between left and center, idx 1: between center and right
+                    newSizes[idx] += dPct;
+                    newSizes[idx + 1] -= dPct;
+
+                    // Enforce minimums
+                    if (newSizes[idx] < MIN_PCT || newSizes[idx + 1] < MIN_PCT) return;
+
+                    currentSizes = newSizes;
+                    startX = clientX;
+                    applyPaneSizes(currentSizes);
+
+                    // Invalidate Leaflet map
+                    let map = getMap();
+                    if (map) map.invalidateSize();
+                }
+
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    document.removeEventListener('touchmove', onMove);
+                    document.removeEventListener('touchend', onUp);
+                    overlay.remove();
+                    setLocal(STORAGE_KEY, currentSizes);
+                }
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                document.addEventListener('touchmove', onMove, { passive: false });
+                document.addEventListener('touchend', onUp);
+            }
+
+            div.addEventListener('mousedown', onPointerDown);
+            div.addEventListener('touchstart', onPointerDown, { passive: false });
+        });
+
+        // Double-click divider to reset to equal thirds
+        dividers.forEach(div => {
+            div.addEventListener('dblclick', async () => {
+                currentSizes = [...DEFAULT_SIZES];
+                applyPaneSizes(currentSizes);
+                await setLocal(STORAGE_KEY, currentSizes);
+                let map = getMap();
+                if (map) map.invalidateSize();
+            });
+        });
     </script>
 
     <!-- Service worker handler (non-module, calls initApp) -->

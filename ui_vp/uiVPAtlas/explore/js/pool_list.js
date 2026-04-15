@@ -3,24 +3,31 @@
     ES6 module. Manages the left tri-pane with pool list table.
     Pattern from LoonWeb explore/js/signup_table.js
 */
-import { fetchPools, fetchPoolPage, fetchMappedPoolStats } from '/js/api.js';
+import { fetchPools, fetchMappedPoolStats } from '/js/api.js';
 import { showWait, hideWait } from './utils.js';
-import { filters, buildSearchTerm, putUserState, filterRowsByDataType } from './url_state.js';
+import { filters, putUserState } from './url_state.js';
+import { getLocal, setLocal } from '/js/storage.js';
+
+const CACHE_KEY = 'pool_cache';         // { rows: [...], fingerprint: 'total:visited:monitored:review', ts: epoch }
+const STALE_MS = 60 * 1000;            // check freshness after 1 min
 
 var onPoolSelect = null;
+var onPoolDeselect = null;
 var listContainer = null;
 var titleContainer = null;
 var currentUsername = null;
 var zoomToFilteredCallback = null;
 var selectedPoolIds = new Set();
+var focusedPoolId = null;         // currently viewed pool in summary pane
 
 // =============================================================================
 // INITIALIZE
 // =============================================================================
-export function initPoolList(containerId, titleId, poolSelectCallback, username=null, zoomCallback=null) {
+export function initPoolList(containerId, titleId, poolSelectCallback, username=null, zoomCallback=null, poolDeselectCallback=null) {
     listContainer = document.getElementById(containerId);
     titleContainer = document.getElementById(titleId);
     onPoolSelect = poolSelectCallback;
+    onPoolDeselect = poolDeselectCallback;
     currentUsername = username;
     zoomToFilteredCallback = zoomCallback;
     // Restore saved pool selections (filters loaded from storage before this call)
@@ -32,53 +39,48 @@ export function initPoolList(containerId, titleId, poolSelectCallback, username=
 // =============================================================================
 // LOAD AND RENDER POOL LIST
 // =============================================================================
-export async function loadPools() {
+// Load pool data: instant from IndexedDB cache, then check freshness in background.
+// Returns deduplicated master rows. Caller handles all filtering.
+// onRefresh callback is called if background check finds stale data and reloads.
+export async function loadPools(onRefresh = null) {
     if (!listContainer) return [];
 
+    // 1. Try cache first — instant render
+    let cache = await getLocal(CACHE_KEY);
+    if (cache && cache.rows && cache.rows.length) {
+        console.log(`pool_list: loaded ${cache.rows.length} pools from cache`);
+        // Check freshness in background
+        checkFreshness(cache, onRefresh);
+        return cache.rows;
+    }
+
+    // 2. No cache — fetch from DB (shows wait overlay)
+    return await fetchAndCache(onRefresh);
+}
+
+// Build a fingerprint from stats to detect any data changes (new visits, surveys, status changes)
+function statsFingerprint(s) {
+    if (!s) return null;
+    return [s.total_data, s.total, s.visited, s.monitored, s.review,
+            s.potential, s.probable, s.confirmed, s.duplicate, s.eliminated].join(':');
+}
+
+async function fetchAndCache(onRefresh) {
     showWait();
     try {
-        let searchTerm = buildSearchTerm();
-        let data = await fetchPools(searchTerm);
+        let data = await fetchPools(false);
         let rawRows = data.rows || [];
-
-        // Deduplicate: the JOIN query returns multiple rows per pool (one per visit/survey).
-        // Keep one row per poolId, merging visitId/surveyId/reviewId presence from all rows.
         let rows = deduplicateByPoolId(rawRows);
 
-        // Apply client-side data-type filter (Visited, Monitored, Mine, Review)
-        rows = filterRowsByDataType(rows, currentUsername);
+        // Get current stats fingerprint for future staleness checks
+        let fingerprint = null;
+        try {
+            let stats = await fetchMappedPoolStats();
+            if (stats.rows && stats.rows[0]) fingerprint = statsFingerprint(stats.rows[0]);
+        } catch(e) {}
 
-        if (titleContainer) {
-            titleContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between;">
-                <h5 style="margin:0;">Vernal Pools (${rows.length})</h5>
-                <div style="display:flex; gap:4px; align-items:center;">
-                    <a id="poolfinder-btn" href="#" title="Open selected pools in PoolFinder"
-                        style="display:none; font-size:13px; padding:2px 8px; border:1px solid var(--primary-color); border-radius:4px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">
-                        <i class="fa fa-location-arrow"></i> <span id="poolfinder-count"></span>
-                    </a>
-                    <button id="zoom-to-items-btn" title="Zoom map to filtered pools"
-                        style="background:none; border:1px solid var(--border-color,#ccc); border-radius:4px; cursor:pointer; padding:2px 6px; font-size:14px; color:var(--text-secondary,#555);">
-                        <i class="fa fa-crosshairs"></i>
-                    </button>
-                </div>
-            </div>`;
-            let zoomBtn = document.getElementById('zoom-to-items-btn');
-            if (zoomBtn && zoomToFilteredCallback) {
-                zoomBtn.addEventListener('click', zoomToFilteredCallback);
-            }
-            let pfBtn = document.getElementById('poolfinder-btn');
-            if (pfBtn) {
-                pfBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    if (selectedPoolIds.size) {
-                        window.location.href = `/survey/survey_start.html?pools=${[...selectedPoolIds].join(',')}`;
-                    }
-                });
-            }
-            updateSelectionCount();
-        }
-
-        renderPoolTable(rows);
+        await setLocal(CACHE_KEY, { rows, fingerprint, ts: Date.now() });
+        console.log(`pool_list: fetched and cached ${rows.length} pools (fp: ${fingerprint})`);
         return rows;
     } catch(err) {
         console.error('pool_list.js=>loadPools error:', err);
@@ -89,6 +91,31 @@ export async function loadPools() {
         return [];
     } finally {
         hideWait();
+    }
+}
+
+// Background freshness check: compare stats fingerprint (pool counts, visit counts, etc.)
+// Any change in total/visited/monitored/review/status counts triggers a refresh.
+async function checkFreshness(cache, onRefresh) {
+    // Skip if checked very recently
+    if (cache.ts && (Date.now() - cache.ts) < STALE_MS) return;
+
+    try {
+        let stats = await fetchMappedPoolStats();
+        let dbFingerprint = stats.rows && stats.rows[0] ? statsFingerprint(stats.rows[0]) : null;
+        if (dbFingerprint === null) return;
+
+        if (dbFingerprint !== cache.fingerprint) {
+            console.log(`pool_list: cache stale — reloading (was: ${cache.fingerprint}, now: ${dbFingerprint})`);
+            let rows = await fetchAndCache(null);
+            if (onRefresh && rows.length) onRefresh(rows);
+        } else {
+            // Fingerprint matches — update timestamp so we don't re-check immediately
+            cache.ts = Date.now();
+            await setLocal(CACHE_KEY, cache);
+        }
+    } catch(err) {
+        console.warn('pool_list: freshness check failed', err);
     }
 }
 
@@ -208,8 +235,18 @@ function renderPoolTable(rows) {
                 updateSelectionCount();
                 return;
             }
-            // Row click → show summary (single focus, doesn't change multi-select)
-            if (onPoolSelect) onPoolSelect(poolId);
+            // Row click → toggle focus (click again to deselect)
+            if (focusedPoolId === poolId) {
+                focusedPoolId = null;
+                listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('focused'));
+                if (onPoolDeselect) onPoolDeselect();
+            } else {
+                focusedPoolId = poolId;
+                listContainer.querySelectorAll('.pool-row').forEach(r => {
+                    r.classList.toggle('focused', r.dataset.poolId === poolId);
+                });
+                if (onPoolSelect) onPoolSelect(poolId);
+            }
         });
     });
 
@@ -276,4 +313,50 @@ function updateSelectionCount() {
 
 export function getSelectedPools() {
     return [...selectedPoolIds];
+}
+
+// Clear pool focus (return to summary view)
+export function clearFocus() {
+    focusedPoolId = null;
+    if (listContainer) {
+        listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('focused'));
+    }
+}
+
+export function getFocusedPoolId() {
+    return focusedPoolId;
+}
+
+// Set focus from outside (e.g. map marker click)
+export function setFocusedPoolId(poolId) {
+    focusedPoolId = poolId;
+    if (listContainer) {
+        listContainer.querySelectorAll('.pool-row').forEach(r => {
+            r.classList.toggle('focused', r.dataset.poolId === poolId);
+        });
+    }
+}
+
+// Re-render pool list from pre-filtered rows (no DB fetch)
+export function renderFilteredRows(rows) {
+    if (titleContainer) {
+        titleContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between;">
+            <h5 style="margin:0;">Vernal Pools (${rows.length})</h5>
+            <a id="poolfinder-btn" href="#" title="Open selected pools in Pool Finder"
+                style="display:none; font-size:13px; padding:2px 8px; border:1px solid var(--primary-color); border-radius:4px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">
+                <i class="fa fa-location-arrow"></i> <span id="poolfinder-count"></span>
+            </a>
+        </div>`;
+        let pfBtn = document.getElementById('poolfinder-btn');
+        if (pfBtn) {
+            pfBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (selectedPoolIds.size) {
+                    window.location.href = `/survey/survey_start.html?pools=${[...selectedPoolIds].join(',')}`;
+                }
+            });
+        }
+        updateSelectionCount();
+    }
+    renderPoolTable(rows);
 }

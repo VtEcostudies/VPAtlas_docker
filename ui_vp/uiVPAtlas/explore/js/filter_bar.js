@@ -33,7 +33,7 @@ export function initFilterBar(filterCallback) {
             <!-- Pool ID search -->
             <div style="position:relative; flex-shrink:1; min-width:0;">
                 <input type="text" id="filter_pool_id"
-                    placeholder="Pool ID..." autocomplete="off"
+                    placeholder="Pool..." autocomplete="off"
                     class="filter-input" style="width:100%; max-width:120px; padding-right:24px;">
                 <button id="filter_pool_id_clear" class="input-clear-btn" style="display:none;">&times;</button>
                 <div id="pool_id_suggestions" class="dropdown-suggestions"></div>
@@ -55,13 +55,19 @@ export function initFilterBar(filterCallback) {
                 <div id="county_suggestions" class="dropdown-suggestions"></div>
             </div>
 
-            <!-- Status dropdown (multi-select checkboxes) -->
-            <div id="status-filter" style="position:relative;">
+            <!-- Status dropdown — hidden, now controlled by map layer toggles -->
+            <div id="status-filter" style="position:relative; display:none;">
                 <label id="status-label" class="filter-dropdown-btn">
                     Status <i class="fa fa-caret-down"></i>
                 </label>
                 <div id="status-panel" class="dropdown-panel"></div>
             </div>
+
+            <!-- Indicator Species toggle -->
+            <label id="indicator-toggle" class="data-type-btn" style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input type="checkbox" id="filter_indicator" style="width:auto; margin:0; accent-color:var(--primary-color);">
+                <span style="font-size:12px;">Indicator Spp</span>
+            </label>
         </div>
 
         <!-- Active filter tokens -->
@@ -98,6 +104,17 @@ export function initFilterBar(filterCallback) {
 
     // Status checkboxes
     populateStatusOptions();
+
+    // Indicator species toggle
+    let indicatorCb = document.getElementById('filter_indicator');
+    if (indicatorCb) {
+        indicatorCb.checked = !!filters.hasIndicator;
+        indicatorCb.addEventListener('change', () => {
+            filters.hasIndicator = indicatorCb.checked;
+            putUserState(1, { hasIndicator: indicatorCb.checked });
+            applyFilters();
+        });
+    }
 
     // Load reference data
     loadTowns();
@@ -159,10 +176,9 @@ async function populateDataTypeButtons() {
 
     let buttonDefs = [
         { value: 'All',       label: 'All',       count: stats?.total,     show: true },
-        { value: 'Visited',   label: 'Visited',   count: stats?.visited,   show: true },
-        { value: 'Monitored', label: 'Monitored', count: stats?.monitored, show: true },
-        { value: 'Mine',      label: 'Mine',      count: stats?.mine,      show: !!user },
-        { value: 'Review',    label: 'Review',    count: stats?.review,    show: !!user },
+        // Visited/Monitored now handled by map layer control
+        { value: 'Mine',      label: 'Mine',      count: null,             show: !!user },
+        { value: 'Review',    label: 'Review',    count: null,             show: user && user.userrole === 'admin' },
     ];
 
     buttonDefs.forEach(def => {
@@ -405,10 +421,7 @@ function renderTokens() {
     filters.countyNames.forEach(name => {
         tokens.push({ key: 'countyName', value: name, label: 'County' });
     });
-    // Each status as its own removable chip
-    filters.poolStatuses.forEach(status => {
-        tokens.push({ key: 'poolStatus', value: status, label: 'Status' });
-    });
+    // Status chips now driven by map layer control, not shown here
 
     if (!tokens.length) {
         container.innerHTML = '';

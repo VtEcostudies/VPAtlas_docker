@@ -191,6 +191,25 @@ export async function fetchParcelByTownId(townId) { return fetchApiRoute(`parcel
 export async function fetchParcelByTownName(townName) { return fetchApiRoute(`parcel/townName/${townName}`); }
 
 // =============================================================================
+// S123 IMPORT — Visits
+// =============================================================================
+export async function fetchVisitS123Services() { return fetchApiRoute('pools/visit/s123/services'); }
+export async function fetchVisitS123Uploads(serviceId) { return fetchApiRoute('pools/visit/s123/uploads', `visitServiceId=${serviceId}`); }
+export async function postVisitS123All(serviceId, update, offset, limit) {
+    return postApiRoute('pools/visit/s123/all', {}, `serviceId=${serviceId}&update=${update}&offset=${offset}&limit=${limit}`);
+}
+
+// =============================================================================
+// S123 IMPORT — Surveys
+// =============================================================================
+export async function fetchSurveyS123Services() { return fetchApiRoute('survey/s123/services'); }
+export async function fetchSurveyS123Uploads(serviceId) { return fetchApiRoute('survey/s123/uploads', `surveyServiceId=${serviceId}`); }
+export async function postSurveyS123All(serviceId, update, offset, limit) {
+    return postApiRoute('survey/s123/all', {}, `serviceId=${serviceId}&update=${update}&offset=${offset}&limit=${limit}`);
+}
+export async function postSurveyS123Abort() { return postApiRoute('survey/s123/abort', {}); }
+
+// =============================================================================
 // AWS S3
 // =============================================================================
 export async function fetchS3Info(bucketName) { return fetchApiRoute(`aws/s3/${bucketName}`); }

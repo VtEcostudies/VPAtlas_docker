@@ -21,6 +21,7 @@ export var filters = {
     townNames: [],                          // multi-select town names
     countyNames: [],                        // multi-select county names
     poolStatuses: [...DEFAULT_STATUSES],    // status checkboxes
+    showFilters: false,                    // filter bar visibility
     page: 1,
     map_layers: { towns: false, counties: false, pools: true, baseLayer: 'Street Map' }
 };
@@ -76,6 +77,10 @@ export function setPopState(callback) {
     });
 }
 
+function titleCase(s) {
+    return s.replace(/\w\S*/g, t => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase());
+}
+
 // Build API query string from filters
 export function buildSearchTerm() {
     let parts = [];
@@ -84,33 +89,43 @@ export function buildSearchTerm() {
         parts.push(`mappedPoolId|ILIKE=%${filters.poolIdSearch}%`);
     }
 
-    // Multiple towns/counties: repeated params become IN(...)
-    filters.townNames.forEach(t => parts.push(`townName=${t}`));
-    filters.countyNames.forEach(c => parts.push(`countyName=${c}`));
+    // Multiple towns/counties: normalize case to match DB
+    // Towns are mixed-case in DB (e.g. "Addison"), counties are uppercase (e.g. "ADDISON")
+    filters.townNames.forEach(t => parts.push(`townName=${titleCase(t)}`));
+    filters.countyNames.forEach(c => parts.push(`countyName=${c.toUpperCase()}`));
 
-    if (filters.poolStatuses.length > 0 && filters.poolStatuses.length < 5) {
-        filters.poolStatuses.forEach(s => parts.push(`mappedPoolStatus=${s}`));
-    }
+    // Status and indicator species filtering handled client-side
 
     return parts.join('&') || false;
 }
 
 // Client-side filter for data type (applied after API returns rows)
-// The overview query includes visitId, surveyId, mappedByUser — filter locally.
-export function filterRowsByDataType(rows, username=null) {
+// The overview query includes userId columns — match on integer IDs, not names.
+// `userInfo` can be a username string (legacy) or { id, username, ... } object.
+export function filterRowsByDataType(rows, userInfo=null) {
     switch (filters.dataType) {
         case 'Visited':
             return rows.filter(r => r.visitId);
         case 'Monitored':
             return rows.filter(r => r.surveyId);
-        case 'Mine':
-            if (!username) return [];
-            return rows.filter(r =>
-                r.mappedUserName === username ||
-                r.visitUserName === username ||
-                r.visitObserverUserName === username ||
-                r.surveyUserName === username
-            );
+        case 'Mine': {
+            if (!userInfo) return [];
+            // Support both userId (integer) and username (string) matching
+            let userId = typeof userInfo === 'object' ? userInfo.id : null;
+            let username = typeof userInfo === 'object' ? (userInfo.handle || userInfo.username) : userInfo;
+            return rows.filter(r => {
+                // Prefer integer userId matching (reliable)
+                if (userId) {
+                    if (r.visitUserId === userId || r.mappedUserId === userId || r.surveyUserId === userId) return true;
+                }
+                // Fallback to string matching for legacy rows without userId
+                if (username) {
+                    if (r.mappedUserName === username || r.visitUserName === username ||
+                        r.visitObserverUserName === username || r.surveyUserName === username) return true;
+                }
+                return false;
+            });
+        }
         case 'Review':
             // Pools needing review: visited but no review, or review status pending
             return rows.filter(r => r.visitId && !r.reviewId);

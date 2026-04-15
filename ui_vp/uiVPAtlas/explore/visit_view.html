@@ -9,44 +9,93 @@
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
     <link rel="stylesheet" href="./css/common.css">
     <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="./css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
+    <style>
+        .dv-tabs { display: none; }
+        @media (max-width: 900px) {
+            .dv-pane { display: none !important; height: calc(100dvh - 90px - 52px) !important; max-height: none !important; min-height: 0; }
+            .dv-content[data-active-tab="detail"] .dv-pane-detail { display: block !important; }
+            .dv-content[data-active-tab="map"]    .dv-pane-map    { display: block !important; }
+            .dv-content[data-active-tab] .dv-pane { flex: 0 0 100%; max-width: 100%; }
+            .dv-tabs {
+                display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+                border-top: 1px solid #ddd; background: white; box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+            }
+            .dv-tab-btn {
+                flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                padding: 6px 2px; border: none; background: white; color: var(--text-secondary);
+                font-size: 11px; cursor: pointer; border-radius: 0;
+            }
+            .dv-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+            .dv-tab-btn.active { color: var(--primary-color); border-top: 2px solid var(--primary-color); font-weight: 600; }
+            body { padding-bottom: 52px; }
+        }
+    </style>
 </head>
 <body>
     <header>
         <div class="detail-header">
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Visit Detail</h3>
-            <div class="detail-actions" style="display:flex; gap:6px;">
+            <div class="detail-actions">
                 <button id="btn_add_review" class="action-button" style="display:none;">+ Review</button>
                 <button id="btn_edit" class="action-button" style="display:none;">Edit Visit</button>
+                <button class="action-overflow-btn" id="action_menu_btn"><i class="fa fa-ellipsis-v"></i></button>
+                <div class="action-overflow-panel" id="action_menu_panel"></div>
             </div>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
     <hr class="divider-header">
 
-    <div class="row">
+    <div class="row dv-content" id="dv_content">
         <!-- Left: Visit info -->
-        <div class="col-lg-6 col-12" style="max-height:85vh; overflow-y:auto; padding:10px;">
+        <div class="col-lg-6 col-12 dv-pane dv-pane-detail" style="max-height:85vh; overflow-y:auto; padding:10px;">
             <div id="visit_info"></div>
-
             <div id="habitat_section"></div>
-
             <div id="pool_char_section"></div>
-
             <div id="species_section"></div>
-
             <div id="fish_section"></div>
-
-            <div id="landowner_section"></div>
-
             <div id="reviews_section"></div>
         </div>
 
         <!-- Right: Map -->
-        <div class="col-lg-6 col-12" style="height:85vh;">
+        <div class="col-lg-6 col-12 dv-pane dv-pane-map" style="height:85vh; position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+            <div id="btn_center" title="Zoom to pool" style="position:absolute; top:10px; left:10px; z-index:1000;
+                background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
+                width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+                cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                <i class="fa fa-crosshairs"></i>
+            </div>
         </div>
     </div>
+
+    <!-- Mobile tab bar -->
+    <div class="dv-tabs" id="dv_tabs">
+        <button class="dv-tab-btn active" data-tab="detail"><i class="fa fa-info-circle"></i>Detail</button>
+        <button class="dv-tab-btn" data-tab="map"><i class="fa fa-map"></i>Map</button>
+    </div>
+
+    <script>
+    function initOverflowMenu(btnId, panelId, items) {
+        let btn = document.getElementById(btnId);
+        let panel = document.getElementById(panelId);
+        if (!btn || !panel) return;
+        items.forEach(item => {
+            let el = document.createElement('button');
+            el.className = 'action-button';
+            el.textContent = item.label;
+            el.addEventListener('click', () => { panel.classList.remove('show'); item.action(); });
+            panel.appendChild(el);
+        });
+        btn.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.toggle('show'); });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#' + panelId) && !e.target.closest('#' + btnId)) panel.classList.remove('show');
+        });
+    }
+    </script>
 
     <script src="/js/console_manager.js"></script>
     <script src="/js/resource_manager.js"></script>
@@ -61,9 +110,31 @@
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
         const visitId = params.get('visitId');
+        let visitMap = null;
+
+        // Mobile tab switching
+        const dvMobile = window.matchMedia('(max-width: 900px)');
+        function dvSwitchTab(t) {
+            let el = document.getElementById('dv_content');
+            if (!el) return;
+            el.dataset.activeTab = t;
+            document.querySelectorAll('.dv-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            if (t === 'map' && visitMap) setTimeout(() => visitMap.invalidateSize(), 100);
+        }
+        document.querySelectorAll('.dv-tab-btn').forEach(b => b.addEventListener('click', () => dvSwitchTab(b.dataset.tab)));
+        dvMobile.addEventListener('change', (e) => {
+            let el = document.getElementById('dv_content');
+            if (!el) return;
+            if (e.matches) { if (!el.dataset.activeTab) el.dataset.activeTab = 'detail'; }
+            else { delete el.dataset.activeTab; }
+            if (visitMap) setTimeout(() => visitMap.invalidateSize(), 150);
+        });
+        if (dvMobile.matches) { let el = document.getElementById('dv_content'); if (el) el.dataset.activeTab = 'detail'; }
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!visitId) {
@@ -103,7 +174,6 @@
                 renderPoolCharacteristics(visit);
                 renderSpecies(visit);
                 renderFish(visit);
-                renderLandowner(visit);
                 initMap(visit, mapped);
 
                 // Reviews for this visit
@@ -113,19 +183,34 @@
                     renderReviews(reviews, visit);
                 } catch(err) {}
 
-                // Edit + Review buttons (logged-in users)
+                // Edit button (owner only), Review button (admins only)
                 let user = await getUser();
                 if (user) {
-                    let editBtn = document.getElementById('btn_edit');
-                    editBtn.style.display = 'inline-block';
-                    editBtn.addEventListener('click', () =>
-                        window.location.href = `/survey/visit_create.html?visitId=${visitId}`);
+                    let isAdmin = user.userrole === 'admin';
+                    let isOwner = (user.id && (user.id === visit.visitUserId || user.id === visit.visitObserverUserId))
+                        || user.username === visit.visitUserName
+                        || user.username === visit.visitObserverUserName;
 
-                    let reviewBtn = document.getElementById('btn_add_review');
-                    reviewBtn.style.display = 'inline-block';
                     let poolId = visit.visitPoolId || (mapped && mapped.mappedPoolId) || '';
-                    reviewBtn.addEventListener('click', () =>
-                        window.location.href = `/admin/review_view.html?visitId=${visitId}&poolId=${poolId}`);
+                    let menuItems = [];
+
+                    if (isOwner) {
+                        let editBtn = document.getElementById('btn_edit');
+                        editBtn.style.display = 'inline-block';
+                        editBtn.addEventListener('click', () =>
+                            window.location.href = `/survey/visit_create.html?visitId=${visitId}`);
+                        menuItems.push({ label: 'Edit Visit', action: () => window.location.href = `/survey/visit_create.html?visitId=${visitId}` });
+                    }
+
+                    if (isAdmin) {
+                        let reviewBtn = document.getElementById('btn_add_review');
+                        reviewBtn.style.display = 'inline-block';
+                        reviewBtn.addEventListener('click', () =>
+                            window.location.href = `/admin/review_create.html?visitId=${visitId}&poolId=${poolId}`);
+                        menuItems.push({ label: '+ Review', action: () => window.location.href = `/admin/review_create.html?visitId=${visitId}&poolId=${poolId}` });
+                    }
+
+                    if (menuItems.length) initOverflowMenu('action_menu_btn', 'action_menu_panel', menuItems);
                 }
             } catch(err) {
                 document.getElementById('visit_info').innerHTML =
@@ -151,17 +236,17 @@
                 <tr><td><strong>Observer</strong></td><td>${v.visitObserverUserName || v.visitUserName || ''}</td></tr>
                 <tr><td><strong>Town</strong></td><td>${v.townName || m.townName || ''}</td></tr>
                 <tr><td><strong>County</strong></td><td>${v.countyName || m.countyName || ''}</td></tr>
-                <tr><td><strong>Pool Located</strong></td><td>${val(v.visitLocatePool)}</td></tr>
-                <tr><td><strong>Vernal Pool</strong></td><td>${val(v.visitVernalPool)}</td></tr>`;
-            if (val(v.visitPoolType)) html += `<tr><td><strong>Pool Type</strong></td><td>${v.visitPoolType}${val(v.visitPoolTypeOther) ? ' — ' + v.visitPoolTypeOther : ''}</td></tr>`;
-            if (val(v.visitCertainty)) html += `<tr><td><strong>Certainty</strong></td><td>${v.visitCertainty}</td></tr>`;
-            if (val(v.visitNavMethod)) html += `<tr><td><strong>Nav Method</strong></td><td>${v.visitNavMethod}${val(v.visitNavMethodOther) ? ' — ' + v.visitNavMethodOther : ''}</td></tr>`;
+                <tr><td><strong>Pool Located</strong></td><td>${val(v.visitLocatePool)}</td></tr>`;
+            if (val(v.visitPoolType)) {
+                let poolType = v.visitPoolType;
+                try { let arr = JSON.parse(poolType); if (Array.isArray(arr)) poolType = arr.join(', '); } catch(e) {}
+                html += `<tr><td><strong>Basin Type</strong></td><td>${poolType}${val(v.visitPoolTypeOther) ? ' — ' + v.visitPoolTypeOther : ''}</td></tr>`;
+            }
             if (val(v.visitCoordSource)) html += `<tr><td><strong>Coord Source</strong></td><td>${v.visitCoordSource}</td></tr>`;
             if (v.visitLatitude && v.visitLongitude) {
                 html += `<tr><td><strong>Location</strong></td><td>${Number(v.visitLatitude).toFixed(5)}, ${Number(v.visitLongitude).toFixed(5)}</td></tr>`;
             }
             if (val(v.visitLocationUncertainty)) html += `<tr><td><strong>Location Uncertainty (m)</strong></td><td>${v.visitLocationUncertainty}</td></tr>`;
-            if (val(v.visitDirections)) html += `<tr><td><strong>Directions</strong></td><td>${v.visitDirections}</td></tr>`;
             if (val(v.visitLocationComments)) html += `<tr><td><strong>Location Notes</strong></td><td>${v.visitLocationComments}</td></tr>`;
             if (val(v.visitInletType)) html += `<tr><td><strong>Inlet</strong></td><td>${v.visitInletType}</td></tr>`;
             if (val(v.visitOutletType)) html += `<tr><td><strong>Outlet</strong></td><td>${v.visitOutletType}</td></tr>`;
@@ -216,6 +301,7 @@
             if (v.visitPoolEmergents) veg.push(`Emergents: ${v.visitPoolEmergents}%`);
             if (v.visitPoolFloatingVeg) veg.push(`Floating: ${v.visitPoolFloatingVeg}%`);
             if (veg.length) items.push(['Canopy/Vegetation', veg.join(', ')]);
+            if (val(v.visitPoolCharComments)) items.push(['Comments', v.visitPoolCharComments]);
 
             if (!items.length) return;
             let html = `<hr><h5>Pool Characteristics</h5><table class="pool-table" style="font-size:14px;">`;
@@ -277,7 +363,7 @@
             let html = `<hr><h5>Indicator Species</h5>`;
             if (species.length) {
                 html += `<table class="pool-table" style="font-size:14px;">
-                    <thead><tr><th>Species</th><th>Egg Masses</th><th>Adults</th><th>Larvae</th><th>Notes</th></tr></thead><tbody>`;
+                    <thead><tr><th>Species</th><th>Egg Masses</th><th>Adults</th><th>Larvae/Tadpoles</th><th>Notes</th></tr></thead><tbody>`;
                 species.forEach(s => {
                     let eggStr = s.eggs ? `${s.eggs}${s.eggHow ? ' (' + s.eggHow + ')' : ''}` : '';
                     let nameStr = s.name + inatLink(s.inat);
@@ -313,28 +399,6 @@
             document.getElementById('fish_section').innerHTML = html;
         }
 
-        function renderLandowner(v) {
-            let lo = v.visitLandowner;
-            if (!lo || lo.disabled) {
-                // Check individual fields
-                if (!v.visitLandownerPermission && !val(v.visitUserIsLandowner)) return;
-            }
-            let items = [];
-            if (v.visitUserIsLandowner != null) items.push(['Visitor is Landowner', v.visitUserIsLandowner ? 'Yes' : 'No']);
-            if (v.visitLandownerPermission != null) items.push(['Landowner Permission', v.visitLandownerPermission ? 'Yes' : 'No']);
-            if (lo && !lo.disabled) {
-                if (val(lo.name)) items.push(['Name', lo.name]);
-                if (val(lo.phone)) items.push(['Phone', lo.phone]);
-                if (val(lo.email)) items.push(['Email', lo.email]);
-                if (val(lo.address)) items.push(['Address', lo.address]);
-            }
-            if (!items.length) return;
-            let html = `<hr><h5>Landowner</h5><table class="pool-table" style="font-size:14px;">`;
-            items.forEach(([label, v]) => { html += `<tr><td><strong>${label}</strong></td><td>${v}</td></tr>`; });
-            html += `</table>`;
-            document.getElementById('landowner_section').innerHTML = html;
-        }
-
         function renderReviews(reviews, visit) {
             let container = document.getElementById('reviews_section');
             if (!reviews.length) {
@@ -362,6 +426,7 @@
             if (isNaN(lat) || isNaN(lng)) return;
             let status = m.poolStatus || m.mappedPoolStatus || 'Potential';
             let map = await createMap('map', { center: [lat, lng], zoom: 16 });
+            visitMap = map;
             let poolId = v.visitPoolId || m.mappedPoolId || '';
             let town = v.townName || m.townName || '';
             addPoolMarker(map, [lat, lng], {
@@ -371,6 +436,8 @@
                 tooltip: `${poolId} — ${status}${town ? ', ' + town : ''}`,
                 popup: `Visit ${v.visitId} — Pool ${poolId}`
             });
+            document.getElementById('btn_center').addEventListener('click', () =>
+                map.setView([lat, lng], 16));
         }
     </script>
     <script src="/js/app.js"></script>

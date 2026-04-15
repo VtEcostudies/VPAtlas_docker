@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
     <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/explore/css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
     <style>
         /* Mobile-first monitoring survey form — matches visit_create.html pattern */
@@ -263,6 +264,7 @@
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground" id="page_title">Monitoring Survey</h3>
             <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
 
         <!-- Message -->
@@ -619,6 +621,8 @@
     <script type="module">
         import { fetchFieldSurveyById, createFieldSurvey, updateFieldSurvey, fetchSurveyTypes } from '/js/api.js';
         import { requireAuth, getUser } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
         const surveyId = params.get('surveyId');
@@ -724,7 +728,7 @@
                     showMsg('Saved!', 'success');
                     setTimeout(() => {
                         if (poolId || body.surveyPoolId)
-                            window.location.href = `pool_view.html?poolId=${poolId || body.surveyPoolId}`;
+                            window.location.href = `/explore/pool_view.html?poolId=${poolId || body.surveyPoolId}`;
                         else
                             window.location.href = '/explore/';
                     }, 1000);

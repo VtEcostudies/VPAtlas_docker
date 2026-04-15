@@ -99,6 +99,7 @@ select {
     margin-bottom: 5px;
 }
 .content-row {
+    display: flex;
     padding: 2px 8px;
     margin: 0;
 }
@@ -110,6 +111,8 @@ select {
     flex-direction: column;
     padding: 5px;
     overflow-y: auto;
+    flex: 0 0 33.33%;
+    min-width: 0;
 }
 .tri-pane-left {
     border: var(--primary-color) 1px solid;
@@ -124,15 +127,114 @@ select {
     border-radius: var(--border-radius);
     padding: 5px 10px;
 }
-@media (max-width: 767px) {
+
+/* Pane dividers (drag handles) */
+.pane-divider {
+    flex: 0 0 5px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    z-index: 10;
+}
+.pane-divider::after {
+    content: '';
+    position: absolute;
+    top: 10%;
+    bottom: 10%;
+    left: 1px;
+    width: 3px;
+    border-radius: 2px;
+    background: #ccc;
+    transition: background 0.15s;
+}
+.pane-divider:hover::after {
+    background: var(--primary-color);
+}
+
+/* =========================================================================
+   Mobile: tabbed single-pane layout (replaces stacked three-pane)
+   ========================================================================= */
+@media (max-width: 1150px) {
+    .content-row {
+        flex-wrap: wrap;
+    }
     .tri-pane {
-        height: 400px;
+        display: none !important;
+        height: calc(100dvh - 110px - 52px);
+        min-height: 0;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 4px;
+        flex: unset !important;
     }
-    .tri-pane-left {
-        border-right: var(--primary-color) 1px solid;
+
+    /* Hide dividers on mobile */
+    .pane-divider {
+        display: none;
     }
-    .tri-pane-right {
-        border-left: var(--primary-color) 1px solid;
+
+    /* Show the active pane */
+    .content-row[data-active-tab="list"] .tri-pane-left   { display: flex !important; }
+    .content-row[data-active-tab="map"]  .tri-pane-center  { display: flex !important; }
+    .content-row[data-active-tab="info"] .tri-pane-right   { display: flex !important; }
+
+    /* Active pane takes full width */
+    .content-row[data-active-tab] .tri-pane {
+        flex: 0 0 100% !important;
+        max-width: 100%;
+    }
+
+    /* Map needs explicit height for Leaflet */
+    .content-row[data-active-tab="map"] .tri-pane-center {
+        height: calc(100dvh - 110px - 52px);
+        padding: 0;
+    }
+
+    body {
+        padding-bottom: 52px;
+    }
+}
+
+/* =========================================================================
+   Explore tab bar (mobile only)
+   ========================================================================= */
+.explore-tabs {
+    display: none;
+}
+@media (max-width: 1150px) {
+    .explore-tabs {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        border-top: 1px solid #ddd;
+        background: white;
+        box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+    }
+    .explore-tab-btn {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 2px;
+        border: none;
+        background: white;
+        color: var(--text-secondary);
+        font-size: 11px;
+        cursor: pointer;
+        border-radius: 0;
+    }
+    .explore-tab-btn i {
+        font-size: 18px;
+        margin-bottom: 2px;
+    }
+    .explore-tab-btn.active {
+        color: var(--primary-color);
+        border-top: 2px solid var(--primary-color);
+        font-weight: 600;
     }
 }
 
@@ -161,11 +263,95 @@ header {
     flex-shrink: 0;
     display: flex;
     gap: 6px;
+    position: relative;
 }
 .detail-actions .action-button {
     font-size: 14px;
     padding: 4px 10px;
     white-space: nowrap;
+}
+
+/* Overflow menu toggle — hidden on desktop, shown on mobile */
+.action-overflow-btn {
+    display: none;
+    background: none;
+    border: 1px solid var(--primary-color);
+    border-radius: 6px;
+    color: var(--primary-color);
+    font-size: 18px;
+    padding: 4px 10px;
+    cursor: pointer;
+    line-height: 1;
+}
+.action-overflow-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10000;
+    min-width: 180px;
+    padding: 4px 0;
+}
+.action-overflow-panel.show { display: block; }
+.action-overflow-panel .action-button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: none;
+    padding: 10px 16px;
+    font-size: 15px;
+    color: var(--primary-color);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.action-overflow-panel .action-button:hover {
+    background: var(--primary-light);
+}
+
+@media (max-width: 900px) {
+    .action-overflow-btn { display: block; }
+    .detail-actions > .action-button { display: none !important; }
+}
+
+/* Filter overflow toggle for explore header */
+.filter-overflow-btn {
+    display: none;
+    background: none;
+    border: 1px solid var(--primary-color);
+    border-radius: 6px;
+    color: var(--primary-color);
+    font-size: 16px;
+    padding: 4px 10px;
+    cursor: pointer;
+    line-height: 1;
+}
+.filter-overflow-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+@media (max-width: 1150px) {
+    .filter-overflow-btn { display: block; }
+    .filter-container {
+        display: none !important;
+    }
+    .filter-container.show {
+        display: block !important;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border-bottom: 1px solid #ddd;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        padding: 8px;
+    }
 }
 div.controls {
     color: var(--primary-color);

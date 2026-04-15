@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
     <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/explore/css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
     <style>
         html, body { height: 100%; overflow: hidden; }
@@ -113,6 +114,7 @@
             <h3 class="header-name light-foreground" style="margin-right:6px; white-space:normal;">Pool Finder</h3>
             <div class="pf-chips" id="pool_chips" style="flex:1; min-width:0;"></div>
             <div class="pf-gps-dot" id="gps_dot" title="GPS Status"></div>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
 
         <!-- Map -->
@@ -143,6 +145,8 @@
                  buildShapeIcon, stateCenter, stateZoom } from '/js/map_common.js';
         import { getLocal, setLocal } from '/js/storage.js';
         import { fetchApiRoute } from '/js/api.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         let map, gps, userMarker, accuracyCircle;
         let selectedPools = new Map(); // poolId → { row, marker }

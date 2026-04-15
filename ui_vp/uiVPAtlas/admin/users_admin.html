@@ -28,6 +28,7 @@
             </div>
             <div class="px-1 col-xl-3 col-12" style="display:flex; gap:10px; justify-content:flex-end;">
                 <button id="btn_search" class="action-button" style="font-size:14px;">Search</button>
+                <div id="profile_container" style="margin-left:auto;"></div>
             </div>
         </div>
     </header>
@@ -53,6 +54,8 @@
         import { fetchUsers, updateUser } from '/js/api.js';
         import { getUser, requireAuth } from '/js/auth.js';
         import { formatDate } from '/explore/js/utils.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         let allUsers = [];
 
@@ -153,6 +156,7 @@
             }
         }
     </script>
+    <script>if (typeof appConfig !== "undefined") appConfig.useServiceWorker = false;</script>
     <script src="/js/app.js"></script>
 </body>
 </html>

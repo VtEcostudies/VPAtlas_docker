@@ -10,6 +10,7 @@
     pool list and map — ensuring all three panes always agree.
 */
 import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchSurveysByPool } from '/js/api.js';
+import { getUser } from '/js/auth.js';
 import { formatDate } from './utils.js';
 import { filters, getCurrentScope } from './url_state.js';
 
@@ -77,30 +78,77 @@ export async function showScopeSummary(poolRows) {
     }
 
     html += `<p style="margin-top:10px; font-size:13px; color:var(--text-muted);">Select a pool from the list or map for details.</p>`;
+
+    // "+ New Pool" button for logged-in users
+    let user = await getUser();
+    if (user) {
+        html += `<div style="margin-top:12px; padding-top:10px; border-top:1px solid #eee;">
+            <a href="/survey/visit_create.html" class="summary-link" style="font-size:14px; padding:6px 14px;">
+                <i class="fa fa-plus" style="margin-right:4px;"></i> New Pool
+            </a>
+        </div>`;
+    }
+
     html += `</div>`;
     summaryContainer.innerHTML = html;
 }
 
 function describeCurrentView(scope, dataType, rows) {
     let count = rows ? rows.length : 0;
-    let geoDesc = scope.type === 'state' ? 'statewide'
-        : scope.type === 'county' ? `in ${Array.isArray(scope.value) ? scope.value.join(', ') : scope.value}`
+
+    // Geographic scope
+    let geoDesc = scope.type === 'state' ? 'Statewide'
         : `in ${Array.isArray(scope.value) ? scope.value.join(', ') : scope.value}`;
 
+    // Status — derived from rows actually present
     let statusDesc = '';
-    let statuses = filters.poolStatuses || [];
     let allStatuses = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
-    if (statuses.length && statuses.length < allStatuses.length) {
-        statusDesc = ` (${statuses.join(', ')})`;
+    if (rows && rows.length) {
+        let present = new Set();
+        rows.forEach(r => { let s = r.poolStatus || r.mappedPoolStatus || ''; if (s) present.add(s); });
+        let activeStatuses = allStatuses.filter(s => present.has(s));
+        if (activeStatuses.length && activeStatuses.length < allStatuses.length) {
+            statusDesc = activeStatuses.join(', ');
+        }
     }
 
-    switch (dataType) {
-        case 'Visited':   return `${count.toLocaleString()} visited pools ${geoDesc}${statusDesc}`;
-        case 'Monitored': return `${count.toLocaleString()} monitored pools ${geoDesc}${statusDesc}`;
-        case 'Mine':      return `${count.toLocaleString()} pools associated with your account ${geoDesc}${statusDesc}`;
-        case 'Review':    return `${count.toLocaleString()} pools needing review ${geoDesc}${statusDesc}`;
-        default:          return `${count.toLocaleString()} pools ${geoDesc}${statusDesc}`;
+    // Survey level — derived from rows actually present
+    let levelDesc = '';
+    if (rows && rows.length) {
+        let hasVisit = false, hasSurvey = false, hasMapped = false;
+        rows.forEach(r => {
+            if (r.surveyId || r._hasSurvey) hasSurvey = true;
+            else if (r.visitId || r._hasVisit) hasVisit = true;
+            else hasMapped = true;
+        });
+        let levels = [];
+        if (hasMapped) levels.push('Mapped');
+        if (hasVisit) levels.push('Visited');
+        if (hasSurvey) levels.push('Monitored');
+        if (levels.length && levels.length < 3) {
+            levelDesc = levels.join(', ');
+        }
     }
+
+    // Data type qualifier
+    let typeDesc = '';
+    switch (dataType) {
+        case 'Visited':   typeDesc = 'with Atlas Visits'; break;
+        case 'Monitored': typeDesc = 'with Monitoring Surveys'; break;
+        case 'Mine':      typeDesc = 'associated with your account'; break;
+        case 'Review':    typeDesc = 'needing review'; break;
+    }
+
+    // Build: "114 Potential pools Statewide with Atlas Visits"
+    // Parts: count + [status] + "pools" + geo + [level] + [type]
+    let parts = [count.toLocaleString()];
+    if (statusDesc) parts.push(statusDesc);
+    parts.push('pools');
+    parts.push(geoDesc);
+    if (levelDesc) parts.push(`(${levelDesc})`);
+    if (typeDesc) parts.push(typeDesc);
+
+    return parts.join(' ');
 }
 
 // Compute summary stats from the filtered rows
@@ -157,10 +205,17 @@ function renderStatsTable(stats) {
 // =============================================================================
 // POOL DETAIL (pool selected)
 // =============================================================================
-export async function showPoolSummary(poolId) {
+export async function showPoolSummary(poolId, onBack = null) {
     if (!summaryContainer) return;
 
-    if (summaryTitle) summaryTitle.innerHTML = `<h5>Pool ${poolId}</h5>`;
+    if (summaryTitle) {
+        summaryTitle.innerHTML = `<a href="#" id="summary_back" title="Back to summary" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit; cursor:pointer;">
+            <i class="fa fa-arrow-left" style="font-size:14px; color:var(--primary-color);"></i>
+            <h5 style="margin:0;">Pool ${poolId}</h5>
+        </a>`;
+        let backBtn = document.getElementById('summary_back');
+        if (backBtn) backBtn.addEventListener('click', (e) => { e.preventDefault(); if (onBack) onBack(); });
+    }
     summaryContainer.innerHTML = '<div style="padding:10px;"><i class="fa fa-spinner fa-spin"></i> Loading...</div>';
 
     try {

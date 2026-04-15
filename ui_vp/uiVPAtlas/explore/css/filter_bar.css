@@ -12,8 +12,8 @@
     display: contents;
 }
 .data-type-btn {
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: normal;
     padding: 4px 8px;
     height: 32px;
     border: 1px solid var(--primary-color);

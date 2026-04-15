@@ -22,6 +22,7 @@
             </div>
             <div class="px-1 col-xl-8 col-6" style="display:flex; gap:10px; justify-content:flex-end;">
                 <button id="btn_create_review" class="action-button" style="display:none; font-size:16px;">Create Review</button>
+                <div id="profile_container" style="margin-left:auto;"></div>
             </div>
         </div>
     </header>
@@ -75,11 +76,13 @@
         import { fetchReviews } from '/js/api.js';
         import { formatDate } from '/explore/js/utils.js';
         import { getUser } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Auth check for create button
+            // Create button for admin users only
             let user = await getUser();
-            if (user) {
+            if (user && user.userrole === 'admin') {
                 document.getElementById('btn_create_review').style.display = 'inline-block';
             }
 
@@ -149,6 +152,7 @@
             document.getElementById('reviews_table').innerHTML = html;
         }
     </script>
+    <script>if (typeof appConfig !== "undefined") appConfig.useServiceWorker = false;</script>
     <script src="/js/app.js"></script>
 </body>
 </html>

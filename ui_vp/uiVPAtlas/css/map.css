@@ -45,6 +45,47 @@
     font-size: 14px;
   }
 
+/* Pool legend / status control */
+.pool-legend {
+    background: rgba(255,255,255,0.92);
+    padding: 6px 10px;
+    border-radius: 5px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    font: 13px/1.6 Arial, Helvetica, sans-serif;
+    color: #333;
+}
+.pool-legend-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 2px;
+}
+.pool-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+.pool-legend-item svg {
+    flex-shrink: 0;
+}
+label.pool-legend-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+label.pool-legend-toggle:hover {
+    background: rgba(0,0,0,0.04);
+    border-radius: 3px;
+}
+.pool-legend-count {
+    font-size: 11px;
+    color: #888;
+    margin-left: 2px;
+}
+.map-narrow .pool-legend-count {
+    display: none;
+}
+
 .btn-disabled {
     background: #95a5a6;
     color: #7f8c8d;

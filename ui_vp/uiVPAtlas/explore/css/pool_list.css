@@ -28,6 +28,10 @@
     background-color: var(--primary-medium);
     font-weight: bold;
 }
+.pool-table tbody tr.focused {
+    background-color: #fff3e0;
+    border-left: 3px solid var(--selected-color);
+}
 .pool-check {
     width: 16px;
     height: 16px;

@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
     <link rel="stylesheet" href="/explore/css/common.css">
+    <link rel="stylesheet" href="/explore/css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
     <style>
         /* Mobile-first visit form layout */
@@ -34,7 +35,8 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-size: 15px;
+            font-size: 17px;
+            font-weight: 700;
             margin: 0;
         }
 
@@ -135,6 +137,43 @@
         }
         .form-field textarea { resize: vertical; min-height: 60px; }
 
+        /* Stepper input: large +/- buttons flanking a number field */
+        .stepper-group {
+            display: flex;
+            align-items: stretch;
+            width: 100%;
+        }
+        .stepper-group input {
+            flex: 1;
+            min-width: 0;
+            text-align: center;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+            -moz-appearance: textfield;
+        }
+        .stepper-group input::-webkit-inner-spin-button,
+        .stepper-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .stepper-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            flex-shrink: 0;
+            font-size: 22px;
+            font-weight: 700;
+            border: 1px solid var(--primary-color);
+            background: var(--primary-light, #e8f0e8);
+            color: var(--primary-color, #2c5530);
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .stepper-btn:active { background: var(--primary-color, #2c5530); color: white; }
+        .stepper-btn-minus { border-radius: 6px 0 0 6px; }
+        .stepper-btn-plus  { border-radius: 0 6px 6px 0; }
+
         /* Radio/checkbox groups - touch friendly */
         .choice-group {
             display: flex;
@@ -216,6 +255,161 @@
             pointer-events: none;
         }
 
+        /* Voice input button */
+        .voice-btn {
+            background: none; border: none; cursor: pointer;
+            color: var(--text-secondary); font-size: 14px; padding: 2px 6px;
+            border-radius: 4px; vertical-align: middle;
+        }
+        .voice-btn:hover { color: var(--primary-color); }
+        .voice-btn.recording {
+            color: #dc3545; animation: voice-pulse 1s infinite;
+        }
+        .voice-btn.unsupported {
+            color: #ccc; cursor: not-allowed; position: relative;
+        }
+        .voice-btn.unsupported::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 20px; height: 20px;
+            transform: translate(-50%, -50%);
+            border: 2px solid #dc3545;
+            border-radius: 50%;
+        }
+        .voice-btn.unsupported::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 22px; height: 2px;
+            background: #dc3545;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            z-index: 1;
+        }
+        @keyframes voice-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Help trigger labels — clickable title with ? icon */
+        .help-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .help-label::before {
+            content: '\f059';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 400;
+            font-size: 12px;
+            color: var(--primary-color);
+        }
+        .help-label:hover { color: var(--primary-color); }
+
+        /* Species card title as help trigger */
+        .species-card .help-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 6px;
+        }
+        .species-card .help-label::before { font-size: 13px; }
+
+        /* Help overlay */
+        .help-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 99999;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 20px 10px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .help-overlay-content {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            max-width: 600px;
+            width: 100%;
+            margin: auto 0;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        .help-overlay-close {
+            position: absolute;
+            top: 8px; right: 12px;
+            background: none; border: none;
+            font-size: 24px; color: #666;
+            cursor: pointer; line-height: 1;
+            padding: 4px 8px;
+        }
+        .help-overlay-close:hover { color: #333; }
+        .help-overlay h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 0 0 12px;
+            padding-right: 30px;
+        }
+        .help-overlay h3 em {
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--text-secondary);
+        }
+        .help-overlay p {
+            font-size: 14px;
+            line-height: 1.5;
+            margin: 6px 0;
+            color: #333;
+        }
+        .help-overlay strong { color: var(--primary-color); }
+        .help-overlay .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .help-overlay figure {
+            margin: 0;
+            text-align: center;
+        }
+        .help-overlay figure img {
+            width: 100%;
+            border-radius: 8px;
+            display: block;
+        }
+        .help-overlay figcaption {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 3px;
+        }
+        .help-overlay .help-section {
+            margin: 12px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .help-overlay .help-section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 6px;
+        }
+        .help-overlay .attribution {
+            font-size: 11px;
+            color: #999;
+            margin-top: 10px;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
+
         @media (max-width: 500px) {
             .visit-tab-btn { font-size: 10px; padding: 4px 1px; }
             .visit-tab-btn i { font-size: 16px; }
@@ -229,6 +423,7 @@
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground" id="page_title">Pool Visit</h3>
             <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
 
         <!-- Message -->
@@ -263,78 +458,62 @@
                         <div class="form-field"><label for="visitLatitude">Latitude</label><input type="text" id="visitLatitude" placeholder="Tap map"></div>
                         <div class="form-field"><label for="visitLongitude">Longitude</label><input type="text" id="visitLongitude" placeholder="Tap map"></div>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Certainty</label>
-                    <div class="choice-group">
-                        <label><input type="radio" name="visitCertainty" value="Certain"> Certain</label>
-                        <label><input type="radio" name="visitCertainty" value="Pretty Sure"> Pretty Sure</label>
-                        <label><input type="radio" name="visitCertainty" value="Not Sure"> Not Sure</label>
+                    <div class="form-field">
+                        <span class="help-label" onclick="showHelp('voice')">Location Comments</span> <button type="button" class="voice-btn" data-target="visitLocationComments" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitLocationComments" rows="2"></textarea>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Navigation Method</label>
-                    <div class="choice-group">
-                        <label><input type="radio" name="visitNavMethod" value="GPS"> GPS</label>
-                        <label><input type="radio" name="visitNavMethod" value="Map"> Map</label>
-                        <label><input type="radio" name="visitNavMethod" value="Prior Knowledge"> Prior Knowledge</label>
-                        <label><input type="radio" name="visitNavMethod" value="Other"> Other</label>
-                    </div>
-                    <div class="form-field"><label for="visitDirections">Directions</label><textarea id="visitDirections" rows="2"></textarea></div>
-                    <div class="form-field" style="margin-top:6px;"><label for="visitLocationComments">Location Comments</label><textarea id="visitLocationComments" rows="2"></textarea></div>
                 </div>
             </div>
 
             <!-- VERIFY TAB -->
             <div class="visit-tab" id="tab_verify">
                 <div class="form-section">
-                    <div class="form-section-title">Field Verification</div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is this a Vernal Pool?</label>
+                    <div class="form-section-title">Field Characteristics</div>
+                    <span class="help-label" onclick="showHelp('basin-type')">Basin Type (select all that apply)</span>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitVernalPool" value="Yes"> Yes</label>
-                        <label><input type="radio" name="visitVernalPool" value="No"> No</label>
-                        <label><input type="radio" name="visitVernalPool" value="Don't Know"> Don't Know</label>
+                        <label><input type="checkbox" class="visitPoolType" value="Isolated Forest Depression"> Forest Depression</label>
+                        <label><input type="checkbox" class="visitPoolType" value="Floodplain Depression"> Floodplain</label>
+                        <label><input type="checkbox" class="visitPoolType" value="Artificial"> Artificial</label>
+                        <label><input type="checkbox" class="visitPoolType" value="River Outcrop"> River Outcrop</label>
+                        <label><input type="checkbox" class="visitPoolType" value="Other"> Other</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Pool Type</label>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is water flowing in? (Inlet)</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitPoolType" value="Isolated Forest Depression"> Forest Depression</label>
-                        <label><input type="radio" name="visitPoolType" value="Floodplain Depression"> Floodplain</label>
-                        <label><input type="radio" name="visitPoolType" value="Manmade"> Manmade</label>
-                        <label><input type="radio" name="visitPoolType" value="Other"> Other</label>
+                        <label><input type="radio" name="visitInletType" value="Yes"> Yes</label>
+                        <label><input type="radio" name="visitInletType" value="No"> No</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Inlet</label>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is water flowing out? (Outlet)</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitInletType" value="No Inlet"> None</label>
-                        <label><input type="radio" name="visitInletType" value="Ephemeral"> Ephemeral</label>
-                        <label><input type="radio" name="visitInletType" value="Permanent"> Permanent</label>
-                    </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Outlet</label>
-                    <div class="choice-group">
-                        <label><input type="radio" name="visitOutletType" value="No Outlet"> None</label>
-                        <label><input type="radio" name="visitOutletType" value="Ephemeral"> Ephemeral</label>
-                        <label><input type="radio" name="visitOutletType" value="Permanent"> Permanent</label>
+                        <label><input type="radio" name="visitOutletType" value="Yes"> Yes</label>
+                        <label><input type="radio" name="visitOutletType" value="No"> No</label>
                     </div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Surrounding Habitat</div>
                     <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest/Upland Type</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitForestUpland" value="Hardwood"> Hardwood</label>
-                        <label><input type="radio" name="visitForestUpland" value="Softwood"> Softwood</label>
-                        <label><input type="radio" name="visitForestUpland" value="Mixed"> Mixed</label>
+                        <label><input type="radio" name="visitForestUpland" value="Open/Field"> Open/Field</label>
+                        <label><input type="radio" name="visitForestUpland" value="Shrubby/New Growth"> Shrubby/New Growth</label>
+                        <label><input type="radio" name="visitForestUpland" value="Forest"> Forest</label>
+                        <label><input type="radio" name="visitForestUpland" value="Other"> Other</label>
                     </div>
                     <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest Condition</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitForestCondition" value="Undisturbed"> Undisturbed</label>
-                        <label><input type="radio" name="visitForestCondition" value="Recently Logged"> Logged</label>
-                        <label><input type="radio" name="visitForestCondition" value="Old Growth"> Old Growth</label>
+                        <label><input type="radio" name="visitForestCondition" value="Uncut"> Uncut</label>
+                        <label><input type="radio" name="visitForestCondition" value="Fresh Stumps"> Fresh Stumps</label>
+                        <label><input type="radio" name="visitForestCondition" value="Rotten Stumps"> Rotten Stumps</label>
+                        <label><input type="radio" name="visitForestCondition" value="Other"> Other</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Adjacent Land Use</label>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Adjacent Land Use (select all that apply)</label>
                     <div class="choice-group">
-                        <label><input type="checkbox" id="visitHabitatAgriculture"> Agriculture</label>
-                        <label><input type="checkbox" id="visitHabitatLightDev"> Light Dev</label>
-                        <label><input type="checkbox" id="visitHabitatHeavyDev"> Heavy Dev</label>
-                        <label><input type="checkbox" id="visitHabitatPavedRd"> Paved Road</label>
-                        <label><input type="checkbox" id="visitHabitatDirtRd"> Dirt Road</label>
-                        <label><input type="checkbox" id="visitHabitatPowerline"> Powerline</label>
+                        <label><input type="checkbox" id="visitHabitatDirtRd"> Dirt Roads</label>
+                        <label><input type="checkbox" id="visitHabitatTrails"> Trails</label>
+                        <label><input type="checkbox" id="visitHabitatOther"> Other</label>
                     </div>
-                    <div class="form-field" style="margin-top:6px;"><label for="visitHabitatComment">Habitat Comments</label><textarea id="visitHabitatComment" rows="2"></textarea></div>
+                    <div class="form-field" style="margin-top:6px;">
+                        <span class="help-label" onclick="showHelp('voice')">Habitat Comments</span> <button type="button" class="voice-btn" data-target="visitHabitatComment" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitHabitatComment" rows="2"></textarea>
+                    </div>
                 </div>
             </div>
 
@@ -342,33 +521,45 @@
             <div class="visit-tab" id="tab_pool">
                 <div class="form-section">
                     <div class="form-section-title">Pool Characteristics</div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Maximum Depth</label>
+                    <span class="help-label" onclick="showHelp('max-depth')">Maximum Water Depth Now</span>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitMaxDepth" value="Ankle"> Ankle</label>
-                        <label><input type="radio" name="visitMaxDepth" value="Shin"> Shin</label>
-                        <label><input type="radio" name="visitMaxDepth" value="Knee-deep"> Knee</label>
-                        <label><input type="radio" name="visitMaxDepth" value="Hip"> Hip</label>
-                        <label><input type="radio" name="visitMaxDepth" value="Chest"> Chest</label>
-                        <label><input type="radio" name="visitMaxDepth" value=">4ft"> &gt;4ft</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Ankle"> Ankle (&lt;6")</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Shin"> Shin (6–12")</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Knee"> Knee (12–24")</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Hip"> Hip (2–3 ft)</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Chest"> Chest (3–4 ft)</label>
+                        <label><input type="radio" name="visitMaxDepth" value="Over4ft"> Over 4 ft</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Water Level</label>
+                    <span class="help-label" onclick="showHelp('water-level')">Water Level Now</span>
                     <div class="choice-group">
                         <label><input type="radio" name="visitWaterLevelObs" value="Full"> Full</label>
                         <label><input type="radio" name="visitWaterLevelObs" value="More than 50%"> &gt;50%</label>
                         <label><input type="radio" name="visitWaterLevelObs" value="Less than 50%"> &lt;50%</label>
                         <label><input type="radio" name="visitWaterLevelObs" value="Dry"> Dry</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Hydroperiod</label>
+                    <span class="help-label" onclick="showHelp('hydroperiod')">Hydroperiod</span>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitHydroPeriod" value="Ephemeral"> Ephemeral</label>
-                        <label><input type="radio" name="visitHydroPeriod" value="Semi-permanent"> Semi-perm</label>
-                        <label><input type="radio" name="visitHydroPeriod" value="Permanent"> Permanent</label>
+                        <label><input type="radio" name="visitHydroPeriod" value="Dries annually"> Dries annually</label>
+                        <label><input type="radio" name="visitHydroPeriod" value="Dries every 5 years"> Dries every 5 yrs</label>
+                        <label><input type="radio" name="visitHydroPeriod" value="Never dries"> Never dries</label>
                     </div>
                     <div class="form-row">
-                        <div class="form-field" style="min-width:80px;"><label for="visitMaxWidth">Width (ft)</label><input type="text" id="visitMaxWidth" inputmode="numeric"></div>
-                        <div class="form-field" style="min-width:80px;"><label for="visitMaxLength">Length (ft)</label><input type="text" id="visitMaxLength" inputmode="numeric"></div>
+                        <div class="form-field" style="min-width:140px;"><label for="visitMaxWidth">Width (ft)</label>
+                            <div class="stepper-group">
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitMaxWidth" data-step="-5">&minus;</button>
+                                <input type="text" id="visitMaxWidth" inputmode="numeric" placeholder="0">
+                                <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitMaxWidth" data-step="5">+</button>
+                            </div>
+                        </div>
+                        <div class="form-field" style="min-width:140px;"><label for="visitMaxLength">Length (ft)</label>
+                            <div class="stepper-group">
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitMaxLength" data-step="-5">&minus;</button>
+                                <input type="text" id="visitMaxLength" inputmode="numeric" placeholder="0">
+                                <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitMaxLength" data-step="5">+</button>
+                            </div>
+                        </div>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Substrate</label>
+                    <span class="help-label" onclick="showHelp('substrate')">Substrate (basin lining material)</span>
                     <div class="choice-group">
                         <label><input type="radio" name="visitSubstrate" value="Leaf litter"> Leaf litter</label>
                         <label><input type="radio" name="visitSubstrate" value="Bedrock"> Bedrock</label>
@@ -377,87 +568,124 @@
                     </div>
                 </div>
                 <div class="form-section">
-                    <div class="form-section-title">Vegetation Cover (%)</div>
-                    <div class="form-row">
-                        <div class="form-field" style="min-width:70px;"><label for="visitPoolTrees">Canopy</label><input type="text" id="visitPoolTrees" inputmode="numeric"></div>
-                        <div class="form-field" style="min-width:70px;"><label for="visitPoolShrubs">Shrubs</label><input type="text" id="visitPoolShrubs" inputmode="numeric"></div>
-                        <div class="form-field" style="min-width:70px;"><label for="visitPoolEmergents">Emergent</label><input type="text" id="visitPoolEmergents" inputmode="numeric"></div>
-                        <div class="form-field" style="min-width:70px;"><label for="visitPoolFloatingVeg">Floating</label><input type="text" id="visitPoolFloatingVeg" inputmode="numeric"></div>
+                    <div class="form-section-title"><span class="help-label" onclick="showHelp('veg-intro')">Vegetation in Pool</span></div>
+                    <span class="help-label" onclick="showHelp('veg-submerged')">Submerged Aquatic (%)</span>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitSubmergedVeg" value="0"> 0%</label>
+                        <label><input type="radio" name="visitSubmergedVeg" value="1"> 1-10%</label>
+                        <label><input type="radio" name="visitSubmergedVeg" value="2"> 11-25%</label>
+                        <label><input type="radio" name="visitSubmergedVeg" value="3"> 26-50%</label>
+                        <label><input type="radio" name="visitSubmergedVeg" value="4"> 51-75%</label>
+                        <label><input type="radio" name="visitSubmergedVeg" value="5"> >=76%</label>
+                    </div>
+                    <span class="help-label" onclick="showHelp('veg-floating')">Floating Aquatic (%)</span>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitPoolFloatingVeg" value="0"> 0%</label>
+                        <label><input type="radio" name="visitPoolFloatingVeg" value="1"> 1-10%</label>
+                        <label><input type="radio" name="visitPoolFloatingVeg" value="2"> 11-25%</label>
+                        <label><input type="radio" name="visitPoolFloatingVeg" value="3"> 26-50%</label>
+                        <label><input type="radio" name="visitPoolFloatingVeg" value="4"> 51-75%</label>
+                        <label><input type="radio" name="visitPoolFloatingVeg" value="5"> >=76%</label>
+                    </div>
+                    <span class="help-label" onclick="showHelp('veg-emergent')">Emergents (%)</span>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitPoolEmergents" value="0"> 0%</label>
+                        <label><input type="radio" name="visitPoolEmergents" value="1"> 1-10%</label>
+                        <label><input type="radio" name="visitPoolEmergents" value="2"> 11-25%</label>
+                        <label><input type="radio" name="visitPoolEmergents" value="3"> 26-50%</label>
+                        <label><input type="radio" name="visitPoolEmergents" value="4"> 51-75%</label>
+                        <label><input type="radio" name="visitPoolEmergents" value="5"> >=76%</label>
+                    </div>
+                    <span class="help-label" onclick="showHelp('veg-shrubs')">Shrubs (%)</span>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitPoolShrubs" value="0"> 0%</label>
+                        <label><input type="radio" name="visitPoolShrubs" value="1"> 1-10%</label>
+                        <label><input type="radio" name="visitPoolShrubs" value="2"> 11-25%</label>
+                        <label><input type="radio" name="visitPoolShrubs" value="3"> 26-50%</label>
+                        <label><input type="radio" name="visitPoolShrubs" value="4"> 51-75%</label>
+                        <label><input type="radio" name="visitPoolShrubs" value="5"> >=76%</label>
+                    </div>
+                    <span class="help-label" onclick="showHelp('veg-trees')">Trees / Canopy (%)</span>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitPoolTrees" value="0"> 0%</label>
+                        <label><input type="radio" name="visitPoolTrees" value="1"> 1-10%</label>
+                        <label><input type="radio" name="visitPoolTrees" value="2"> 11-25%</label>
+                        <label><input type="radio" name="visitPoolTrees" value="3"> 26-50%</label>
+                        <label><input type="radio" name="visitPoolTrees" value="4"> 51-75%</label>
+                        <label><input type="radio" name="visitPoolTrees" value="5"> >=76%</label>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-field">
+                        <span class="help-label" onclick="showHelp('voice')">Pool Characteristics Comments</span> <button type="button" class="voice-btn" data-target="visitPoolCharComments" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitPoolCharComments" rows="2"></textarea>
                     </div>
                 </div>
             </div>
 
             <!-- SPECIES TAB -->
             <div class="visit-tab" id="tab_species">
+                <p style="font-size:12px; margin:0 0 8px; color:var(--text-secondary);"><i class="fa fa-circle-question" style="color:var(--primary-color);"></i> Tap a species name for ID photos and descriptions. <a href="https://val.vtecostudies.org/wp-content/uploads/2026/01/Indicator-Species-ID-Sheet-1.pdf" target="_blank">Full ID sheet (PDF)</a></p>
+
                 <div class="species-card">
-                    <div class="species-card-title">Wood Frog</div>
+                    <span class="help-label" onclick="showHelp('woodfrog')">Wood Frog</span>
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label><input type="text" id="visitWoodFrogAdults" inputmode="numeric"></div>
                         <div class="form-field"><label>Egg Masses</label><input type="text" id="visitWoodFrogEgg" inputmode="numeric"></div>
-                        <div class="form-field"><label>Larvae</label><input type="text" id="visitWoodFrogLarvae" inputmode="numeric"></div>
+                        <div class="form-field"><label>Tadpoles</label><input type="text" id="visitWoodFrogLarvae" inputmode="numeric"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitWoodFrogNotes"></div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitWoodFrogNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitWoodFrogNotes"></div>
                 </div>
+
                 <div class="species-card">
-                    <div class="species-card-title">Spotted Salamander</div>
+                    <span class="help-label" onclick="showHelp('spotted')">Spotted Salamander</span>
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label><input type="text" id="visitSpsAdults" inputmode="numeric"></div>
                         <div class="form-field"><label>Egg Masses</label><input type="text" id="visitSpsEgg" inputmode="numeric"></div>
                         <div class="form-field"><label>Larvae</label><input type="text" id="visitSpsLarvae" inputmode="numeric"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitSpsNotes"></div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitSpsNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitSpsNotes"></div>
                 </div>
+
                 <div class="species-card">
-                    <div class="species-card-title">Jefferson Salamander</div>
+                    <span class="help-label" onclick="showHelp('jefferson')">Jefferson Salamander</span>
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label><input type="text" id="visitJesaAdults" inputmode="numeric"></div>
                         <div class="form-field"><label>Egg Masses</label><input type="text" id="visitJesaEgg" inputmode="numeric"></div>
                         <div class="form-field"><label>Larvae</label><input type="text" id="visitJesaLarvae" inputmode="numeric"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitJesaNotes"></div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitJesaNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitJesaNotes"></div>
                 </div>
+
                 <div class="species-card">
-                    <div class="species-card-title">Blue-spotted Salamander</div>
+                    <span class="help-label" onclick="showHelp('bluespot')">Blue-spotted Salamander</span>
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label><input type="text" id="visitBssaAdults" inputmode="numeric"></div>
                         <div class="form-field"><label>Egg Masses</label><input type="text" id="visitBssaEgg" inputmode="numeric"></div>
                         <div class="form-field"><label>Larvae</label><input type="text" id="visitBssaLarvae" inputmode="numeric"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitBssaNotes"></div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitBssaNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitBssaNotes"></div>
                 </div>
+
                 <div class="species-card">
-                    <div class="species-card-title">Fairy Shrimp</div>
+                    <span class="help-label" onclick="showHelp('fairyshrimp')">Fairy Shrimp</span>
                     <div class="species-counts">
                         <div class="form-field"><label>Count</label><input type="text" id="visitFairyShrimpAdults" inputmode="numeric"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes</label><input type="text" id="visitFairyShrimpNotes"></div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitFairyShrimpNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitFairyShrimpNotes"></div>
                 </div>
+
                 <div class="form-section" style="margin-top:8px;">
                     <div class="choice-group">
                         <label><input type="checkbox" id="visitFish"> Fish observed</label>
                     </div>
-                    <div class="form-field"><label for="visitSpeciesComments">Species Comments</label><textarea id="visitSpeciesComments" rows="2"></textarea></div>
+                    <div class="form-field">
+                        <span class="help-label" onclick="showHelp('voice')">Species Comments</span> <button type="button" class="voice-btn" data-target="visitSpeciesComments" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitSpeciesComments" rows="2"></textarea>
+                    </div>
                 </div>
             </div>
 
-            <!-- LANDOWNER TAB -->
-            <div class="visit-tab" id="tab_landowner">
-                <div class="form-section">
-                    <div class="form-section-title">Landowner</div>
-                    <div class="choice-group">
-                        <label><input type="checkbox" id="visitUserIsLandowner"> I am the landowner</label>
-                        <label><input type="checkbox" id="visitLandownerPermission"> Permission obtained</label>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-field"><label for="visitLandownerName">Name</label><input type="text" id="visitLandownerName"></div>
-                        <div class="form-field"><label for="visitLandownerPhone">Phone</label><input type="tel" id="visitLandownerPhone"></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-field"><label for="visitLandownerEmail">Email</label><input type="email" id="visitLandownerEmail"></div>
-                    </div>
-                    <div class="form-field"><label for="visitLandownerAddress">Address</label><textarea id="visitLandownerAddress" rows="2"></textarea></div>
-                </div>
-            </div>
         </div>
 
         <!-- Bottom tab bar -->
@@ -467,7 +695,6 @@
             <button class="visit-tab-btn" data-tab="tab_verify"><i class="fa fa-check-circle"></i>Verify</button>
             <button class="visit-tab-btn" data-tab="tab_pool"><i class="fa fa-water"></i>Pool</button>
             <button class="visit-tab-btn" data-tab="tab_species"><i class="fa fa-frog"></i>Species</button>
-            <button class="visit-tab-btn" data-tab="tab_landowner"><i class="fa fa-user"></i>Owner</button>
         </div>
     </div>
 
@@ -479,9 +706,11 @@
     <script src="/js/esri-leaflet_3.0.12.js"></script>
 
     <script type="module">
-        import { fetchVisitById, fetchMappedPoolById, createVisit, updateVisit } from '/js/api.js';
+        import { fetchVisitById, fetchMappedPoolById, fetchMappedPoolGeoJson, createVisit, updateVisit } from '/js/api.js';
         import { requireAuth, getUser } from '/js/auth.js';
-        import { createMap, addPoolMarker, getPoolColor } from '/js/map_common.js';
+        import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText } from '/js/map_common.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
         const visitId = params.get('visitId');
@@ -503,6 +732,18 @@
                     if (this.dataset.tab === 'tab_map' && map) {
                         setTimeout(() => map.invalidateSize(), 100);
                     }
+                });
+            });
+
+            // Wire stepper +/- buttons (width, length)
+            document.querySelectorAll('.stepper-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    let input = document.getElementById(this.dataset.target);
+                    if (!input) return;
+                    let val = parseInt(input.value) || 0;
+                    let step = parseInt(this.dataset.step) || 5;
+                    val = Math.max(0, val + step);
+                    input.value = val;
                 });
             });
 
@@ -562,10 +803,70 @@
                             poolMarker = addPoolMarker(map, [lat, lng], {
                                 status: pool.mappedPoolStatus || 'Potential',
                                 surveyLevel: 'potential', size: 18,
-                                tooltip: `Pool ${poolId}`
+                                tooltip: `Pool ${poolId} — click to use location`
+                            });
+                            // Default lat/lon to pool's mapped location
+                            document.getElementById('visitLatitude').value = lat.toFixed(6);
+                            document.getElementById('visitLongitude').value = lng.toFixed(6);
+                            // Click pool marker to populate lat/lon
+                            poolMarker.on('click', function(e) {
+                                L.DomEvent.stopPropagation(e);
+                                document.getElementById('visitLatitude').value = lat.toFixed(6);
+                                document.getElementById('visitLongitude').value = lng.toFixed(6);
+                                let instr = document.getElementById('map_instruction');
+                                if (instr) instr.textContent = `Location set to Pool ${poolId}`;
                             });
                         }
                     } catch(err) {}
+                } else {
+                    // New Pool flow — no poolId
+                    // Load all existing pools on the map for orientation
+                    loadAllPoolsOnMap(map);
+
+                    // Offer GPS location if available
+                    if (navigator.geolocation) {
+                        let instr = document.getElementById('map_instruction');
+                        if (instr) instr.innerHTML = 'Getting your location... or tap the map to set pool location';
+                        navigator.geolocation.getCurrentPosition(
+                            function(pos) {
+                                let lat = pos.coords.latitude, lng = pos.coords.longitude;
+                                let acc = pos.coords.accuracy;
+                                // Show GPS offer banner
+                                let instr = document.getElementById('map_instruction');
+                                if (instr) {
+                                    instr.innerHTML = `<span>GPS location found (±${Math.round(acc)}m)</span>
+                                        <button id="btn_use_gps" style="margin-left:10px; padding:2px 12px; border:1px solid var(--primary-color, #2c5530);
+                                            border-radius:6px; background:var(--primary-color, #2c5530); color:white; cursor:pointer; font-size:13px;">
+                                            Use My Location</button>
+                                        <span style="margin-left:8px; font-size:12px; color:#666;">or tap map</span>`;
+                                    instr.style.display = 'block';
+                                    document.getElementById('btn_use_gps').addEventListener('click', function() {
+                                        document.getElementById('visitLatitude').value = lat.toFixed(6);
+                                        document.getElementById('visitLongitude').value = lng.toFixed(6);
+                                        map.setView([lat, lng], 16);
+                                        if (marker) map.removeLayer(marker);
+                                        marker = addPoolMarker(map, [lat, lng], {
+                                            status: 'Potential', surveyLevel: 'potential', size: 22,
+                                            tooltip: 'Your location — new pool'
+                                        });
+                                        instr.innerHTML = 'Location set from GPS. Tap map to adjust.';
+                                    });
+                                }
+                                // Also add a subtle GPS circle on the map so they can see where they are
+                                L.circle([lat, lng], { radius: acc, color: '#4285f4', fillColor: '#4285f4',
+                                    fillOpacity: 0.1, weight: 1, dashArray: '4,4' }).addTo(map);
+                                L.circleMarker([lat, lng], { radius: 6, color: '#4285f4', fillColor: '#4285f4',
+                                    fillOpacity: 0.8, weight: 2 }).addTo(map).bindTooltip('You are here', { direction: 'top', offset: [0, -8] });
+                                map.setView([lat, lng], 14);
+                            },
+                            function(err) {
+                                // GPS not available — just show the map
+                                let instr = document.getElementById('map_instruction');
+                                if (instr) instr.textContent = 'Tap the map to set the new pool location';
+                            },
+                            { enableHighAccuracy: true, timeout: 10000 }
+                        );
+                    }
                 }
             }
 
@@ -581,7 +882,7 @@
                     showMsg('Saved!', 'success');
                     setTimeout(() => {
                         if (poolId || body.visitPoolId)
-                            window.location.href = `pool_view.html?poolId=${poolId || body.visitPoolId}`;
+                            window.location.href = `/explore/pool_view.html?poolId=${poolId || body.visitPoolId}`;
                         else
                             window.location.href = '/explore/';
                     }, 1000);
@@ -593,15 +894,14 @@
             if (!v) return;
             // Text/date inputs
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
-             'visitDirections','visitLocationComments','visitMaxWidth','visitMaxLength',
+             'visitLocationComments','visitMaxWidth','visitMaxLength',
              'visitPoolTrees','visitPoolShrubs','visitPoolEmergents','visitPoolFloatingVeg',
              'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes','visitWoodFrogLarvae',
              'visitSpsAdults','visitSpsEgg','visitSpsNotes','visitSpsLarvae',
              'visitJesaAdults','visitJesaEgg','visitJesaNotes','visitJesaLarvae',
              'visitBssaAdults','visitBssaEgg','visitBssaNotes','visitBssaLarvae',
              'visitFairyShrimpAdults','visitFairyShrimpNotes',
-             'visitSpeciesComments','visitHabitatComment',
-             'visitLandownerName','visitLandownerPhone','visitLandownerEmail','visitLandownerAddress'
+             'visitSpeciesComments','visitHabitatComment','visitPoolCharComments'
             ].forEach(f => {
                 let el = document.getElementById(f);
                 if (el && v[f] != null && v[f] !== 'None') el.value = v[f];
@@ -609,14 +909,27 @@
             // Checkboxes
             ['visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitFish','visitUserIsLandowner','visitLandownerPermission'
+             'visitHabitatTrails',
+             'visitFish'
             ].forEach(f => {
                 let el = document.getElementById(f);
                 if (el && v[f]) el.checked = true;
             });
+            // "Other" is a text column — check if non-empty
+            if (v.visitHabitatOther) document.getElementById('visitHabitatOther').checked = true;
+            // Pool type multi-select checkboxes
+            if (v.visitPoolType) {
+                let types = v.visitPoolType;
+                try { types = JSON.parse(types); } catch(e) { types = [types]; }
+                if (!Array.isArray(types)) types = [types];
+                types.forEach(t => {
+                    let cb = document.querySelector(`.visitPoolType[value="${t}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
             // Radio groups
-            ['visitLocatePool','visitCertainty','visitNavMethod','visitVernalPool',
-             'visitPoolType','visitInletType','visitOutletType','visitMaxDepth',
+            ['visitLocatePool',
+             'visitInletType','visitOutletType','visitMaxDepth',
              'visitWaterLevelObs','visitHydroPeriod','visitSubstrate',
              'visitForestUpland','visitForestCondition'
             ].forEach(f => {
@@ -640,26 +953,63 @@
         function getVisitFormData() {
             let body = {};
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
-             'visitDirections','visitLocationComments','visitMaxWidth','visitMaxLength',
+             'visitLocationComments','visitMaxWidth','visitMaxLength',
              'visitPoolTrees','visitPoolShrubs','visitPoolEmergents','visitPoolFloatingVeg',
              'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes','visitWoodFrogLarvae',
              'visitSpsAdults','visitSpsEgg','visitSpsNotes','visitSpsLarvae',
              'visitJesaAdults','visitJesaEgg','visitJesaNotes','visitJesaLarvae',
              'visitBssaAdults','visitBssaEgg','visitBssaNotes','visitBssaLarvae',
              'visitFairyShrimpAdults','visitFairyShrimpNotes',
-             'visitSpeciesComments','visitHabitatComment',
-             'visitLandownerName','visitLandownerPhone','visitLandownerEmail','visitLandownerAddress'
+             'visitSpeciesComments','visitHabitatComment','visitPoolCharComments'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.value; });
             ['visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitFish','visitUserIsLandowner','visitLandownerPermission'
+             'visitHabitatTrails',
+             'visitFish'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.checked; });
-            ['visitLocatePool','visitCertainty','visitNavMethod','visitVernalPool',
-             'visitPoolType','visitInletType','visitOutletType','visitMaxDepth',
+            // "Other" is text in DB — store "Yes" if checked, null if not
+            let otherCb = document.getElementById('visitHabitatOther');
+            if (otherCb) body.visitHabitatOther = otherCb.checked ? 'Yes' : null;
+            // Pool type as JSON array
+            let poolTypes = [...document.querySelectorAll('.visitPoolType:checked')].map(cb => cb.value);
+            if (poolTypes.length) body.visitPoolType = JSON.stringify(poolTypes);
+            ['visitLocatePool',
+             'visitInletType','visitOutletType','visitMaxDepth',
              'visitWaterLevelObs','visitHydroPeriod','visitSubstrate',
              'visitForestUpland','visitForestCondition'
             ].forEach(f => { let r = document.querySelector(`input[name="${f}"]:checked`); if (r) body[f] = r.value; });
             return body;
+        }
+
+        // Load all existing pools on the map (for new pool flow — helps user orient)
+        async function loadAllPoolsOnMap(map) {
+            try {
+                let data = await fetchMappedPoolGeoJson();
+                if (data && data.features) {
+                    L.geoJSON(data, {
+                        pointToLayer: function(feature, latlng) {
+                            let p = feature.properties || {};
+                            let status = p.mappedPoolStatus || 'Potential';
+                            let color = getPoolColor(status);
+                            return L.circleMarker(latlng, {
+                                radius: 4, fillColor: color, color: '#333',
+                                weight: 0.5, fillOpacity: 0.6
+                            });
+                        },
+                        onEachFeature: function(feature, layer) {
+                            let p = feature.properties || {};
+                            let id = p.mappedPoolId || '';
+                            let status = p.mappedPoolStatus || '';
+                            let town = p.townName || '';
+                            layer.bindTooltip(`${id} — ${status}${town ? ', ' + town : ''}`, {
+                                sticky: true, direction: 'top', offset: [0, -6], opacity: 0.9
+                            });
+                        }
+                    }).addTo(map);
+                }
+            } catch(err) {
+                console.warn('Could not load pool overlay:', err);
+            }
         }
 
         function showMsg(text, type) {
@@ -670,6 +1020,494 @@
                 setTimeout(() => { el.className = 'visit-message'; }, 3000);
             }
         }
+
+        // Help overlay system
+        const helpContent = {
+            'voice': {
+                title: 'Voice Input Commands',
+                html: `
+                    <p style="font-size:15px; font-weight:700; margin-bottom:10px;">If the <i class="fa fa-microphone" style="color:#ccc; position:relative; display:inline-block; width:1.2em; text-align:center;"><span style="position:absolute; top:50%; left:50%; width:18px; height:18px; transform:translate(-50%,-50%); border:2px solid #dc3545; border-radius:50%;"></span><span style="position:absolute; top:50%; left:50%; width:20px; height:2px; background:#dc3545; transform:translate(-50%,-50%) rotate(-45deg);"></span></i> icon appears, your browser does not support voice input. Try Chrome, Safari, or Edge.</p>
+                    <div class="help-section">
+                        <div class="help-section-title">Getting Started</div>
+                        <p>Tap the <i class="fa fa-microphone"></i> microphone button next to any text field to start recording. The button pulses red while listening.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Stop Recording</div>
+                        <p>Say <strong>"stop"</strong>, <strong>"stop listening"</strong>, or <strong>"stop recording"</strong> to end. You can also tap the microphone button again.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Punctuation</div>
+                        <p><strong>"period"</strong> or <strong>"full stop"</strong> &rarr; . &nbsp;&nbsp; <strong>"comma"</strong> &rarr; , &nbsp;&nbsp; <strong>"question mark"</strong> &rarr; ?</p>
+                        <p><strong>"exclamation point"</strong> &rarr; ! &nbsp;&nbsp; <strong>"colon"</strong> &rarr; : &nbsp;&nbsp; <strong>"semicolon"</strong> &rarr; ;</p>
+                        <p><strong>"dash"</strong> &rarr; &mdash; &nbsp;&nbsp; <strong>"hyphen"</strong> &rarr; - &nbsp;&nbsp; <strong>"new line"</strong> &rarr; line break</p>
+                    </div>`
+            },
+            'basin-type': {
+                title: 'Basin Type',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">Forest Depression</div>
+                        <p>Isolated depression in forested upland, typically fed by snowmelt and rain. The classic vernal pool.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Floodplain</div>
+                        <p>Depression in a river or stream floodplain, may be connected to waterway during high water.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Artificial</div>
+                        <p>Human-made basin: farm pond, ditch, tire rut, quarry, stormwater feature, etc.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">River Outcrop</div>
+                        <p>Pool formed in exposed bedrock along a river or stream channel.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Other</div>
+                        <p>Does not fit the above categories. Describe in comments.</p>
+                    </div>`
+            },
+            'woodfrog': {
+                title: 'Wood Frog <em>Lithobates sylvaticus</em>',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">Adults (1.5&ndash;3 inches)</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/woodfrog-adult-2.jpg" alt="Wood Frog adult"><figcaption>Dark mask, dorsolateral ridges</figcaption></figure>
+                            <figure><img src="/images/species/woodfrog-adult-1.jpg" alt="Wood Frog adult"><figcaption>Light tan to rust coloration</figcaption></figure>
+                        </div>
+                        <p>Dark mask extending back from each eye. Background color light tan (summer) to dark brown to rust (spring). Dorsolateral ridges on back. Females larger than males. Courting males make a hoarse, duck-like quack for 2&ndash;5 days.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Egg Masses</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/woodfrog-eggs-hand.jpg" alt="Wood Frog egg mass in hand"><figcaption>Single mass, 800&ndash;2,000 embryos</figcaption></figure>
+                            <figure><img src="/images/species/woodfrog-eggs-communal.jpg" alt="Wood Frog communal egg masses"><figcaption>Communal deposit (100+ masses)</figcaption></figure>
+                        </div>
+                        <p>Globular, lumpy mass with no surrounding jelly matrix. Embryos dark on top, light below. Free-floating or attached to twigs just below surface. Often deposited in large communal masses. Ping-pong ball expands to baseball size. May become greenish from symbiotic algae. Hatch in 2&ndash;6 weeks.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Tadpoles</div>
+                        <p>Dark-bodied with a rounded tail fin. Found throughout the water column. Metamorphose into ~&frac12;" froglets.</p>
+                    </div>
+                    <p class="attribution">Photos: Steve Faccio, S. Egan &mdash; Vermont Center for Ecostudies</p>`
+            },
+            'spotted': {
+                title: 'Spotted Salamander <em>Ambystoma maculatum</em>',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">Adults (6&ndash;9 inches)</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/spotted-adult.jpg" alt="Spotted Salamander"><figcaption>Yellow spots on dark body</figcaption></figure>
+                            <figure><img src="/images/species/spotted-adult-hand.jpg" alt="Spotted Salamander in hand"><figcaption>6&ndash;9 inches, largest mole salamander</figcaption></figure>
+                        </div>
+                        <p>Gray-brown to blue-black with two irregular rows of bright yellow spots. Underside lighter, slate gray. Found under leaf-litter, rocks, logs, in shrew or mammal burrows. Moves to breeding pools during evening rains, often before snow melts. Widely distributed in Vermont.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Egg Masses</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/spotted-eggs-hand.jpg" alt="Spotted Salamander egg mass"><figcaption>Firm jelly, oval/kidney-shaped</figcaption></figure>
+                            <figure><img src="/images/species/spotted-eggs-pool.jpg" alt="Spotted Salamander eggs in pool"><figcaption>Attached to sticks, 30&ndash;250 embryos</figcaption></figure>
+                        </div>
+                        <p>Oval, elongate, or kidney-shaped. Outer jelly very firm (like set gelatin). Clear, opaque white, or greenish from algae. 2&frac12;&ndash;3mm embryos, 30&ndash;250 per mass, 2 inches to softball-size. Attached to sticks, weeds, grasses within 8&ndash;10 inches of surface. Hatch in 4&ndash;8 weeks.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Larvae</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/spotted-larvae.jpg" alt="Spotted Salamander larva"><figcaption>&frac12;" larva with feathery gills</figcaption></figure>
+                        </div>
+                        <p>&frac12;" long with feathery external gills. Leave pool as 1&ndash;2" salamander after 5&ndash;10 weeks.</p>
+                    </div>
+                    <p class="attribution">Photos: Steve Faccio, Bryan Pfeiffer &mdash; Vermont Center for Ecostudies</p>`
+            },
+            'jefferson': {
+                title: 'Jefferson Salamander <em>Ambystoma jeffersonianum</em>',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">Adults (5&ndash;7 inches)</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/jefferson-adult.jpg" alt="Jefferson Salamander"><figcaption>Charcoal-gray, wide head/snout</figcaption></figure>
+                        </div>
+                        <p>Chunky, charcoal-gray to brown with tiny blueish-white flecks on belly and lower sides. Head and snout wider and longer than Blue-spotted. Usually the <strong>first amphibian</strong> to arrive at breeding pools, sometimes a week before others. Found in low- to mid-elevation foothill regions. Breeds primarily in ridgetop vernal pools.</p>
+                        <p><em>High Priority Species of Greatest Conservation Need in VT.</em></p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Egg Masses</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/jefferson-eggs.jpg" alt="Jefferson Salamander eggs"><figcaption>Cylindrical, loose jelly matrix</figcaption></figure>
+                            <figure><img src="/images/species/jefferson-eggs-hand.jpg" alt="Jefferson Salamander eggs in hand"><figcaption>1&ndash;3 inch masses, 5&ndash;30 embryos</figcaption></figure>
+                        </div>
+                        <p>Cylindrical or cigar-shaped, much smaller than Spotted. Outer jelly matrix looser (like loose jello), making them difficult to see in water. Vitelline membrane very thin. 1&ndash;3 inch masses with 5&ndash;30 embryos, attached to sticks or grasses.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Jefferson/Blue-spotted Complex</div>
+                        <p>Unisexual (all-female) hybrid populations are widespread in VT. Physical appearance is highly variable. <strong>Males can be reliably identified</strong> as the pure form; females may be hybrids. This often makes field identification difficult.</p>
+                    </div>
+                    <p class="attribution">Photos: Steve Faccio &mdash; Vermont Center for Ecostudies</p>`
+            },
+            'bluespot': {
+                title: 'Blue-spotted Salamander <em>Ambystoma laterale</em>',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">Adults (3&frac12;&ndash;5 inches)</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/bluespot-adult.jpg" alt="Blue-spotted Salamander"><figcaption>Blue flecks like old enamelware</figcaption></figure>
+                        </div>
+                        <p>Dark-colored, slender salamander with irregular blue or bluish-white flecks on sides of body and tail. Coloration reminiscent of old enamelware pots. Head narrow with rounded snout. Unisexuals tend to be chunkier and browner. Found at lower elevations, primarily Champlain lowlands. Breeds in marshes, swamps, beaver ponds, and vernal pools.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Eggs</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/bluespot-eggs.jpg" alt="Blue-spotted Salamander eggs"><figcaption>Loose singles or small "drippy" masses</figcaption></figure>
+                        </div>
+                        <p>Laid singly in loose sheets on the pool bottom, or in small "drippy" masses of 2&ndash;5 eggs, sometimes attached to sticks. <strong>Can be very difficult to see.</strong> Egg mass appearance varies with proportion of Jefferson vs. Blue-spotted genes.</p>
+                    </div>
+                    <p class="attribution">Photos: Jim Andrews &mdash; Vermont Center for Ecostudies</p>`
+            },
+            'fairyshrimp': {
+                title: 'Fairy Shrimp <em>Eubranchipus</em> species',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">Identification (&frac12;&ndash;1 inch)</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/fairy-shrimp-top.jpg" alt="Fairy Shrimp from above"><figcaption>Swimming upside-down, feathery legs</figcaption></figure>
+                            <figure><img src="/images/species/fairy-shrimp-side.jpg" alt="Fairy Shrimp side view"><figcaption>Stalked eyes, abdominal appendages</figcaption></figure>
+                            <figure><img src="/images/species/fairy-shrimp-orange.jpg" alt="Orange Fairy Shrimp"><figcaption>Reddish-orange Knob-lipped (most common in VT)</figcaption></figure>
+                        </div>
+                        <p>Small crustaceans easily recognized by stalked eyes, "upside-down" swimming behavior, and rhythmic beating of abdominal appendages. Orange, reddish, or bronze coloration. From a distance they may look like tiny fish.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Males vs. Females</div>
+                        <p><strong>Females:</strong> Paired egg sacs located behind feathery legs.</p>
+                        <p><strong>Males:</strong> Enlarged heads with claspers (modified antennae) used to grasp females during mating.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Where Found</div>
+                        <p>Most common in clear, clean woodland pools. Reddish-orange Knob-lipped Fairy Shrimp seen in early spring, shortly after ice-out. Rarely found in roadside pools or those impacted by run-off.</p>
+                    </div>
+                    <p class="attribution">Photos: Steve Faccio &mdash; Vermont Center for Ecostudies / Vernal Pool Association</p>`
+            },
+            'max-depth': {
+                title: 'Maximum Water Depth Now',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">What to Measure</div>
+                        <p>Estimate the depth of the <strong>deepest part</strong> of the pool <strong>right now</strong>, at the time of your visit. This is the current water depth, not a guess at what it might be at peak fill.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">How to Measure</div>
+                        <p>Wade to the deepest area of the pool (if safe) or probe with a stick. Compare to your body:</p>
+                        <ul style="margin:6px 0 6px 16px; font-size:14px;">
+                            <li><strong>Ankle-deep (&lt;6")</strong> &mdash; water barely covers your boot</li>
+                            <li><strong>Shin-deep (6&ndash;12")</strong> &mdash; water reaches mid-calf</li>
+                            <li><strong>Knee-deep (12&ndash;24")</strong> &mdash; water at or above your knee</li>
+                            <li><strong>Hip-deep (2&ndash;3 ft)</strong> &mdash; water at thigh to hip level</li>
+                            <li><strong>Chest-deep (3&ndash;4 ft)</strong> &mdash; water above your waist</li>
+                        </ul>
+                        <p>If the pool is too deep to wade safely, pick the deepest option that seems right. An estimate is fine.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Why "Now"?</div>
+                        <p>Vernal pool depth changes throughout the season. We want a snapshot of conditions at the time of your visit so we can track how pools fill and dry over time.</p>
+                    </div>`
+            },
+            'water-level': {
+                title: 'Water Level Now',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">What This Means</div>
+                        <p>Estimate how full the pool is <strong>right now</strong> compared to its <strong>maximum capacity</strong>. How much of the basin is holding water at this moment?</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">How to Assess</div>
+                        <p>Look for clues about the pool's high-water mark:</p>
+                        <ul style="margin:6px 0 6px 16px; font-size:14px;">
+                            <li><strong>Stain lines on tree trunks</strong> &mdash; dark water marks or algae growth show past water levels</li>
+                            <li><strong>Leaf litter and debris lines</strong> &mdash; floating leaves and twigs accumulate at the water's edge during high water, leaving a visible "bathtub ring"</li>
+                            <li><strong>Wet marks on rocks</strong> &mdash; damp or discolored rock faces above the current waterline</li>
+                            <li><strong>Basin shape</strong> &mdash; the slope of the basin walls above the current water surface tells you how much higher the water could be</li>
+                            <li><strong>Outlet elevation</strong> &mdash; if you can see an outlet channel, the water can't rise above it</li>
+                        </ul>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Guesses Are Good</div>
+                        <p>This is meant to be an estimate. Compare where the water is now to the evidence of where it has been. <strong>Full</strong> = water at or near the high-water mark. <strong>&gt;50%</strong> = more than half full. <strong>&lt;50%</strong> = less than half full. <strong>Dry</strong> = no standing water.</p>
+                    </div>`
+            },
+            'hydroperiod': {
+                title: 'Hydroperiod',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">What Is Hydroperiod?</div>
+                        <p>Hydroperiod is the seasonal pattern of water-level fluctuation in the pool &mdash; essentially, <strong>how long the pool holds water</strong> before drying out. It is the single most important factor determining which species can live in the pool.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">How to Estimate</div>
+                        <p>You are making a judgment call here, and that's expected. Use what you can see now plus any past experience with this pool:</p>
+                        <ul style="margin:6px 0 6px 16px; font-size:14px;">
+                            <li><strong>Dries annually</strong> &mdash; the pool dries up every year, typically by mid-to-late summer. Look for: shallow basin, no fish, thick leaf litter on the bottom, no emergent vegetation rooted in the center. This is the classic vernal pool pattern.</li>
+                            <li><strong>Dries every 5 years</strong> &mdash; holds water most years but occasionally dries in drought years. Deeper basin, may have some aquatic vegetation, but unlikely to support permanent fish populations.</li>
+                            <li><strong>Never dries</strong> &mdash; a permanent water body. Deep basin, established aquatic vegetation, likely supports fish. Standing water is present year-round even in severe drought.</li>
+                        </ul>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Structural Clues</div>
+                        <p>Even on a first visit, you can make a reasonable guess:</p>
+                        <ul style="margin:6px 0 6px 16px; font-size:14px;">
+                            <li><strong>Leaf litter on the bottom</strong> &rarr; pool dries (leaves wouldn't accumulate in permanent water)</li>
+                            <li><strong>Established cattails, pond lilies</strong> &rarr; likely holds water most or all years</li>
+                            <li><strong>Fish present</strong> &rarr; doesn't dry often (fish can't survive drying)</li>
+                            <li><strong>Fairy shrimp present</strong> &rarr; dries regularly (they need dry periods)</li>
+                            <li><strong>Basin depth</strong> &rarr; deeper pools hold water longer</li>
+                        </ul>
+                        <p>Your best guess based on what you see is valuable data. If you've visited before or know the pool's history, use that knowledge too.</p>
+                    </div>`
+            },
+            'substrate': {
+                title: 'Substrate (Basin Lining Material)',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">What Is Substrate?</div>
+                        <p>The substrate is the material lining the bottom of the pool basin. It affects water chemistry, species habitat, and how the pool holds water. Look at the bottom of the pool &mdash; what is most of it made of?</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Leaf Litter</div>
+                        <p>A layer of decomposing leaves, twigs, and organic material covers the pool bottom. This is the most common substrate in forested vernal pools. The water often appears tea-colored (tannin-stained) from the decaying leaves. You may see layers of leaves from multiple years compressed into a dark, spongy mat.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Bedrock</div>
+                        <p>Solid rock forms the pool basin. Common in pools on ridgelines, ledge outcrops, or river-adjacent rock formations. The rock may be smooth and scoured or have natural depressions that hold water. Often the deepest, most permanent pools because rock doesn't allow water to seep away.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Sand/Gravel</div>
+                        <p>Loose mineral particles from fine sand to coarse gravel make up the basin floor. Common in floodplain pools, glacial outwash areas, and road-adjacent pools. Water may appear clearer than in leaf-litter pools. The bottom feels gritty underfoot.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Mud</div>
+                        <p>Fine-grained sediment (clay, silt) forms a soft, often deep bottom layer. Your feet sink in. Common in low-lying depressions with poor drainage. Water may be turbid (cloudy). Sometimes overlain with a thin layer of leaf litter &mdash; choose <strong>Mud</strong> if the dominant material below the leaves is soft sediment.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Choosing the Right One</div>
+                        <p>Pick the <strong>dominant</strong> material &mdash; the one covering most of the pool bottom. Many pools have a mix; that's normal. If it's close between two, pick whichever covers more area.</p>
+                    </div>`
+            },
+            'veg-intro': {
+                title: 'Vegetation in Pool',
+                html: `
+                    <p>Estimate the percentage of the pool surface area occupied by each vegetation type. Multiple categories can apply and <strong>totals may exceed 100%</strong> because vegetation layers overlap (e.g., trees shading floating plants below).</p>
+                    <div class="help-section">
+                        <div class="help-section-title">How to Estimate</div>
+                        <p>Stand at the pool edge and mentally divide the pool into quarters. For each vegetation type, estimate how many quarters it covers: one quarter &asymp; 25%, half &asymp; 50%, three quarters &asymp; 75%. Use the range that best fits your estimate.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">The Five Categories</div>
+                        <p><strong>Submerged Aquatic</strong> &mdash; Plants rooted on the bottom, entirely underwater.</p>
+                        <p><strong>Floating Aquatic</strong> &mdash; Plants floating on the water surface (rooted or free-floating).</p>
+                        <p><strong>Emergents</strong> &mdash; Plants rooted in the pool bottom with stems and leaves rising above water.</p>
+                        <p><strong>Shrubs</strong> &mdash; Woody plants &lt;15 ft tall growing in or at the edge of the pool.</p>
+                        <p><strong>Trees / Canopy</strong> &mdash; Tree canopy cover directly over the pool water.</p>
+                    </div>`
+            },
+            'veg-submerged': {
+                title: 'Submerged Aquatic Vegetation',
+                html: `
+                    <div class="photo-grid">
+                        <figure><img src="/images/vegetation/submerged-bladderwort.jpg" alt="Bladderwort"><figcaption>Bladderwort (<em>Utricularia</em>)</figcaption></figure>
+                        <figure><img src="/images/vegetation/submerged-sphagnum.jpg" alt="Submerged sphagnum"><figcaption>Sphagnum moss in water</figcaption></figure>
+                    </div>
+                    <p>Plants rooted in the bottom sediment with all foliage <strong>entirely below the water surface</strong>. Look down into the pool to see them.</p>
+                    <div class="help-section">
+                        <div class="help-section-title">Common Examples</div>
+                        <p><strong>Bladderwort</strong> (<em>Utricularia</em>) &mdash; feathery, free-floating stems with tiny bladder-traps. A carnivorous plant common in vernal pools.</p>
+                        <p><strong>Sphagnum moss</strong> &mdash; may grow submerged along pool edges, especially in acidic, bog-like pools.</p>
+                        <p><strong>Pondweed</strong> (<em>Potamogeton</em>) &mdash; long, ribbon-like or oval leaves on submerged stems.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Tips</div>
+                        <p>Submerged plants can be hard to see in dark or turbid water. If the water is very dark from tannins or sediment, mark 0% rather than guessing. Most ephemeral vernal pools have little or no submerged vegetation.</p>
+                    </div>`
+            },
+            'veg-floating': {
+                title: 'Floating Aquatic Vegetation',
+                html: `
+                    <div class="photo-grid">
+                        <figure><img src="/images/vegetation/floating-duckweed.jpg" alt="Duckweed covering pool"><figcaption>Duckweed (<em>Lemna</em>) on water surface</figcaption></figure>
+                        <figure><img src="/images/vegetation/floating-pondlily.jpg" alt="Pond lily pads"><figcaption>Pond lily (<em>Nuphar</em>) pads</figcaption></figure>
+                    </div>
+                    <p>Plants with leaves <strong>floating on the water surface</strong>. May be rooted in the bottom with floating leaves, or entirely free-floating.</p>
+                    <div class="help-section">
+                        <div class="help-section-title">Common Examples</div>
+                        <p><strong>Duckweed</strong> (<em>Lemna</em>) &mdash; tiny green leaves, often covering entire pool surface like a green carpet. Each leaf is 2&ndash;5 mm.</p>
+                        <p><strong>Pond lily</strong> (<em>Nuphar</em>) &mdash; large oval or heart-shaped pads floating on the surface, rooted in the bottom. More common in semi-permanent pools.</p>
+                        <p><strong>Water shield</strong> (<em>Brasenia</em>) &mdash; small oval floating leaves with a slimy gelatinous coating on the underside.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Tips</div>
+                        <p>Floating vegetation is easy to estimate because you can see it from above. Duckweed can cover a pool rapidly in late spring. Early-season visits may show no floating plants even in pools that are later covered.</p>
+                    </div>`
+            },
+            'veg-emergent': {
+                title: 'Emergent Vegetation',
+                html: `
+                    <div class="photo-grid">
+                        <figure><img src="/images/vegetation/emergent-sedge.jpg" alt="Sedges in vernal pool"><figcaption>Spike-rush in a vernal pool</figcaption></figure>
+                        <figure><img src="/images/vegetation/emergent-cattail.jpg" alt="Cattails"><figcaption>Narrowleaf cattail (<em>Typha</em>)</figcaption></figure>
+                    </div>
+                    <p>Plants <strong>rooted in the pool bottom</strong> with stems and leaves that extend <strong>above the water surface</strong>. Their bases are in the water but most of the plant is in the air.</p>
+                    <div class="help-section">
+                        <div class="help-section-title">Common Examples</div>
+                        <p><strong>Sedges</strong> (<em>Carex</em>) &mdash; grass-like plants with triangular stems ("sedges have edges"). Very common in and around vernal pools.</p>
+                        <p><strong>Cattails</strong> (<em>Typha</em>) &mdash; tall, stiff stems with distinctive brown seed heads. Indicate semi-permanent water.</p>
+                        <p><strong>Rushes</strong> (<em>Juncus</em>) &mdash; round-stemmed, grass-like plants often in dense clumps at pool edges.</p>
+                        <p><strong>Skunk cabbage</strong> (<em>Symplocarpus</em>) &mdash; large, broad leaves emerging from wet soil at pool margins. One of the first plants in spring.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Tips</div>
+                        <p>Emergent plants are easier to see than submerged ones. Count only plants that are rooted <strong>in the pool itself</strong>, not vegetation on dry ground nearby. Dead stems from the previous year still count.</p>
+                    </div>`
+            },
+            'veg-shrubs': {
+                title: 'Shrubs',
+                html: `
+                    <div class="photo-grid">
+                        <figure><img src="/images/vegetation/shrub-buttonbush.jpg" alt="Buttonbush"><figcaption>Buttonbush (<em>Cephalanthus</em>)</figcaption></figure>
+                        <figure><img src="/images/vegetation/shrub-winterberry.jpg" alt="Winterberry holly"><figcaption>Winterberry (<em>Ilex verticillata</em>)</figcaption></figure>
+                    </div>
+                    <p>Woody plants <strong>under ~15 feet tall</strong> growing in the pool or overhanging the pool edge. Estimate the percentage of pool surface area that has shrub cover above it.</p>
+                    <div class="help-section">
+                        <div class="help-section-title">Common Examples</div>
+                        <p><strong>Buttonbush</strong> (<em>Cephalanthus</em>) &mdash; rounded shrub that often grows directly in standing water. Globe-shaped flower/seed heads.</p>
+                        <p><strong>Winterberry</strong> (<em>Ilex verticillata</em>) &mdash; deciduous holly common at pool margins. Bright red berries in fall.</p>
+                        <p><strong>Highbush blueberry</strong> (<em>Vaccinium</em>) &mdash; common wetland shrub, often at pool edges in acidic soils.</p>
+                        <p><strong>Alder</strong> (<em>Alnus</em>) &mdash; multi-stemmed shrub/small tree common along streams and wet areas. Small woody "cones."</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Tips</div>
+                        <p>Shrubs vs. trees: if a woody plant is multi-stemmed and under ~15 feet, call it a shrub. Saplings of tree species count as shrubs if they're small. If shrubs overhang the pool but are rooted on dry ground, still count the area of pool they shade.</p>
+                    </div>`
+            },
+            'veg-trees': {
+                title: 'Trees / Canopy Cover',
+                html: `
+                    <div class="photo-grid">
+                        <figure><img src="/images/vegetation/canopy-closed.jpg" alt="Closed canopy over vernal pool"><figcaption>Closed canopy over a vernal pool</figcaption></figure>
+                        <figure><img src="/images/vegetation/canopy-open.jpg" alt="Open canopy vernal pool"><figcaption>Open canopy vernal pool</figcaption></figure>
+                    </div>
+                    <p>Estimate the percentage of the <strong>pool water surface that has tree canopy directly overhead</strong>. Look up from the center of the pool (or imagine doing so).</p>
+                    <div class="help-section">
+                        <div class="help-section-title">Why It Matters</div>
+                        <p>Canopy cover affects water temperature, light reaching the pool, leaf litter input, and dissolved oxygen. Most natural vernal pools in Vermont have high canopy cover (forested depressions). Open-canopy pools are more common in fields, clearings, and wetland edges.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Early Season Tip</div>
+                        <p>If visiting before leaf-out (March&ndash;April), estimate what canopy cover <strong>will be</strong> when trees are fully leafed out, based on the branch structure overhead. A dense network of branches = high summer canopy even if leaves aren't out yet.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Common Canopy Trees</div>
+                        <p><strong>Red maple</strong> (<em>Acer rubrum</em>) &mdash; the most common tree around Vermont vernal pools. Tolerates wet soils.</p>
+                        <p><strong>Yellow birch</strong> (<em>Betula alleghaniensis</em>) &mdash; common in northern hardwood forests around pools.</p>
+                        <p><strong>Eastern hemlock</strong> (<em>Tsuga canadensis</em>) &mdash; provides year-round shade, keeps pools cooler.</p>
+                    </div>`
+            }
+        };
+
+        window.showHelp = function(key) {
+            let content = helpContent[key];
+            if (!content) return;
+            let overlay = document.createElement('div');
+            overlay.className = 'help-overlay';
+            overlay.innerHTML = `
+                <div class="help-overlay-content">
+                    <button class="help-overlay-close" title="Close">&times;</button>
+                    <h3>${content.title}</h3>
+                    ${content.html}
+                </div>`;
+            document.body.appendChild(overlay);
+            // Close on button click
+            overlay.querySelector('.help-overlay-close').addEventListener('click', () => overlay.remove());
+            // Close on backdrop click
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+            // Close on Escape
+            let onKey = (e) => { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); } };
+            document.addEventListener('keydown', onKey);
+        };
+
+        // Voice input for textareas
+        (function initVoiceInput() {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) {
+                // Mark voice buttons as unsupported
+                document.querySelectorAll('.voice-btn').forEach(b => {
+                    b.classList.add('unsupported');
+                    b.title = 'Voice input not supported in this browser';
+                    b.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        showHelp('voice');
+                    });
+                });
+                return;
+            }
+            let recognition = null;
+            let activeBtn = null;
+
+            document.querySelectorAll('.voice-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    let targetId = btn.dataset.target;
+                    let textarea = document.getElementById(targetId);
+                    if (!textarea) return;
+
+                    // Toggle off if already recording this target
+                    if (activeBtn === btn && recognition) {
+                        recognition.stop();
+                        return;
+                    }
+                    // Stop any existing session
+                    if (recognition) recognition.stop();
+
+                    recognition = new SR();
+                    recognition.continuous = true;
+                    recognition.interimResults = false;
+                    recognition.lang = 'en-US';
+                    activeBtn = btn;
+
+                    recognition.onstart = () => { btn.classList.add('recording'); };
+                    recognition.onend = () => {
+                        btn.classList.remove('recording');
+                        if (activeBtn === btn) activeBtn = null;
+                        recognition = null;
+                    };
+                    recognition.onresult = (e) => {
+                        for (let i = e.resultIndex; i < e.results.length; i++) {
+                            if (e.results[i].isFinal) {
+                                let text = e.results[i][0].transcript.trim();
+                                // Voice command: say "stop listening" to end recording
+                                if (/^stop\s*(listening|recording)?$/i.test(text)) {
+                                    recognition.stop();
+                                    return;
+                                }
+                                // Punctuation commands
+                                text = text
+                                    .replace(/\b(period|full stop)\b/gi, '.')
+                                    .replace(/\bcomma\b/gi, ',')
+                                    .replace(/\bquestion mark\b/gi, '?')
+                                    .replace(/\bexclamation (point|mark)\b/gi, '!')
+                                    .replace(/\bcolon\b/gi, ':')
+                                    .replace(/\bsemicolon\b/gi, ';')
+                                    .replace(/\bdash\b/gi, '—')
+                                    .replace(/\bhyphen\b/gi, '-')
+                                    .replace(/\bnew line\b/gi, '\n')
+                                    .replace(/\s+([.,?!:;])/g, '$1'); // remove space before punctuation
+                                textarea.value = textarea.value ? textarea.value + ' ' + text : text;
+                                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        }
+                    };
+                    recognition.onerror = (e) => {
+                        if (e.error !== 'aborted') showMsg('Voice: ' + e.error, 'error');
+                    };
+                    recognition.start();
+                });
+            });
+        })();
     </script>
     <script src="/js/app.js"></script>
 </body>

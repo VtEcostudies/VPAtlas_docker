@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
     <link rel="stylesheet" href="./css/common.css">
     <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="./css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
     <style>
         .survey-detail { padding: 10px; }
@@ -51,6 +52,27 @@
         }
         .macro-cell .dir { font-size: 12px; font-weight: 600; color: var(--primary-color); }
         .macro-cell .counts { font-size: 13px; }
+
+        /* Mobile tab bar for detail+map pages */
+        .dv-tabs { display: none; }
+        @media (max-width: 900px) {
+            .dv-pane { display: none !important; height: calc(100dvh - 90px - 52px) !important; max-height: none !important; min-height: 0; }
+            .dv-content[data-active-tab="detail"] .dv-pane-detail { display: block !important; }
+            .dv-content[data-active-tab="map"]    .dv-pane-map    { display: block !important; }
+            .dv-content[data-active-tab] .dv-pane { flex: 0 0 100%; max-width: 100%; }
+            .dv-tabs {
+                display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+                border-top: 1px solid #ddd; background: white; box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+            }
+            .dv-tab-btn {
+                flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                padding: 6px 2px; border: none; background: white; color: var(--text-secondary);
+                font-size: 11px; cursor: pointer; border-radius: 0;
+            }
+            .dv-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+            .dv-tab-btn.active { color: var(--primary-color); border-top: 2px solid var(--primary-color); font-weight: 600; }
+            body { padding-bottom: 52px; }
+        }
     </style>
 </head>
 <body>
@@ -59,20 +81,33 @@
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Survey Detail</h3>
             <button id="btn_edit" class="action-button" style="display:none;">Edit Survey</button>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
     <hr class="divider-header">
 
-    <div class="row">
+    <div class="row dv-content" id="dv_content">
         <!-- Left: Survey info -->
-        <div class="col-lg-6 col-12 survey-detail" style="max-height:85vh; overflow-y:auto;">
+        <div class="col-lg-6 col-12 dv-pane dv-pane-detail survey-detail" style="max-height:85vh; overflow-y:auto;">
             <div id="survey_content"></div>
         </div>
 
         <!-- Right: Map -->
-        <div class="col-lg-6 col-12" style="height:85vh;">
+        <div class="col-lg-6 col-12 dv-pane dv-pane-map" style="height:85vh; position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+            <div id="btn_center" title="Zoom to pool" style="position:absolute; top:10px; left:10px; z-index:1000;
+                background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
+                width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+                cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                <i class="fa fa-crosshairs"></i>
+            </div>
         </div>
+    </div>
+
+    <!-- Mobile tab bar -->
+    <div class="dv-tabs" id="dv_tabs">
+        <button class="dv-tab-btn active" data-tab="detail"><i class="fa fa-info-circle"></i>Detail</button>
+        <button class="dv-tab-btn" data-tab="map"><i class="fa fa-map"></i>Map</button>
     </div>
 
     <script src="/js/console_manager.js"></script>
@@ -87,6 +122,8 @@
         import { formatDate } from './js/utils.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
         import { getUser } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         const ICE_COVER = { 0:'0%', 1:'1-10%', 2:'11-25%', 3:'26-50%', 4:'51-75%', 5:'76-95%', 6:'>95%' };
         const VEG_COVER = { 0:'0%', 1:'1-10%', 2:'11-25%', 3:'26-50%', 4:'51-75%', 5:'≥76%' };
@@ -95,6 +132,26 @@
 
         const params = new URLSearchParams(window.location.search);
         const surveyId = params.get('surveyId');
+        let surveyMap = null;
+
+        // Mobile tab switching
+        const dvMobile = window.matchMedia('(max-width: 900px)');
+        function dvSwitchTab(t) {
+            let el = document.getElementById('dv_content');
+            if (!el) return;
+            el.dataset.activeTab = t;
+            document.querySelectorAll('.dv-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+            if (t === 'map' && surveyMap) setTimeout(() => surveyMap.invalidateSize(), 100);
+        }
+        document.querySelectorAll('.dv-tab-btn').forEach(b => b.addEventListener('click', () => dvSwitchTab(b.dataset.tab)));
+        dvMobile.addEventListener('change', (e) => {
+            let el = document.getElementById('dv_content');
+            if (!el) return;
+            if (e.matches) { if (!el.dataset.activeTab) el.dataset.activeTab = 'detail'; }
+            else { delete el.dataset.activeTab; }
+            if (surveyMap) setTimeout(() => surveyMap.invalidateSize(), 150);
+        });
+        if (dvMobile.matches) { let el = document.getElementById('dv_content'); if (el) el.dataset.activeTab = 'detail'; }
 
         function v(val) { return (val != null && val !== '' && val !== 'None') ? val : null; }
         function row(label, val) { return val != null ? `<div class="detail-row"><span class="detail-label">${label}</span><span class="detail-value">${val}</span></div>` : ''; }
@@ -211,20 +268,23 @@
                 let lng = parseFloat(s.surveyPoolLongitude || s.longitude);
                 if (!isNaN(lat) && !isNaN(lng)) {
                     let map = await createMap('map', { center: [lat, lng], zoom: 16 });
+                    surveyMap = map;
                     addPoolMarker(map, [lat, lng], {
                         status: s.poolStatus || 'Potential',
                         surveyLevel: 'monitored', size: 22,
                         tooltip: `${s.surveyPoolId} — ${s.poolStatus || ''}${town ? ', ' + town : ''}`,
                         popup: `Survey ${s.surveyId}`
                     });
+                    document.getElementById('btn_center').addEventListener('click', () =>
+                        map.setView([lat, lng], 16));
                 }
 
-                // Edit button — owner or admin
+                // Edit button — owner only (not even admins can edit others' surveys)
                 let user = await getUser();
                 if (user) {
-                    let isOwner = user.email === s.surveyUserEmail || user.id === s.surveyUserId;
-                    let isAdmin = user.userrole === 'admin';
-                    if (isOwner || isAdmin) {
+                    let isOwner = (user.id && user.id === s.surveyUserId)
+                        || user.email === s.surveyUserEmail;
+                    if (isOwner) {
                         let btn = document.getElementById('btn_edit');
                         btn.style.display = 'inline-block';
                         btn.addEventListener('click', () =>

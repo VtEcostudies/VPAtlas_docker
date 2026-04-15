@@ -17,6 +17,7 @@
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Map a Vernal Pool</h3>
             <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
     <hr class="divider-header">
@@ -97,37 +98,18 @@
                     </div>
                 </div>
 
-                <!-- Landowner section -->
-                <div class="row mb-2">
-                    <div class="col-12">
-                        <label><input type="checkbox" id="mappedLandownerPermission"> Landowner Permission?</label>
-                    </div>
-                </div>
-                <div id="landowner_section" style="display:none;">
-                    <div class="row mb-2">
-                        <div class="col-6">
-                            <label for="mappedLandownerName">Landowner Name</label>
-                            <input type="text" id="mappedLandownerName" style="width:100%">
-                        </div>
-                        <div class="col-6">
-                            <label for="mappedLandownerPhone">Phone</label>
-                            <input type="text" id="mappedLandownerPhone" style="width:100%">
-                        </div>
-                    </div>
-                    <div class="row mb-2">
-                        <div class="col-12">
-                            <label for="mappedLandownerAddress">Address</label>
-                            <textarea id="mappedLandownerAddress" rows="2" style="width:100%; font-size:16px; border:1px solid var(--primary-color); border-radius:8px; padding:5px;"></textarea>
-                        </div>
-                    </div>
-                </div>
-
             </form>
         </div>
 
         <!-- Right: Map -->
-        <div class="col-lg-6 col-12" style="height:85vh;">
+        <div class="col-lg-6 col-12" style="height:85vh; position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
+            <div id="btn_center" title="Zoom to pool" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;
+                background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
+                width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+                cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                <i class="fa fa-crosshairs"></i>
+            </div>
         </div>
     </div>
 
@@ -140,6 +122,8 @@
     <script type="module">
         import { fetchMappedPoolById, createMappedPool, updateMappedPool } from '/js/api.js';
         import { requireAuth, getUser } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
         const poolId = params.get('poolId');
@@ -150,7 +134,11 @@
             if (!(await requireAuth())) return;
 
             let user = await getUser();
-            if (user && !isEdit) {
+            if (!user || user.userrole !== 'admin') {
+                document.body.innerHTML = '<div style="padding:20px; color:var(--danger-color);">Admin access required.</div>';
+                return;
+            }
+            if (!isEdit) {
                 document.getElementById('mappedObserverUserName').value = user.username || user.email || '';
                 document.getElementById('mappedDateText').value = new Date().toISOString().split('T')[0];
             }
@@ -187,11 +175,6 @@
                 }
             }
 
-            // Landowner toggle
-            document.getElementById('mappedLandownerPermission').addEventListener('change', function() {
-                document.getElementById('landowner_section').style.display = this.checked ? 'block' : 'none';
-            });
-
             // Save
             document.getElementById('btn_save').addEventListener('click', async () => {
                 let body = getFormData();
@@ -218,22 +201,23 @@
                 radius: 10, fillColor: '#2c5530', color: '#333', weight: 2, fillOpacity: 0.8
             }).addTo(map);
             map.setView([lat, lng], 16);
+            // Show center button
+            let btn = document.getElementById('btn_center');
+            if (btn) {
+                btn.style.display = 'flex';
+                btn.onclick = () => map.setView([lat, lng], 16);
+            }
         }
 
         function populateForm(pool) {
             if (!pool) return;
             ['mappedPoolId','mappedDateText','mappedObserverUserName','mappedLatitude','mappedLongitude',
-             'mappedLocationUncertainty','mappedMethod','mappedPoolStatus','mappedComments',
-             'mappedLandownerName','mappedLandownerPhone','mappedLandownerAddress'].forEach(field => {
+             'mappedLocationUncertainty','mappedMethod','mappedPoolStatus','mappedComments'].forEach(field => {
                 let el = document.getElementById(field);
                 if (el && pool[field] !== undefined && pool[field] !== null) el.value = pool[field];
             });
             if (pool.townName || pool.mappedTownName)
                 document.getElementById('townName').value = pool.townName || pool.mappedTownName;
-            if (pool.mappedLandownerPermission) {
-                document.getElementById('mappedLandownerPermission').checked = true;
-                document.getElementById('landowner_section').style.display = 'block';
-            }
             if (pool.mappedLatitude && pool.mappedLongitude) {
                 setLocation(Number(pool.mappedLatitude), Number(pool.mappedLongitude));
             }
@@ -242,10 +226,9 @@
         function getFormData() {
             let body = {};
             ['mappedDateText','mappedObserverUserName','mappedLatitude','mappedLongitude',
-             'mappedLocationUncertainty','mappedMethod','mappedPoolStatus','mappedComments',
-             'mappedLandownerPermission','mappedLandownerName','mappedLandownerPhone','mappedLandownerAddress'].forEach(f => {
+             'mappedLocationUncertainty','mappedMethod','mappedPoolStatus','mappedComments'].forEach(f => {
                 let el = document.getElementById(f);
-                if (el) body[f] = el.type === 'checkbox' ? el.checked : el.value;
+                if (el) body[f] = el.value;
             });
             return body;
         }
