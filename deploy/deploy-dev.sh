@@ -12,17 +12,30 @@ set -e
 SSH_KEY="/home/jloomis/.ssh/vpatlas_aws_key_pair.pem"
 SSH_HOST="ubuntu@vpatlas.org"
 REMOTE_DIR="/home/ubuntu/VPAtlas_docker"
-COMPOSE="docker compose -f docker-compose-vpatlas.yml -f docker-compose-dev.yml"
+COMPOSE_FILES="-f docker-compose-vpatlas.yml -f docker-compose-dev.yml"
 
 ssh_cmd() {
     ssh -i "$SSH_KEY" "$SSH_HOST" "$@"
 }
+
+# Auto-detect docker compose command on remote
+COMPOSE=$(ssh_cmd "docker compose version >/dev/null 2>&1 && echo 'docker compose' || echo 'docker-compose'" 2>/dev/null)
+COMPOSE="$COMPOSE $COMPOSE_FILES"
 
 case "${1:-deploy}" in
 
 # ─── First-time setup: nginx configs + SSL certs ───
 setup)
     echo "=== Setting up nginx + SSL on remote ==="
+
+    # Ensure Docker Compose v2 plugin is installed
+    ssh_cmd "docker compose version >/dev/null 2>&1 || \
+        (echo 'Installing Docker Compose v2 plugin...' && \
+         sudo mkdir -p /usr/local/lib/docker/cli-plugins && \
+         sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\$(uname -m) \
+           -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+         sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
+         docker compose version)"
 
     # Copy nginx configs
     scp -i "$SSH_KEY" \
