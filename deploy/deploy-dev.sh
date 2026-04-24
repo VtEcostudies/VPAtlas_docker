@@ -103,12 +103,14 @@ db-restore)
     echo "=== Dumping live DB and restoring into dev container ==="
 
     # Dump from the live production DB on the same server
-    # The production DB runs on localhost:5432 (outside Docker)
+    # Production DB: user=vpatlas, runs on localhost:5432 (outside Docker)
+    # Uses sudo -u postgres to connect via peer auth (no password needed)
     echo "Dumping production database..."
     ssh_cmd "mkdir -p $REMOTE_DIR/db_backup && \
-        pg_dump -h localhost -p 5432 -U postgres -d vpatlas \
+        sudo -u postgres pg_dump -d vpatlas \
             -Fc --no-owner --no-privileges \
             -f $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup && \
+        sudo chown ubuntu $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup && \
         ls -lh $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup"
 
     echo "Restoring into dev container..."
