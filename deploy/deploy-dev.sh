@@ -28,14 +28,19 @@ case "${1:-deploy}" in
 setup)
     echo "=== Setting up nginx + SSL on remote ==="
 
-    # Ensure Docker Compose v2 plugin is installed
-    ssh_cmd "docker compose version >/dev/null 2>&1 || \
-        (echo 'Installing Docker Compose v2 plugin...' && \
-         sudo mkdir -p /usr/local/lib/docker/cli-plugins && \
-         sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-\$(uname -m) \
-           -o /usr/local/lib/docker/cli-plugins/docker-compose && \
-         sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
-         docker compose version)"
+    # Ensure compatible Docker Compose v2 plugin (v2.24 works with Docker 20.10+)
+    COMPOSE_VER="v2.24.7"
+    ssh_cmd "INSTALLED=\$(docker compose version --short 2>/dev/null || echo '0'); \
+        if echo \$INSTALLED | grep -qE '^2\.(1[0-9]|2[0-4])'; then \
+            echo 'Docker Compose \$INSTALLED OK'; \
+        else \
+            echo 'Installing Docker Compose $COMPOSE_VER...' && \
+            sudo mkdir -p /usr/local/lib/docker/cli-plugins && \
+            sudo curl -SL https://github.com/docker/compose/releases/download/$COMPOSE_VER/docker-compose-linux-\$(uname -m) \
+              -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+            sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
+            docker compose version; \
+        fi"
 
     # Copy nginx configs
     scp -i "$SSH_KEY" \
