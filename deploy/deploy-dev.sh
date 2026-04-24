@@ -109,7 +109,8 @@ db-restore)
     ssh_cmd "mkdir -p $REMOTE_DIR/db_backup && \
         sudo -u postgres pg_dump -d vpatlas \
             -Fc --no-owner --no-privileges \
-            -f $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup && \
+            -f /tmp/vpatlas_\$(date +%Y%m%d).backup && \
+        sudo mv /tmp/vpatlas_\$(date +%Y%m%d).backup $REMOTE_DIR/db_backup/ && \
         sudo chown ubuntu $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup && \
         ls -lh $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup"
 
