@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/explore/css/common.css">
     <link rel="stylesheet" href="/explore/css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
+    <link rel="stylesheet" href="/survey/css/visit_queue.css">
     <style>
         html, body { height: 100%; overflow: hidden; }
         .pf-app { display: flex; flex-direction: column; height: 100vh; }
@@ -104,6 +105,7 @@
             border-radius: 6px; color: var(--primary-color); text-decoration: none; white-space: nowrap;
         }
         .pf-nav-actions a.near { background: var(--primary-color); color: white; }
+
     </style>
 </head>
 <body>
@@ -130,6 +132,9 @@
 
         <!-- Navigation panel -->
         <div class="pf-nav-panel" id="nav_panel"></div>
+
+        <!-- Saved visits queue (rendered by visit_queue_ui.js) -->
+        <div id="visit_queue" style="flex-shrink:0; border-top:1px solid #ddd; max-height:35vh; overflow-y:auto; display:none;"></div>
     </div>
 
     <script src="/js/console_manager.js"></script>
@@ -146,16 +151,20 @@
         import { getLocal, setLocal } from '/js/storage.js';
         import { fetchApiRoute } from '/js/api.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { getUser } from '/js/auth.js';
+        import { renderVisitQueue } from './js/visit_queue_ui.js';
         setupProfileIcon();
 
         let map, gps, userMarker, accuracyCircle;
         let selectedPools = new Map(); // poolId → { row, marker }
         let followUser = true;
+        let currentUser = null;
 
         // =================================================================
         // INIT
         // =================================================================
         document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await getUser();
             map = await createMap('map');
 
             // Center button
@@ -200,6 +209,14 @@
 
             // Auto-start GPS
             startGps();
+
+            // Load visit queue
+            await renderVisitQueue('visit_queue');
+
+            // Refresh queue on sync events
+            window.addEventListener('visitSyncStatus', async (e) => {
+                if (e.detail.type === 'uploaded') await renderVisitQueue('visit_queue');
+            });
         });
 
         // =================================================================
@@ -364,18 +381,32 @@
                 let nearClass = near ? ' near' : '';
                 let gpsCoords = gps && gps.position ? `&lat=${gps.position.lat.toFixed(6)}&lng=${gps.position.lng.toFixed(6)}` : '';
 
+                let monitorHtml = '';
+                let userRole = currentUser && currentUser.userrole;
+                if (userRole === 'admin' || userRole === 'monitor') {
+                    monitorHtml = `<a href="/survey/survey_create.html?poolId=${pid}" class="${nearClass}">+ Monitor Survey</a>`;
+                }
+
                 html += `<div class="pf-nav-item" onclick="event.target.tagName==='A'||document.dispatchEvent(new CustomEvent('zoom-pool',{detail:'${pid}'}))">
                     ${distHtml}
                     <div class="pf-nav-info">
                         <div class="pool-name">${pid} — ${status}</div>
                         <div class="pool-detail">${loc}</div>
                         <div class="pf-nav-actions">
-                            <a href="/survey/visit_create.html?poolId=${pid}${gpsCoords}" class="${nearClass}">Atlas Visit</a>
-                            <a href="/survey/survey_create.html?poolId=${pid}" class="${nearClass}">Monitor Survey</a>
+                            <a href="/survey/visit_create.html?poolId=${pid}${gpsCoords}" class="${nearClass}">+ Atlas Visit</a>
+                            ${monitorHtml}
                         </div>
                     </div>
                 </div>`;
             });
+
+            // Add "+ New Pool" at the end
+            let newPoolCoords = gps && gps.position ? `?lat=${gps.position.lat.toFixed(6)}&lng=${gps.position.lng.toFixed(6)}` : '';
+            html += `<div class="pf-nav-item" style="justify-content:center; padding:8px;">
+                <a href="/survey/visit_create.html${newPoolCoords}" style="font-size:14px; font-weight:600; padding:6px 16px;
+                    border:1px solid var(--primary-color); border-radius:6px; color:var(--primary-color); text-decoration:none;">
+                    <i class="fa fa-plus"></i> New Pool</a>
+            </div>`;
 
             panel.innerHTML = html;
         }

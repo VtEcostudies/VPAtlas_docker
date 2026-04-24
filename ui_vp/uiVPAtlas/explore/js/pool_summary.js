@@ -12,6 +12,7 @@
 import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchSurveysByPool } from '/js/api.js';
 import { getUser } from '/js/auth.js';
 import { formatDate } from './utils.js';
+import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
 import { filters, getCurrentScope } from './url_state.js';
 
 var summaryContainer = null;
@@ -273,6 +274,22 @@ export async function showPoolSummary(poolId, onBack = null) {
             }
         } catch(err) {}
 
+        // Local (unsaved) visits
+        try {
+            let localCounts = await getLocalVisitCount(poolId);
+            if (localCounts.total > 0) {
+                let label = localCounts.pending > 0
+                    ? `${localCounts.total} local (${localCounts.pending} pending upload)`
+                    : `${localCounts.total} local`;
+                html += `<div class="summary-section">
+                    <div style="display:flex; align-items:center; gap:6px; font-size:13px; color:#e65100;">
+                        <i class="fa fa-inbox"></i> ${label}
+                    </div>
+                    <div id="local_visits_${poolId}" style="margin-top:4px;"></div>
+                </div>`;
+            }
+        } catch(err) {}
+
         // Surveys
         try {
             let surveys = await fetchSurveysByPool(poolId);
@@ -294,6 +311,13 @@ export async function showPoolSummary(poolId, onBack = null) {
         } catch(err) {}
 
         summaryContainer.innerHTML = html;
+
+        // Render local visit queue into its container (after innerHTML is set)
+        let localContainer = document.getElementById(`local_visits_${poolId}`);
+        if (localContainer) {
+            let { renderVisitQueue } = await import('/survey/js/visit_queue_ui.js');
+            await renderVisitQueue(localContainer, { poolId, showHeader: false, compact: true });
+        }
 
     } catch(err) {
         summaryContainer.innerHTML = `<div style="padding:10px; color:var(--danger-color);">

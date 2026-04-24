@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="./css/pool_list.css">
     <link rel="stylesheet" href="./css/filter_bar.css">
     <link rel="stylesheet" href="/css/map.css">
+    <link rel="stylesheet" href="/survey/css/visit_queue.css">
 </head>
 <body>
     <header style="position:relative;">
@@ -374,6 +375,11 @@
         // =================================================================
         const ALL_STATUS_NAMES = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
         const ADMIN_ONLY = ['Duplicate', 'Eliminated'];
+        const LEVEL_CHIPS = [
+            { key: 'potential',  label: 'Mapped',    shape: '<svg width="10" height="10" style="vertical-align:-1px;"><circle cx="5" cy="5" r="4" fill="CCC" stroke="#333" stroke-width="0.8"/></svg>' },
+            { key: 'visited',   label: 'Visited',   shape: '<svg width="10" height="10" style="vertical-align:-1px;"><polygon points="5,1 9,9 1,9" fill="#ccc" stroke="#333" stroke-width="0.8"/></svg>' },
+            { key: 'monitored', label: 'Monitored', shape: '<svg width="10" height="10" style="vertical-align:-1px;"><polygon points="5,1 9,5 5,9 1,5" fill="#ccc" stroke="#333" stroke-width="0.8"/></svg>' }
+        ];
 
         function renderStatusChips() {
             let container = document.getElementById('filter_description');
@@ -381,6 +387,8 @@
             let mf = getMapFilters();
             let userIsAdmin = currentUser && currentUser.userrole === 'admin';
             let chipStatuses = userIsAdmin ? ALL_STATUS_NAMES : ALL_STATUS_NAMES.filter(s => !ADMIN_ONLY.includes(s));
+
+            // Status chips
             let html = chipStatuses.map(status => {
                 let active = mf.statusVisible[status] !== false;
                 let color = getPoolColor(status);
@@ -391,14 +399,40 @@
                     style="display:inline-block; padding:1px 8px; margin:1px 2px; border-radius:12px;
                     font-size:11px; font-weight:600; cursor:pointer; border:1.5px solid; ${style}">${status}</span>`;
             }).join('');
+
+            // Divider
+            html += `<span style="display:inline-block; width:1px; height:14px; background:#ccc; margin:0 4px; vertical-align:middle;"></span>`;
+
+            // Level chips
+            html += LEVEL_CHIPS.map(lev => {
+                let active = mf.levelVisible[lev.key] !== false;
+                let style = active
+                    ? `background:var(--primary-light); color:var(--primary-color); border-color:var(--primary-color); opacity:1;`
+                    : `background:transparent; color:#999; border-color:#ccc; opacity:0.5;`;
+                return `<span class="level-chip" data-level="${lev.key}"
+                    style="display:inline-flex; align-items:center; gap:3px; padding:1px 8px; margin:1px 2px; border-radius:12px;
+                    font-size:11px; font-weight:600; cursor:pointer; border:1.5px solid; ${style}">${lev.shape} ${lev.label}</span>`;
+            }).join('');
+
             container.innerHTML = html;
 
+            // Wire status chip clicks
             container.querySelectorAll('.status-chip').forEach(chip => {
                 chip.addEventListener('click', () => {
                     let status = chip.dataset.status;
                     let mf = getMapFilters();
                     let nowVisible = !(mf.statusVisible[status] !== false);
                     setStatusVisible(status, nowVisible);
+                });
+            });
+
+            // Wire level chip clicks
+            container.querySelectorAll('.level-chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    let level = chip.dataset.level;
+                    let mf = getMapFilters();
+                    let nowVisible = !(mf.levelVisible[level] !== false);
+                    setLevelVisible(level, nowVisible);
                 });
             });
         }

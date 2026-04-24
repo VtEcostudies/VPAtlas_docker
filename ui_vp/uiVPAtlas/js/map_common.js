@@ -101,8 +101,8 @@ export function poolPopupHtml(row) {
     if (town) html += `<br>${town}${county ? ' (' + county + ')' : ''}`;
     if (observer) html += `<br>Mapped by ${observer}`;
     html += `<div style="margin-top:6px; display:flex; gap:8px;">`;
-    html += `<a href="/survey/visit_create.html?poolId=${poolId}" style="font-size:13px;">Atlas Visit</a>`;
-    html += `<a href="/survey/survey_create.html?poolId=${poolId}" style="font-size:13px;">Monitor Survey</a>`;
+    html += `<a href="/survey/visit_create.html?poolId=${poolId}" style="font-size:13px;">+ Atlas Visit</a>`;
+    html += `<a href="/survey/survey_create.html?poolId=${poolId}" style="font-size:13px;">+ Monitor Survey</a>`;
     html += `<a href="/survey/survey_start.html?poolId=${poolId}" style="font-size:13px;">Find Pool</a>`;
     html += `</div></div>`;
     return html;

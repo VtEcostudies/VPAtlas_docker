@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"http://localhost:4010/survey/5976\")",
+      "Bash(curl -s \"http://localhost:4010/survey/field/5976\")",
+      "Bash(curl -s \"http://localhost:4010/survey/pool/LDR3174\")",
+      "Bash(curl -s \"http://localhost:4010/survey/field/5977\")",
+      "Bash(curl -s \"http://localhost:4010/pools?visitHasIndicator=true&limit=5\" -w \"\\\\n%{http_code}\")"
+    ]
+  }
+}

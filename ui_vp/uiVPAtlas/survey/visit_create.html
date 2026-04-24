@@ -219,12 +219,137 @@
             margin-bottom: 6px;
         }
         .species-counts {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            align-items: start;
         }
-        .species-counts .form-field { min-width: 80px; flex: 1; }
         .species-counts .form-field input { padding: 6px; font-size: 16px; }
+        .species-counts .form-field { min-width: 0; }
+        .species-counts .stepper-group { min-width: 130px; }
+        @media (max-width: 500px) {
+            .species-counts {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Species photo capture */
+        .species-photo-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .photo-capture-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 4px 10px;
+            border: 1px solid var(--primary-color);
+            border-radius: 6px;
+            background: white;
+            color: var(--primary-color);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .photo-capture-btn:active { background: var(--primary-light); }
+        .photo-capture-btn i { font-size: 14px; }
+        .photo-thumbs {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            flex: 1;
+            min-height: 0;
+        }
+        .photo-thumb {
+            position: relative;
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+        .photo-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .photo-thumb-remove {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--danger-color);
+            color: white;
+            font-size: 10px;
+            line-height: 16px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            padding: 0;
+        }
+
+        /* Presence toggle — Not Present / Present */
+        .presence-toggle {
+            display: inline-flex;
+            border: 1px solid var(--primary-color);
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            height: 34px;
+        }
+        .presence-toggle .toggle-off,
+        .presence-toggle .toggle-on {
+            padding: 4px 10px;
+            display: flex;
+            align-items: center;
+        }
+        .presence-toggle .toggle-off {
+            background: var(--primary-light);
+            color: var(--text-secondary);
+        }
+        .presence-toggle .toggle-on {
+            background: white;
+            color: var(--text-muted);
+        }
+        .presence-toggle.active .toggle-off {
+            background: white;
+            color: var(--text-muted);
+        }
+        .presence-toggle.active .toggle-on {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Estimate/Count toggle — small pill before egg input */
+        .est-count-toggle {
+            display: inline-flex;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            height: 26px;
+            flex-shrink: 0;
+        }
+        .est-count-toggle span {
+            padding: 2px 6px;
+            display: flex;
+            align-items: center;
+        }
+        .est-count-toggle .est-label { background: var(--warning-light); color: #333; }
+        .est-count-toggle .count-label { background: white; color: var(--text-muted); }
+        .est-count-toggle.exact .est-label { background: white; color: var(--text-muted); }
+        .est-count-toggle.exact .count-label { background: var(--primary-light); color: var(--primary-color); }
 
         /* Save bar */
         .save-bar {
@@ -309,6 +434,12 @@
             color: var(--primary-color);
         }
         .help-label:hover { color: var(--primary-color); }
+
+        /* Help label inside section title inherits the title style */
+        .form-section-title .help-label {
+            font-size: inherit;
+            color: inherit;
+        }
 
         /* Species card title as help trigger */
         .species-card .help-label {
@@ -422,7 +553,8 @@
         <div class="visit-header">
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground" id="page_title">Pool Visit</h3>
-            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+            <button id="btn_save_draft" class="action-button" style="font-size:13px; padding:4px 10px;" title="Save locally"><i class="fa fa-download"></i> Draft</button>
+            <button id="btn_save_upload" class="action-button" style="font-size:13px; padding:4px 10px; background:var(--primary-color); color:white;" title="Save &amp; upload"><i class="fa fa-cloud-arrow-up"></i> Save</button>
             <div id="profile_container" style="margin-left:auto;"></div>
         </div>
 
@@ -433,7 +565,12 @@
         <div class="visit-content">
             <!-- MAP TAB -->
             <div class="visit-tab visit-tab-map active" id="tab_map">
-                <div id="map"></div>
+                <div id="map" style="position:relative;"></div>
+                <button id="btn_use_gps" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;
+                    padding:6px 12px; border:2px solid rgba(0,0,0,0.2); border-radius:6px;
+                    background:white; color:#333; cursor:pointer; font-size:13px; font-weight:600;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.2);" title="Set visit location to GPS">
+                    <i class="fa fa-location-crosshairs" style="color:#4285f4;"></i> Use GPS</button>
                 <div class="map-instruction" id="map_instruction">Tap map to set pool location</div>
             </div>
 
@@ -449,11 +586,6 @@
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Location</div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Was the pool located?</label>
-                    <div class="choice-group">
-                        <label><input type="radio" name="visitLocatePool" value="Yes"> Yes</label>
-                        <label><input type="radio" name="visitLocatePool" value="No"> No</label>
-                    </div>
                     <div class="form-row">
                         <div class="form-field"><label for="visitLatitude">Latitude</label><input type="text" id="visitLatitude" placeholder="Tap map"></div>
                         <div class="form-field"><label for="visitLongitude">Longitude</label><input type="text" id="visitLongitude" placeholder="Tap map"></div>
@@ -462,6 +594,18 @@
                         <span class="help-label" onclick="showHelp('voice')">Location Comments</span> <button type="button" class="voice-btn" data-target="visitLocationComments" title="Voice input"><i class="fa fa-microphone"></i></button>
                         <textarea id="visitLocationComments" rows="2"></textarea>
                     </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Landowner Info</div>
+                    <div class="choice-group" style="margin-bottom:6px;">
+                        <label><input type="checkbox" id="visitLandownerPermission"> Landowner permission obtained</label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field" style="flex:2;"><label for="visitLandownerName">Name</label><input type="text" id="visitLandownerName"></div>
+                        <div class="form-field" style="flex:1;"><label for="visitLandownerPhone">Phone</label><input type="tel" id="visitLandownerPhone"></div>
+                    </div>
+                    <div class="form-field"><label for="visitLandownerAddress">Address</label><input type="text" id="visitLandownerAddress"></div>
+                    <div class="form-field"><label for="visitLandownerEmail">Email</label><input type="email" id="visitLandownerEmail"></div>
                 </div>
             </div>
 
@@ -493,7 +637,7 @@
                     <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest/Upland Type</label>
                     <div class="choice-group">
                         <label><input type="radio" name="visitForestUpland" value="Open/Field"> Open/Field</label>
-                        <label><input type="radio" name="visitForestUpland" value="Shrubby/New Growth"> Shrubby/New Growth</label>
+                        <label><input type="radio" name="visitForestUpland" value="New Growth"> New Growth</label>
                         <label><input type="radio" name="visitForestUpland" value="Forest"> Forest</label>
                         <label><input type="radio" name="visitForestUpland" value="Other"> Other</label>
                     </div>
@@ -559,12 +703,12 @@
                             </div>
                         </div>
                     </div>
-                    <span class="help-label" onclick="showHelp('substrate')">Substrate (basin lining material)</span>
+                    <span class="help-label" onclick="showHelp('substrate')">Substrate (check all that apply)</span>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitSubstrate" value="Leaf litter"> Leaf litter</label>
-                        <label><input type="radio" name="visitSubstrate" value="Bedrock"> Bedrock</label>
-                        <label><input type="radio" name="visitSubstrate" value="Sand/Gravel"> Sand/Gravel</label>
-                        <label><input type="radio" name="visitSubstrate" value="Mud"> Mud</label>
+                        <label><input type="checkbox" class="visitSubstrate" value="Leaf litter"> Leaf litter</label>
+                        <label><input type="checkbox" class="visitSubstrate" value="Bedrock"> Bedrock</label>
+                        <label><input type="checkbox" class="visitSubstrate" value="Sand/Gravel"> Sand/Gravel</label>
+                        <label><input type="checkbox" class="visitSubstrate" value="Mud"> Mud</label>
                     </div>
                 </div>
                 <div class="form-section">
@@ -630,9 +774,33 @@
                 <div class="species-card">
                     <span class="help-label" onclick="showHelp('woodfrog')">Wood Frog</span>
                     <div class="species-counts">
-                        <div class="form-field"><label>Adults</label><input type="text" id="visitWoodFrogAdults" inputmode="numeric"></div>
-                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitWoodFrogEgg" inputmode="numeric"></div>
-                        <div class="form-field"><label>Tadpoles</label><input type="text" id="visitWoodFrogLarvae" inputmode="numeric"></div>
+                        <div class="form-field"><label>Adults</label>
+                            <div class="stepper-group">
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitWoodFrogAdults" data-step="-5">&minus;</button>
+                                <input type="text" id="visitWoodFrogAdults" inputmode="numeric" placeholder="0">
+                                <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitWoodFrogAdults" data-step="5">+</button>
+                            </div>
+                        </div>
+                        <div class="form-field"><label>Egg Masses</label>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <div class="est-count-toggle" data-target="visitWoodFrogEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
+                                <div class="stepper-group" style="flex:1;">
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitWoodFrogEgg" data-step="-5">&minus;</button>
+                                    <input type="text" id="visitWoodFrogEgg" inputmode="numeric" placeholder="0">
+                                    <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitWoodFrogEgg" data-step="5">+</button>
+                                </div>
+                            </div>
+                            <input type="hidden" id="visitWoodFrogEggHow" value="Estimate">
+                        </div>
+                        <div class="form-field"><label>Tadpoles</label>
+                            <div class="presence-toggle" data-target="visitWoodFrogLarvae"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
+                            <input type="hidden" id="visitWoodFrogLarvae" value="0">
+                        </div>
+                    </div>
+                    <div class="species-photo-row">
+                        <button type="button" class="photo-capture-btn" data-species="woodfrog"><i class="fa fa-camera"></i> Photo</button>
+                        <input type="file" class="species-photo-input" data-species="woodfrog" accept="image/*" capture="environment" multiple style="display:none;">
+                        <div class="photo-thumbs" id="thumbs_woodfrog"></div>
                     </div>
                     <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitWoodFrogNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitWoodFrogNotes"></div>
                 </div>
@@ -640,9 +808,33 @@
                 <div class="species-card">
                     <span class="help-label" onclick="showHelp('spotted')">Spotted Salamander</span>
                     <div class="species-counts">
-                        <div class="form-field"><label>Adults</label><input type="text" id="visitSpsAdults" inputmode="numeric"></div>
-                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitSpsEgg" inputmode="numeric"></div>
-                        <div class="form-field"><label>Larvae</label><input type="text" id="visitSpsLarvae" inputmode="numeric"></div>
+                        <div class="form-field"><label>Adults</label>
+                            <div class="stepper-group">
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpsAdults" data-step="-5">&minus;</button>
+                                <input type="text" id="visitSpsAdults" inputmode="numeric" placeholder="0">
+                                <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpsAdults" data-step="5">+</button>
+                            </div>
+                        </div>
+                        <div class="form-field"><label>Egg Masses</label>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <div class="est-count-toggle" data-target="visitSpsEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
+                                <div class="stepper-group" style="flex:1;">
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpsEgg" data-step="-5">&minus;</button>
+                                    <input type="text" id="visitSpsEgg" inputmode="numeric" placeholder="0">
+                                    <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpsEgg" data-step="5">+</button>
+                                </div>
+                            </div>
+                            <input type="hidden" id="visitSpsEggHow" value="Estimate">
+                        </div>
+                        <div class="form-field"><label>Larvae</label>
+                            <div class="presence-toggle" data-target="visitSpsLarvae"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
+                            <input type="hidden" id="visitSpsLarvae" value="0">
+                        </div>
+                    </div>
+                    <div class="species-photo-row">
+                        <button type="button" class="photo-capture-btn" data-species="sps"><i class="fa fa-camera"></i> Photo</button>
+                        <input type="file" class="species-photo-input" data-species="sps" accept="image/*" capture="environment" multiple style="display:none;">
+                        <div class="photo-thumbs" id="thumbs_sps"></div>
                     </div>
                     <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitSpsNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitSpsNotes"></div>
                 </div>
@@ -650,9 +842,33 @@
                 <div class="species-card">
                     <span class="help-label" onclick="showHelp('jefferson')">Jefferson Salamander</span>
                     <div class="species-counts">
-                        <div class="form-field"><label>Adults</label><input type="text" id="visitJesaAdults" inputmode="numeric"></div>
-                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitJesaEgg" inputmode="numeric"></div>
-                        <div class="form-field"><label>Larvae</label><input type="text" id="visitJesaLarvae" inputmode="numeric"></div>
+                        <div class="form-field"><label>Adults</label>
+                            <div class="stepper-group">
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitJesaAdults" data-step="-5">&minus;</button>
+                                <input type="text" id="visitJesaAdults" inputmode="numeric" placeholder="0">
+                                <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitJesaAdults" data-step="5">+</button>
+                            </div>
+                        </div>
+                        <div class="form-field"><label>Egg Masses</label>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <div class="est-count-toggle" data-target="visitJesaEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
+                                <div class="stepper-group" style="flex:1;">
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitJesaEgg" data-step="-5">&minus;</button>
+                                    <input type="text" id="visitJesaEgg" inputmode="numeric" placeholder="0">
+                                    <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitJesaEgg" data-step="5">+</button>
+                                </div>
+                            </div>
+                            <input type="hidden" id="visitJesaEggHow" value="Estimate">
+                        </div>
+                        <div class="form-field"><label>Larvae</label>
+                            <div class="presence-toggle" data-target="visitJesaLarvae"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
+                            <input type="hidden" id="visitJesaLarvae" value="0">
+                        </div>
+                    </div>
+                    <div class="species-photo-row">
+                        <button type="button" class="photo-capture-btn" data-species="jesa"><i class="fa fa-camera"></i> Photo</button>
+                        <input type="file" class="species-photo-input" data-species="jesa" accept="image/*" capture="environment" multiple style="display:none;">
+                        <div class="photo-thumbs" id="thumbs_jesa"></div>
                     </div>
                     <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitJesaNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitJesaNotes"></div>
                 </div>
@@ -660,19 +876,79 @@
                 <div class="species-card">
                     <span class="help-label" onclick="showHelp('bluespot')">Blue-spotted Salamander</span>
                     <div class="species-counts">
-                        <div class="form-field"><label>Adults</label><input type="text" id="visitBssaAdults" inputmode="numeric"></div>
-                        <div class="form-field"><label>Egg Masses</label><input type="text" id="visitBssaEgg" inputmode="numeric"></div>
-                        <div class="form-field"><label>Larvae</label><input type="text" id="visitBssaLarvae" inputmode="numeric"></div>
+                        <div class="form-field"><label>Adults</label>
+                            <div class="stepper-group">
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitBssaAdults" data-step="-5">&minus;</button>
+                                <input type="text" id="visitBssaAdults" inputmode="numeric" placeholder="0">
+                                <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitBssaAdults" data-step="5">+</button>
+                            </div>
+                        </div>
+                        <div class="form-field"><label>Egg Masses</label>
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <div class="est-count-toggle" data-target="visitBssaEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
+                                <div class="stepper-group" style="flex:1;">
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitBssaEgg" data-step="-5">&minus;</button>
+                                    <input type="text" id="visitBssaEgg" inputmode="numeric" placeholder="0">
+                                    <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitBssaEgg" data-step="5">+</button>
+                                </div>
+                            </div>
+                            <input type="hidden" id="visitBssaEggHow" value="Estimate">
+                        </div>
+                        <div class="form-field"><label>Larvae</label>
+                            <div class="presence-toggle" data-target="visitBssaLarvae"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
+                            <input type="hidden" id="visitBssaLarvae" value="0">
+                        </div>
+                    </div>
+                    <div class="species-photo-row">
+                        <button type="button" class="photo-capture-btn" data-species="bssa"><i class="fa fa-camera"></i> Photo</button>
+                        <input type="file" class="species-photo-input" data-species="bssa" accept="image/*" capture="environment" multiple style="display:none;">
+                        <div class="photo-thumbs" id="thumbs_bssa"></div>
                     </div>
                     <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitBssaNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitBssaNotes"></div>
                 </div>
 
                 <div class="species-card">
                     <span class="help-label" onclick="showHelp('fairyshrimp')">Fairy Shrimp</span>
-                    <div class="species-counts">
-                        <div class="form-field"><label>Count</label><input type="text" id="visitFairyShrimpAdults" inputmode="numeric"></div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div class="presence-toggle" data-target="visitFairyShrimp"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
+                        <input type="hidden" id="visitFairyShrimp" value="0">
+                        <button type="button" class="photo-capture-btn" data-species="fairyshrimp"><i class="fa fa-camera"></i> Photo</button>
+                        <input type="file" class="species-photo-input" data-species="fairyshrimp" accept="image/*" capture="environment" multiple style="display:none;">
+                        <div class="photo-thumbs" id="thumbs_fairyshrimp"></div>
                     </div>
                     <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitFairyShrimpNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitFairyShrimpNotes"></div>
+                </div>
+
+                <div class="species-card">
+                    <span class="help-label" onclick="showHelp('fingernailclams')" style="font-size:14px; color:var(--primary-color);">Fingernail Clams</span>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div class="presence-toggle" data-target="visitFingerNailClams"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
+                        <input type="hidden" id="visitFingerNailClams" value="0">
+                        <button type="button" class="photo-capture-btn" data-species="clams"><i class="fa fa-camera"></i> Photo</button>
+                        <input type="file" class="species-photo-input" data-species="clams" accept="image/*" capture="environment" multiple style="display:none;">
+                        <div class="photo-thumbs" id="thumbs_clams"></div>
+                    </div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitFingerNailClamsNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitFingerNailClamsNotes"></div>
+                </div>
+
+                <div class="species-card">
+                    <label style="font-size:14px; font-weight:600; color:var(--primary-color);">Other Species</label>
+                    <div class="form-row" style="gap:8px;">
+                        <div class="form-field" style="flex:2;"><label for="visitSpeciesOtherName">Species Name</label><input type="text" id="visitSpeciesOtherName"></div>
+                        <div class="form-field" style="flex:1;"><label>Count</label>
+                            <div class="stepper-group">
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpeciesOtherCount" data-step="-5">&minus;</button>
+                                <input type="text" id="visitSpeciesOtherCount" inputmode="numeric" placeholder="0">
+                                <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpeciesOtherCount" data-step="5">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="species-photo-row">
+                        <button type="button" class="photo-capture-btn" data-species="other"><i class="fa fa-camera"></i> Photo</button>
+                        <input type="file" class="species-photo-input" data-species="other" accept="image/*" capture="environment" multiple style="display:none;">
+                        <div class="photo-thumbs" id="thumbs_other"></div>
+                    </div>
+                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitSpeciesOtherNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitSpeciesOtherNotes"></div>
                 </div>
 
                 <div class="form-section" style="margin-top:8px;">
@@ -710,13 +986,19 @@
         import { requireAuth, getUser } from '/js/auth.js';
         import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { saveVisit, loadVisit, createVisitState } from './js/visit_store.js';
+        import { syncVisit } from './js/visit_sync.js';
         setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
         const visitId = params.get('visitId');
         const poolId = params.get('poolId');
+        const localUUID = params.get('local');  // resume a local draft
         const isEdit = !!visitId;
         let map, marker, poolMarker;
+        let currentVisitState = null;   // local IndexedDB state
+        let autoSaveTimer = null;
+        let gpsPosition = null;         // { lat, lng, accuracy }
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!(await requireAuth())) return;
@@ -735,7 +1017,7 @@
                 });
             });
 
-            // Wire stepper +/- buttons (width, length)
+            // Wire stepper +/- buttons (width, length, species counts)
             document.querySelectorAll('.stepper-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     let input = document.getElementById(this.dataset.target);
@@ -747,21 +1029,128 @@
                 });
             });
 
+            // Wire presence toggles (Not Present / Present)
+            document.querySelectorAll('.presence-toggle').forEach(toggle => {
+                toggle.addEventListener('click', function() {
+                    let active = this.classList.toggle('active');
+                    let input = document.getElementById(this.dataset.target);
+                    if (input) input.value = active ? '1' : '0';
+                });
+            });
+
+            // Wire estimate/count toggles
+            document.querySelectorAll('.est-count-toggle').forEach(toggle => {
+                toggle.addEventListener('click', function() {
+                    let isExact = this.classList.toggle('exact');
+                    let input = document.getElementById(this.dataset.target);
+                    if (input) input.value = isExact ? 'Count' : 'Estimate';
+                });
+            });
+
+            // Wire species photo capture buttons
+            const speciesPhotos = {};  // { species: [File, ...] }
+
+            document.querySelectorAll('.photo-capture-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    let species = this.dataset.species;
+                    let input = document.querySelector(`.species-photo-input[data-species="${species}"]`);
+                    if (input) input.click();
+                });
+            });
+
+            document.querySelectorAll('.species-photo-input').forEach(input => {
+                input.addEventListener('change', function() {
+                    let species = this.dataset.species;
+                    if (!speciesPhotos[species]) speciesPhotos[species] = [];
+                    for (let file of this.files) {
+                        speciesPhotos[species].push(file);
+                    }
+                    this.value = '';  // reset so same file can be re-selected
+                    renderPhotoThumbs(species);
+                });
+            });
+
+            function renderPhotoThumbs(species) {
+                let container = document.getElementById(`thumbs_${species}`);
+                if (!container) return;
+                let files = speciesPhotos[species] || [];
+                container.innerHTML = files.map((file, i) => {
+                    let url = URL.createObjectURL(file);
+                    return `<div class="photo-thumb">
+                        <img src="${url}" alt="${file.name}">
+                        <button type="button" class="photo-thumb-remove" data-species="${species}" data-index="${i}">&times;</button>
+                    </div>`;
+                }).join('');
+                container.querySelectorAll('.photo-thumb-remove').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        let sp = this.dataset.species;
+                        let idx = parseInt(this.dataset.index);
+                        speciesPhotos[sp].splice(idx, 1);
+                        renderPhotoThumbs(sp);
+                    });
+                });
+            }
+
             // Init map
             map = await createMap('map', { center: [43.858297, -72.446594], zoom: 8 });
 
+            // Set visit location (used by map click, pool marker click, GPS)
+            function setVisitLocation(lat, lng, label) {
+                document.getElementById('visitLatitude').value = lat.toFixed(6);
+                document.getElementById('visitLongitude').value = lng.toFixed(6);
+                if (marker) map.removeLayer(marker);
+                marker = L.circleMarker([lat, lng], {
+                    radius: 10, fillColor: '#c44100', color: 'white',
+                    weight: 3, fillOpacity: 1, zIndexOffset: 1000
+                }).addTo(map);
+                marker.bindTooltip(label || 'Visit location', { direction: 'top', offset: [0, -10] });
+                let instr = document.getElementById('map_instruction');
+                if (instr) { instr.textContent = label || 'Visit location set'; instr.style.display = 'block'; }
+            }
+
             // Click map to set location
             map.on('click', function(e) {
-                document.getElementById('visitLatitude').value = e.latlng.lat.toFixed(6);
-                document.getElementById('visitLongitude').value = e.latlng.lng.toFixed(6);
-                if (marker) map.removeLayer(marker);
-                marker = addPoolMarker(map, [e.latlng.lat, e.latlng.lng], {
-                    status: 'Potential', surveyLevel: 'potential', size: 22,
-                    tooltip: 'Visit location'
-                });
-                // Hide instruction
+                setVisitLocation(e.latlng.lat, e.latlng.lng, 'Visit location (tap map)');
+            });
+
+            // GPS — get position, show blue dot, enable persistent "Use GPS" button
+            function initGps(centerOnFix) {
+                if (!navigator.geolocation) return;
                 let instr = document.getElementById('map_instruction');
-                if (instr) instr.style.display = 'none';
+                if (centerOnFix && instr) instr.textContent = 'Getting your location...';
+
+                navigator.geolocation.getCurrentPosition(
+                    function(pos) {
+                        let lat = pos.coords.latitude, lng = pos.coords.longitude;
+                        let acc = pos.coords.accuracy;
+                        gpsPosition = { lat, lng, accuracy: acc };
+
+                        // Blue dot + accuracy circle
+                        L.circleMarker([lat, lng], { radius: 7, fillColor: '#4285f4', color: 'white',
+                            weight: 2, fillOpacity: 0.9 }).addTo(map).bindTooltip('You are here', { direction: 'top', offset: [0, -8] });
+                        L.circle([lat, lng], { radius: acc, color: '#4285f4', fillColor: '#4285f4',
+                            fillOpacity: 0.08, weight: 1, dashArray: '4,4', interactive: false }).addTo(map);
+
+                        if (centerOnFix) map.setView([lat, lng], 14);
+
+                        // Show the persistent GPS button
+                        let gpsBtn = document.getElementById('btn_use_gps');
+                        if (gpsBtn) gpsBtn.style.display = 'flex';
+
+                        if (instr) { instr.textContent = 'Tap map or pool marker to set location'; instr.style.display = 'block'; }
+                    },
+                    function() {
+                        if (instr) instr.textContent = 'Tap the map to set location';
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            }
+
+            // Persistent GPS button — always available once GPS position is acquired
+            document.getElementById('btn_use_gps').addEventListener('click', function() {
+                if (!gpsPosition) return;
+                setVisitLocation(gpsPosition.lat, gpsPosition.lng, `GPS location (±${Math.round(gpsPosition.accuracy)}m)`);
+                map.setView([gpsPosition.lat, gpsPosition.lng], 17);
             });
 
             let user = await getUser();
@@ -803,19 +1192,18 @@
                             poolMarker = addPoolMarker(map, [lat, lng], {
                                 status: pool.mappedPoolStatus || 'Potential',
                                 surveyLevel: 'potential', size: 18,
-                                tooltip: `Pool ${poolId} — click to use location`
+                                tooltip: `Pool ${poolId} — tap to use this location`
                             });
                             // Default lat/lon to pool's mapped location
-                            document.getElementById('visitLatitude').value = lat.toFixed(6);
-                            document.getElementById('visitLongitude').value = lng.toFixed(6);
-                            // Click pool marker to populate lat/lon
+                            setVisitLocation(lat, lng, `Location set to Pool ${poolId}`);
+                            // Click pool marker to snap back to pool location
                             poolMarker.on('click', function(e) {
                                 L.DomEvent.stopPropagation(e);
-                                document.getElementById('visitLatitude').value = lat.toFixed(6);
-                                document.getElementById('visitLongitude').value = lng.toFixed(6);
-                                let instr = document.getElementById('map_instruction');
-                                if (instr) instr.textContent = `Location set to Pool ${poolId}`;
+                                setVisitLocation(lat, lng, `Location set to Pool ${poolId}`);
                             });
+
+                            // GPS: show user's position relative to the pool
+                            initGps();
                         }
                     } catch(err) {}
                 } else {
@@ -824,70 +1212,113 @@
                     loadAllPoolsOnMap(map);
 
                     // Offer GPS location if available
-                    if (navigator.geolocation) {
-                        let instr = document.getElementById('map_instruction');
-                        if (instr) instr.innerHTML = 'Getting your location... or tap the map to set pool location';
-                        navigator.geolocation.getCurrentPosition(
-                            function(pos) {
-                                let lat = pos.coords.latitude, lng = pos.coords.longitude;
-                                let acc = pos.coords.accuracy;
-                                // Show GPS offer banner
-                                let instr = document.getElementById('map_instruction');
-                                if (instr) {
-                                    instr.innerHTML = `<span>GPS location found (±${Math.round(acc)}m)</span>
-                                        <button id="btn_use_gps" style="margin-left:10px; padding:2px 12px; border:1px solid var(--primary-color, #2c5530);
-                                            border-radius:6px; background:var(--primary-color, #2c5530); color:white; cursor:pointer; font-size:13px;">
-                                            Use My Location</button>
-                                        <span style="margin-left:8px; font-size:12px; color:#666;">or tap map</span>`;
-                                    instr.style.display = 'block';
-                                    document.getElementById('btn_use_gps').addEventListener('click', function() {
-                                        document.getElementById('visitLatitude').value = lat.toFixed(6);
-                                        document.getElementById('visitLongitude').value = lng.toFixed(6);
-                                        map.setView([lat, lng], 16);
-                                        if (marker) map.removeLayer(marker);
-                                        marker = addPoolMarker(map, [lat, lng], {
-                                            status: 'Potential', surveyLevel: 'potential', size: 22,
-                                            tooltip: 'Your location — new pool'
-                                        });
-                                        instr.innerHTML = 'Location set from GPS. Tap map to adjust.';
-                                    });
-                                }
-                                // Also add a subtle GPS circle on the map so they can see where they are
-                                L.circle([lat, lng], { radius: acc, color: '#4285f4', fillColor: '#4285f4',
-                                    fillOpacity: 0.1, weight: 1, dashArray: '4,4' }).addTo(map);
-                                L.circleMarker([lat, lng], { radius: 6, color: '#4285f4', fillColor: '#4285f4',
-                                    fillOpacity: 0.8, weight: 2 }).addTo(map).bindTooltip('You are here', { direction: 'top', offset: [0, -8] });
-                                map.setView([lat, lng], 14);
-                            },
-                            function(err) {
-                                // GPS not available — just show the map
-                                let instr = document.getElementById('map_instruction');
-                                if (instr) instr.textContent = 'Tap the map to set the new pool location';
-                            },
-                            { enableHighAccuracy: true, timeout: 10000 }
-                        );
-                    }
+                    initGps(true);  // centerOnFix=true for new pool flow
                 }
             }
 
-            // Save
-            document.getElementById('btn_save').addEventListener('click', async () => {
+            // Initialize local visit state
+            if (localUUID) {
+                // Resume a local draft
+                currentVisitState = await loadVisit(localUUID);
+                if (currentVisitState && currentVisitState.formData) {
+                    populateVisitForm(currentVisitState.formData);
+                }
+            }
+            if (!currentVisitState && !isEdit) {
+                currentVisitState = createVisitState(poolId, user);
+            }
+
+            // Auto-save every 30 seconds (drafts only)
+            autoSaveTimer = setInterval(async () => {
+                if (currentVisitState && currentVisitState.status === 'draft') {
+                    await saveLocal('draft');
+                }
+            }, 30000);
+
+            // Save Draft — local only
+            document.getElementById('btn_save_draft').addEventListener('click', async () => {
+                await saveLocal('draft');
+                showMsg('Draft saved locally', 'success');
+            });
+
+            // Save & Upload — local + server
+            document.getElementById('btn_save_upload').addEventListener('click', async () => {
                 let body = getVisitFormData();
                 if (!body.visitPoolId) { showMsg('Pool ID is required', 'error'); return; }
                 if (!body.visitDate) { showMsg('Date is required', 'error'); return; }
-                showMsg('Saving...', 'info');
-                try {
-                    if (isEdit) { await updateVisit(visitId, body); }
-                    else { await createVisit(body); }
-                    showMsg('Saved!', 'success');
-                    setTimeout(() => {
-                        if (poolId || body.visitPoolId)
-                            window.location.href = `/explore/pool_view.html?poolId=${poolId || body.visitPoolId}`;
-                        else
-                            window.location.href = '/explore/';
-                    }, 1000);
-                } catch(err) { showMsg('Save failed: ' + (err.message || JSON.stringify(err)), 'error'); }
+
+                // Save locally first as 'complete'
+                await saveLocal('complete');
+
+                if (navigator.onLine) {
+                    showMsg('Uploading...', 'info');
+                    try {
+                        // Direct API upload (immediate, same as before)
+                        if (isEdit) { await updateVisit(visitId, body); }
+                        else { await createVisit(body); }
+
+                        // Mark as uploaded in local store
+                        if (currentVisitState) {
+                            currentVisitState.status = 'uploaded';
+                            currentVisitState.uploaded_at = new Date().toISOString();
+                            await saveVisit(currentVisitState);
+                        }
+
+                        showMsg('Saved & uploaded!', 'success');
+                        setTimeout(() => {
+                            if (poolId || body.visitPoolId)
+                                window.location.href = `/explore/pool_view.html?poolId=${poolId || body.visitPoolId}`;
+                            else
+                                window.location.href = '/explore/';
+                        }, 1000);
+                    } catch(err) {
+                        showMsg('Saved locally — upload failed: ' + (err.message || 'will retry later'), 'error');
+                    }
+                } else {
+                    showMsg('Offline — saved locally for later upload', 'info');
+                }
             });
+
+            // Listen for sync status events
+            window.addEventListener('visitSyncStatus', (e) => {
+                let { type, message } = e.detail;
+                showMsg(typeof message === 'string' ? message : 'Sync update', type === 'uploaded' ? 'success' : type);
+            });
+
+            // Helper: save current form state to IndexedDB
+            async function saveLocal(status) {
+                if (!currentVisitState) return;
+                try {
+                    let body = getVisitFormData();
+                    currentVisitState.formData = body;
+                    currentVisitState.status = status;
+                    currentVisitState.visitPoolId = body.visitPoolId || currentVisitState.visitPoolId;
+                    currentVisitState.visitDate = body.visitDate || currentVisitState.visitDate;
+                    currentVisitState.visitObserverUserName = body.visitObserverUserName || currentVisitState.visitObserverUserName;
+                    currentVisitState.visitLatitude = body.visitLatitude || '';
+                    currentVisitState.visitLongitude = body.visitLongitude || '';
+                    // Convert photo Files to ArrayBuffers for IndexedDB (Files are not cloneable)
+                    let photoData = {};
+                    for (let species of Object.keys(speciesPhotos)) {
+                        let files = speciesPhotos[species];
+                        if (!files || !files.length) continue;
+                        photoData[species] = [];
+                        for (let file of files) {
+                            if (file instanceof File || file instanceof Blob) {
+                                let buf = await file.arrayBuffer();
+                                photoData[species].push({ name: file.name, type: file.type, size: file.size, data: buf });
+                            } else if (file && file.data) {
+                                // Already converted (from a previous save)
+                                photoData[species].push(file);
+                            }
+                        }
+                    }
+                    currentVisitState.photos = photoData;
+                    await saveVisit(currentVisitState);
+                } catch(err) {
+                    console.warn('saveLocal failed:', err.message || err);
+                }
+            }
         });
 
         function populateVisitForm(v) {
@@ -895,19 +1326,21 @@
             // Text/date inputs
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
              'visitLocationComments','visitMaxWidth','visitMaxLength',
-             'visitPoolTrees','visitPoolShrubs','visitPoolEmergents','visitPoolFloatingVeg',
              'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes','visitWoodFrogLarvae',
              'visitSpsAdults','visitSpsEgg','visitSpsNotes','visitSpsLarvae',
              'visitJesaAdults','visitJesaEgg','visitJesaNotes','visitJesaLarvae',
              'visitBssaAdults','visitBssaEgg','visitBssaNotes','visitBssaLarvae',
-             'visitFairyShrimpAdults','visitFairyShrimpNotes',
+             'visitFairyShrimp','visitFairyShrimpNotes',
+             'visitFingerNailClams','visitFingerNailClamsNotes',
+             'visitSpeciesOtherName','visitSpeciesOtherCount','visitSpeciesOtherNotes',
              'visitSpeciesComments','visitHabitatComment','visitPoolCharComments'
             ].forEach(f => {
                 let el = document.getElementById(f);
                 if (el && v[f] != null && v[f] !== 'None') el.value = v[f];
             });
             // Checkboxes
-            ['visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
+            ['visitLandownerPermission',
+             'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
              'visitHabitatTrails',
              'visitFish'
@@ -917,6 +1350,14 @@
             });
             // "Other" is a text column — check if non-empty
             if (v.visitHabitatOther) document.getElementById('visitHabitatOther').checked = true;
+            // Landowner info (JSONB)
+            if (v.visitLandowner && typeof v.visitLandowner === 'object') {
+                let lo = v.visitLandowner;
+                if (lo.visitLandownerName) document.getElementById('visitLandownerName').value = lo.visitLandownerName;
+                if (lo.visitLandownerAddress) document.getElementById('visitLandownerAddress').value = lo.visitLandownerAddress;
+                if (lo.visitLandownerPhone) document.getElementById('visitLandownerPhone').value = lo.visitLandownerPhone;
+                if (lo.visitLandownerEmail) document.getElementById('visitLandownerEmail').value = lo.visitLandownerEmail;
+            }
             // Pool type multi-select checkboxes
             if (v.visitPoolType) {
                 let types = v.visitPoolType;
@@ -930,13 +1371,39 @@
             // Radio groups
             ['visitLocatePool',
              'visitInletType','visitOutletType','visitMaxDepth',
-             'visitWaterLevelObs','visitHydroPeriod','visitSubstrate',
-             'visitForestUpland','visitForestCondition'
+             'visitWaterLevelObs','visitHydroPeriod',
+             'visitForestUpland','visitForestCondition',
+             'visitSubmergedVeg','visitPoolFloatingVeg','visitPoolEmergents','visitPoolShrubs','visitPoolTrees'
             ].forEach(f => {
                 if (v[f] && v[f] !== 'None') {
                     let radio = document.querySelector(`input[name="${f}"][value="${v[f]}"]`);
                     if (radio) radio.checked = true;
                 }
+            });
+            // Substrate multi-select
+            if (v.visitSubstrate) {
+                let subs = v.visitSubstrate;
+                try { subs = JSON.parse(subs); } catch(e) { subs = [subs]; }
+                if (!Array.isArray(subs)) subs = [subs];
+                subs.forEach(s => {
+                    let cb = document.querySelector(`.visitSubstrate[value="${s}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+            // Restore presence toggles (larvae/tadpoles)
+            document.querySelectorAll('.presence-toggle').forEach(toggle => {
+                let input = document.getElementById(toggle.dataset.target);
+                if (input && parseInt(input.value) > 0) toggle.classList.add('active');
+            });
+            // Restore estimate/count toggles
+            document.querySelectorAll('.est-count-toggle').forEach(toggle => {
+                let input = document.getElementById(toggle.dataset.target);
+                if (input && input.value === 'Count') toggle.classList.add('exact');
+            });
+            // Restore EggHow hidden fields
+            ['visitWoodFrogEggHow','visitSpsEggHow','visitJesaEggHow','visitBssaEggHow'].forEach(f => {
+                let el = document.getElementById(f);
+                if (el && v[f]) el.value = v[f];
             });
             // Map marker
             if (v.visitLatitude && v.visitLongitude) {
@@ -954,15 +1421,18 @@
             let body = {};
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
              'visitLocationComments','visitMaxWidth','visitMaxLength',
-             'visitPoolTrees','visitPoolShrubs','visitPoolEmergents','visitPoolFloatingVeg',
              'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogNotes','visitWoodFrogLarvae',
              'visitSpsAdults','visitSpsEgg','visitSpsNotes','visitSpsLarvae',
              'visitJesaAdults','visitJesaEgg','visitJesaNotes','visitJesaLarvae',
              'visitBssaAdults','visitBssaEgg','visitBssaNotes','visitBssaLarvae',
-             'visitFairyShrimpAdults','visitFairyShrimpNotes',
+             'visitFairyShrimp','visitFairyShrimpNotes',
+             'visitFingerNailClams','visitFingerNailClamsNotes',
+             'visitSpeciesOtherName','visitSpeciesOtherCount','visitSpeciesOtherNotes',
+             'visitWoodFrogEggHow','visitSpsEggHow','visitJesaEggHow','visitBssaEggHow',
              'visitSpeciesComments','visitHabitatComment','visitPoolCharComments'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.value; });
-            ['visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
+            ['visitLandownerPermission',
+             'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
              'visitHabitatTrails',
              'visitFish'
@@ -970,14 +1440,25 @@
             // "Other" is text in DB — store "Yes" if checked, null if not
             let otherCb = document.getElementById('visitHabitatOther');
             if (otherCb) body.visitHabitatOther = otherCb.checked ? 'Yes' : null;
+            // Landowner info as JSONB
+            body.visitLandowner = {
+                visitLandownerName: document.getElementById('visitLandownerName').value || '',
+                visitLandownerAddress: document.getElementById('visitLandownerAddress').value || '',
+                visitLandownerPhone: document.getElementById('visitLandownerPhone').value || '',
+                visitLandownerEmail: document.getElementById('visitLandownerEmail').value || ''
+            };
             // Pool type as JSON array
             let poolTypes = [...document.querySelectorAll('.visitPoolType:checked')].map(cb => cb.value);
             if (poolTypes.length) body.visitPoolType = JSON.stringify(poolTypes);
             ['visitLocatePool',
              'visitInletType','visitOutletType','visitMaxDepth',
-             'visitWaterLevelObs','visitHydroPeriod','visitSubstrate',
-             'visitForestUpland','visitForestCondition'
+             'visitWaterLevelObs','visitHydroPeriod',
+             'visitForestUpland','visitForestCondition',
+             'visitSubmergedVeg','visitPoolFloatingVeg','visitPoolEmergents','visitPoolShrubs','visitPoolTrees'
             ].forEach(f => { let r = document.querySelector(`input[name="${f}"]:checked`); if (r) body[f] = r.value; });
+            // Substrate multi-select
+            let substrates = [...document.querySelectorAll('.visitSubstrate:checked')].map(cb => cb.value);
+            if (substrates.length) body.visitSubstrate = JSON.stringify(substrates);
             return body;
         }
 
@@ -1186,6 +1667,30 @@
                     </div>
                     <p class="attribution">Photos: Steve Faccio &mdash; Vermont Center for Ecostudies / Vernal Pool Association</p>`
             },
+            'fingernailclams': {
+                title: 'Fingernail Clams <em>Sphaeriidae</em>',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">Identification (2&ndash;15 mm)</div>
+                        <div class="photo-grid">
+                            <figure><img src="/images/species/fingernail-clam-1.jpg" alt="Fingernail clam close-up"><figcaption><em>Sphaerium</em> sp. &mdash; note concentric growth lines</figcaption></figure>
+                            <figure><img src="/images/species/fingernail-clam-2.jpg" alt="Freshwater fingernail clam"><figcaption>Fingernail clam on fingertip for scale</figcaption></figure>
+                        </div>
+                        <p>Tiny freshwater bivalves (two-shelled clams) usually &lt;&frac12; inch long. Pale tan, yellowish, or translucent shells with fine concentric growth lines. Found buried in mud or leaf litter on the pool bottom, or attached to submerged sticks and leaves.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">How to Find Them</div>
+                        <p>Scoop up a handful of bottom sediment or leaf litter and look carefully. They are small and easily overlooked. You may also find them clinging to sticks or the undersides of submerged leaves. A small sieve or kitchen strainer helps.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Why They Matter</div>
+                        <p>Fingernail clams are <strong>filter feeders</strong> that help clarify pool water. Their presence indicates a pool with enough water permanence to support their life cycle. They are more common in semi-permanent or permanent pools than in highly ephemeral ones.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Similar Species</div>
+                        <p>Don't confuse with snail shells (coiled, single shell). Fingernail clams have two symmetrical hinged shells, like a tiny version of a mussel or ocean clam.</p>
+                    </div>`
+            },
             'max-depth': {
                 title: 'Maximum Water Depth Now',
                 html: `
@@ -1267,7 +1772,7 @@
                 html: `
                     <div class="help-section">
                         <div class="help-section-title">What Is Substrate?</div>
-                        <p>The substrate is the material lining the bottom of the pool basin. It affects water chemistry, species habitat, and how the pool holds water. Look at the bottom of the pool &mdash; what is most of it made of?</p>
+                        <p>The substrate is the material lining the bottom of the pool basin. It affects water chemistry, species habitat, and how the pool holds water. <strong>Check all types that are present</strong> &mdash; most pools have a mix of substrates.</p>
                     </div>
                     <div class="help-section">
                         <div class="help-section-title">Leaf Litter</div>
@@ -1283,11 +1788,11 @@
                     </div>
                     <div class="help-section">
                         <div class="help-section-title">Mud</div>
-                        <p>Fine-grained sediment (clay, silt) forms a soft, often deep bottom layer. Your feet sink in. Common in low-lying depressions with poor drainage. Water may be turbid (cloudy). Sometimes overlain with a thin layer of leaf litter &mdash; choose <strong>Mud</strong> if the dominant material below the leaves is soft sediment.</p>
+                        <p>Fine-grained sediment (clay, silt) forms a soft, often deep bottom layer. Your feet sink in. Common in low-lying depressions with poor drainage. Water may be turbid (cloudy). Sometimes overlain with a thin layer of leaf litter.</p>
                     </div>
                     <div class="help-section">
-                        <div class="help-section-title">Choosing the Right One</div>
-                        <p>Pick the <strong>dominant</strong> material &mdash; the one covering most of the pool bottom. Many pools have a mix; that's normal. If it's close between two, pick whichever covers more area.</p>
+                        <div class="help-section-title">Tips</div>
+                        <p>Many pools have multiple substrates &mdash; for example, leaf litter over mud, or bedrock with pockets of sand. Check every type you can see or feel. A pool with leaves on top of mud should have both <strong>Leaf litter</strong> and <strong>Mud</strong> checked.</p>
                     </div>`
             },
             'veg-intro': {
