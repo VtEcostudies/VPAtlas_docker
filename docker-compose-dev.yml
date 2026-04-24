@@ -23,12 +23,12 @@ services:
 
   ui_vp:
     environment:
-      # API connection — proxied through nginx
+      # API connection — proxied through nginx (no port in external URL)
       API_PROT: https
       API_HOST: api.dev.vpatlas.org
       API_PORT: 443
 
-      # UI host
+      # UI host (external URL — nginx handles SSL on 443)
       UI_PROT: https
       UI_HOST: dev.vpatlas.org
-      UI_PORT: 443
+      # UI_PORT stays 8090 from base compose (internal listen port)
