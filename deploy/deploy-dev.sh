@@ -98,11 +98,27 @@ ui)
     echo "UI rebuilt: https://dev.vpatlas.org (v${VERSION})"
     ;;
 
-# ─── DB restore: restore database from backup ───
+# ─── DB dump + restore: fresh backup from live DB, restore into dev container ───
 db-restore)
-    echo "=== Restoring DB on remote ==="
+    echo "=== Dumping live DB and restoring into dev container ==="
+
+    # Dump from the live production DB on the same server
+    # The production DB runs on localhost:5432 (outside Docker)
+    echo "Dumping production database..."
+    ssh_cmd "mkdir -p $REMOTE_DIR/db_backup && \
+        pg_dump -h localhost -p 5432 -U postgres -d vpatlas \
+            -Fc --no-owner --no-privileges \
+            -f $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup && \
+        ls -lh $REMOTE_DIR/db_backup/vpatlas_\$(date +%Y%m%d).backup"
+
+    echo "Restoring into dev container..."
     ssh_cmd "cd $REMOTE_DIR && bash db_restore.sh"
-    echo "DB restored."
+
+    echo ""
+    echo "Restarting stack (migrations + api)..."
+    ssh_cmd "cd $REMOTE_DIR && $COMPOSE restart api_vp"
+
+    echo "DB restore complete."
     ;;
 
 # ─── Status: check what's running ───
