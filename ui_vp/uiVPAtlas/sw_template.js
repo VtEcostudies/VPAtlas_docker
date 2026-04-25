@@ -1,4 +1,4 @@
-// sw.js - Service Worker for VPAtlas explore app
+// sw.js - Service Worker for VPAtlas (unified app)
 // Generated from sw_template.js by sw-build.js — do not edit directly
 const APP_VERSION = '__APP_VERSION__';
 const BUILD_TIMESTAMP = '__BUILD_TIMESTAMP__';
@@ -40,7 +40,7 @@ let configLoadError = null;
 try {
   self.importScripts('/js/config.js');
   swConfig = appConfig;
-  self.importScripts(`${SW_BASE}/urlsToCache.js`);
+  self.importScripts('/urlsToCache.js');
   sendMessage({ type: 'info', text: `${ME} v${APP_VERSION}: config loaded (${SW_BASE})` });
 } catch (error) {
   configLoadError = error;

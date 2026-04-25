@@ -1,12 +1,26 @@
-// /survey/urlsToCache.js - URLs to precache for VPAtlas survey app
+// urlsToCache.js - URLs to precache for the unified VPAtlas app
+// Merged from /explore/urlsToCache.js and /survey/urlsToCache.js
 appConfig.urlsToCache = [
-'/survey/',
-'/survey/manifest.json',
+
+// === Root ===
+'/manifest.json',
+
+// === Explore pages ===
+'/explore/',
+'/explore/index.html',
+'/explore/pool_view.html',
+'/explore/pool_create.html',
+'/explore/visit_view.html',
+'/explore/survey_view.html',
+'/explore/login.html',
+'/explore/register.html',
+
+// === Survey pages ===
 '/survey/survey_start.html',
 '/survey/survey_create.html',
 '/survey/visit_create.html',
 
-// Shared JS
+// === Shared JS ===
 '/js/app.js',
 '/js/app_messaging.js',
 '/js/console_manager.js',
@@ -21,20 +35,32 @@ appConfig.urlsToCache = [
 '/js/storage.js',
 '/js/map_common.js',
 
-// Survey JS
+// === Explore JS modules ===
+'/explore/js/utils.js',
+'/explore/js/modal.js',
+'/explore/js/map.js',
+'/explore/js/pool_list.js',
+'/explore/js/pool_summary.js',
+'/explore/js/filter_bar.js',
+'/explore/js/url_state.js',
+
+// === Survey JS modules ===
 '/survey/js/gps_monitor.js',
 
-// Shared CSS
+// === Shared CSS ===
 '/css/bootstrap_5.2.3.min.css',
 '/css/font-awesome_6.6.0.all.min.css',
 '/css/leaflet_1.9.4.css',
 '/css/map.css',
 
-// Explore CSS (used by survey forms)
+// === Explore CSS ===
 '/explore/css/common.css',
+'/explore/css/auth.css',
+'/explore/css/modal.css',
+'/explore/css/pool_list.css',
 '/explore/css/filter_bar.css',
 
-// Images
+// === Images ===
 '/css/images/vce_favicon.png',
 '/css/images/marker-icon.png',
 '/css/images/marker-icon-2x.png',
@@ -42,7 +68,7 @@ appConfig.urlsToCache = [
 '/css/images/layers.png',
 '/css/images/layers-2x.png',
 
-// Webfonts
+// === Webfonts ===
 '/webfonts/fa-solid-900.woff2',
 '/webfonts/fa-regular-400.woff2',
 ];
