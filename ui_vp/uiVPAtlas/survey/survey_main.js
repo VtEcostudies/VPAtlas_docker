@@ -12,7 +12,7 @@ let gpsWatchId = null;
 let elapsedInterval = null;
 let simulateInterval = null;
 var vtCtr = [43.858297, -72.446594]; // Vermont center for default map view
-let exit_url = '/survey/survey_start.html?tab_id=previous';
+let exit_url = '/survey/find_pool.html?tab_id=previous';
 
 // ---- Screen Wake Lock ----
 async function requestWakeLock() {

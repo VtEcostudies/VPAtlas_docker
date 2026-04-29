@@ -5,8 +5,11 @@ const convert = require('json-2-csv');
 const service = require('./vpVisit.service');
 const uploads = require('./vpVisit.upload.service');
 const s123svc = require('./vpVisit.s123.service');
+const visitNewSvc = require('./vpVisitNew.service');
+const photoSvc = require('./vpVisitPhoto.service');
 const multer = require('multer');
 const upFile = multer({ dest: 'vpvisit/uploads/' });
+const upPhoto = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const fs = require('fs');
 
 // routes NOTE: routes with names for same method (ie. GET) must be above routes
@@ -24,12 +27,15 @@ router.get('/s123', getS123);
 router.get('/s123/attachments', getS123attachments);
 router.get('/s123/services', getS123Services);
 router.get('/s123/uploads', getS123Uploads);
+router.get('/:id/photos', getPhotos);
+router.post('/:id/photos', upPhoto.array('photos', 20), uploadPhotos);
 router.get('/:id', getById);
 router.get('/pool/:poolId', getByPoolId);
 //router.get('/upload/history', getUploadHistory);
 router.post('/s123', postS123);
 router.post('/s123/attachments', postS123Attachments);
 router.post('/s123/all', postS123All);
+router.post('/new', createPoolAndVisit);
 router.post('/', create);
 router.post('/upload', upFile.single('visitUploadFile'), upload);
 router.put('/:id', update);
@@ -228,6 +234,17 @@ function getShapeFile(req, res, next) {
         })
 }
 
+function createPoolAndVisit(req, res, next) {
+    console.log('createPoolAndVisit req.body:');
+    console.dir(req.body);
+    visitNewSvc.createPoolAndVisit(req.body, req.user)
+        .then((result) => res.json(result))
+        .catch(err => {
+            console.log('vpVisit.routes.createPoolAndVisit | error:', err);
+            next(err);
+        });
+}
+
 function create(req, res, next) {
     console.log(`create req.body:`);
     console.dir(req.body);
@@ -279,4 +296,30 @@ function getUploadHistory(req, res, next) {
     uploads.history(req.query)
         .then(items => res.json(items))
         .catch(err => next(err));
+}
+
+// --- Photo routes ---
+
+function getPhotos(req, res, next) {
+    photoSvc.getByVisitId(req.params.id)
+        .then(result => res.json(result.rows || []))
+        .catch(err => next(err));
+}
+
+function uploadPhotos(req, res, next) {
+    let visitId = req.params.id;
+    let photoType = req.body.photoType || 'pool';
+    let files = req.files || [];
+    console.log(`uploadPhotos | visitId=${visitId} type=${photoType} files=${files.length}`);
+
+    if (!files.length) {
+        return res.status(400).json({ message: 'No files provided' });
+    }
+
+    Promise.all(files.map(file => photoSvc.upload(visitId, photoType, file)))
+        .then(results => res.json(results))
+        .catch(err => {
+            console.log('uploadPhotos error:', err);
+            next(err);
+        });
 }

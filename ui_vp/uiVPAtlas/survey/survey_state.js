@@ -1,7 +1,7 @@
 // survey_state.js - Centralized state management for VPAtlas Survey
 // Manages a single survey: GPS tracking, observations, and survey metadata.
 // Modeled on LoonWeb's SurveyState class with async constructor pattern.
-// Lists of surveys are managed in survey_start.html.
+// Lists of surveys are managed in find_pool.html.
 
 class SurveyState {
 

@@ -30,15 +30,20 @@ export function hideWait(parentId=false) {
 }
 
 // Date/time formatting
+// Date-only strings ("2026-04-29") are parsed as UTC midnight by JS Date,
+// which shifts to the previous day in US timezones. Append T00:00 (no Z)
+// so JS treats them as local time instead.
 export function formatDate(dateStr) {
     if (!dateStr) return '';
-    let d = new Date(dateStr);
+    let d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+        ? new Date(dateStr + 'T00:00') : new Date(dateStr);
     return d.toLocaleDateString();
 }
 
 export function formatDateTime(dateStr) {
     if (!dateStr) return '';
-    let d = new Date(dateStr);
+    let d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+        ? new Date(dateStr + 'T00:00') : new Date(dateStr);
     return d.toLocaleString();
 }
 

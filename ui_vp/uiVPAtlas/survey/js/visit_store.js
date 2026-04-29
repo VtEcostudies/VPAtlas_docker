@@ -1,8 +1,8 @@
 /*
     visit_store.js — IndexedDB storage for offline-first Atlas Visits
 
-    Pattern from LoonWeb survey_utils.js. Visits are saved locally first,
-    queued for upload, and synced when online.
+    Uses idb-keyval (same as storage.js) to avoid raw IndexedDB version
+    upgrade issues that block in Firefox when multiple connections exist.
 
     Storage keys:
       visit_<uuid>   → individual visit data object
@@ -11,91 +11,9 @@
     Status flow: draft → complete → uploaded
 */
 
-const DB_NAME = 'VPAtlas';
-const STORE_NAME = 'store';
+import { get, set, del } from '/js/idb-keyval_6.esm.js';
 
-// =============================================================================
-// IndexedDB primitives (from LoonWeb survey_utils.js)
-// =============================================================================
-
-async function saveToIndexedDB(key, value) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.close();
-                const upgradeRequest = indexedDB.open(DB_NAME, db.version + 1);
-                upgradeRequest.onerror = () => reject(upgradeRequest.error);
-                upgradeRequest.onupgradeneeded = (e) => {
-                    if (!e.target.result.objectStoreNames.contains(STORE_NAME))
-                        e.target.result.createObjectStore(STORE_NAME, { keyPath: 'key' });
-                };
-                upgradeRequest.onsuccess = (e) => {
-                    const udb = e.target.result;
-                    try {
-                        const tx = udb.transaction([STORE_NAME], 'readwrite');
-                        tx.objectStore(STORE_NAME).put({ key, value });
-                        tx.oncomplete = () => { udb.close(); resolve(); };
-                        tx.onerror = () => reject(tx.error);
-                    } catch (err) { udb.close(); reject(err); }
-                };
-            } else {
-                try {
-                    const tx = db.transaction([STORE_NAME], 'readwrite');
-                    tx.objectStore(STORE_NAME).put({ key, value });
-                    tx.oncomplete = () => { db.close(); resolve(); };
-                    tx.onerror = () => reject(tx.error);
-                } catch (err) { db.close(); reject(err); }
-            }
-        };
-        request.onupgradeneeded = (event) => {
-            if (!event.target.result.objectStoreNames.contains(STORE_NAME))
-                event.target.result.createObjectStore(STORE_NAME, { keyPath: 'key' });
-        };
-    });
-}
-
-async function getFromIndexedDB(key) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = (event) => {
-            const db = event.target.result;
-            try {
-                const tx = db.transaction([STORE_NAME], 'readonly');
-                const get = tx.objectStore(STORE_NAME).get(key);
-                get.onsuccess = () => { db.close(); resolve(get.result?.value ?? null); };
-                get.onerror = () => { db.close(); reject(get.error); };
-            } catch (err) { db.close(); resolve(null); }
-        };
-        request.onupgradeneeded = (event) => {
-            if (!event.target.result.objectStoreNames.contains(STORE_NAME))
-                event.target.result.createObjectStore(STORE_NAME, { keyPath: 'key' });
-        };
-    });
-}
-
-async function deleteFromIndexedDB(key) {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = (event) => {
-            const db = event.target.result;
-            try {
-                const tx = db.transaction([STORE_NAME], 'readwrite');
-                tx.objectStore(STORE_NAME).delete(key);
-                tx.oncomplete = () => { db.close(); resolve(); };
-                tx.onerror = () => reject(tx.error);
-            } catch (err) { db.close(); reject(err); }
-        };
-        request.onupgradeneeded = (event) => {
-            if (!event.target.result.objectStoreNames.contains(STORE_NAME))
-                event.target.result.createObjectStore(STORE_NAME, { keyPath: 'key' });
-        };
-    });
-}
+const ME = 'visit_store.js';
 
 // =============================================================================
 // Visit CRUD — local-first with collection index
@@ -113,37 +31,49 @@ function generateUUID() {
 export async function saveVisit(visit) {
     if (!visit.visit_uuid) visit.visit_uuid = generateUUID();
     visit.last_modified = new Date().toISOString();
+    console.log(`${ME} saveVisit: uuid=${visit.visit_uuid} status=${visit.status} pool=${visit.visitPoolId}`);
 
-    // Save individual visit
-    await saveToIndexedDB(`visit_${visit.visit_uuid}`, visit);
+    try {
+        // Save individual visit
+        await set(`visit_${visit.visit_uuid}`, visit);
+        console.log(`${ME} saveVisit: individual key saved`);
 
-    // Update collection index
-    let visits = await getFromIndexedDB('user_visits') || {};
-    visits[visit.visit_uuid] = visit;
-    await saveToIndexedDB('user_visits', visits);
+        // Update collection index
+        let visits = await get('user_visits') || {};
+        visits[visit.visit_uuid] = visit;
+        await set('user_visits', visits);
+        console.log(`${ME} saveVisit: collection updated (${Object.keys(visits).length} visits)`);
+    } catch (err) {
+        console.error(`${ME} saveVisit FAILED:`, err);
+        throw err;
+    }
 
     return visit;
 }
 
 // Load a single visit by UUID
 export async function loadVisit(uuid) {
-    return await getFromIndexedDB(`visit_${uuid}`);
+    let visit = await get(`visit_${uuid}`) ?? null;
+    console.log(`${ME} loadVisit: uuid=${uuid} found=${!!visit}`);
+    return visit;
 }
 
 // Load all visits from the collection index
 export async function loadAllVisits() {
-    let visits = await getFromIndexedDB('user_visits') || {};
-    return Object.values(visits).sort((a, b) =>
+    let visits = await get('user_visits') || {};
+    let list = Object.values(visits).sort((a, b) =>
         new Date(b.last_modified) - new Date(a.last_modified)
     );
+    console.log(`${ME} loadAllVisits: ${list.length} visits`);
+    return list;
 }
 
 // Delete a visit from both individual key and collection
 export async function deleteVisit(uuid) {
-    await deleteFromIndexedDB(`visit_${uuid}`);
-    let visits = await getFromIndexedDB('user_visits') || {};
+    await del(`visit_${uuid}`);
+    let visits = await get('user_visits') || {};
     delete visits[uuid];
-    await saveToIndexedDB('user_visits', visits);
+    await set('user_visits', visits);
 }
 
 // Get visits by status
@@ -193,4 +123,4 @@ export function createVisitState(poolId, user) {
     };
 }
 
-export { saveToIndexedDB, getFromIndexedDB, deleteFromIndexedDB, generateUUID };
+export { generateUUID };

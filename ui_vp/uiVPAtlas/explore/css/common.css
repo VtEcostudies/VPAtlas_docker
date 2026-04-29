@@ -160,7 +160,7 @@ select {
     }
     .tri-pane {
         display: none !important;
-        height: calc(100dvh - 110px - 52px);
+        height: calc(100dvh - 140px - 52px);
         min-height: 0;
         border: none !important;
         border-radius: 0 !important;
@@ -186,7 +186,7 @@ select {
 
     /* Map needs explicit height for Leaflet */
     .content-row[data-active-tab="map"] .tri-pane-center {
-        height: calc(100dvh - 110px - 52px);
+        height: calc(100dvh - 140px - 52px);
         padding: 0;
     }
 
@@ -318,59 +318,79 @@ header {
     .detail-actions > .action-button { display: none !important; }
 }
 
-/* Filter overflow toggle for explore header */
-.filter-overflow-btn {
-    display: none;
-    background: none;
-    border: 1px solid var(--primary-color);
-    border-radius: 6px;
-    color: var(--primary-color);
-    font-size: 16px;
-    padding: 4px 10px;
-    cursor: pointer;
-    line-height: 1;
+/* ==========================================================================
+   Explore page 3-row header
+   ========================================================================== */
+
+/* Row 1: Logo ... (spacer) ... hamburger | profile */
+.explore-row1 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
 }
-.filter-overflow-btn.active {
-    background: var(--primary-color);
-    color: white;
+.explore-row1-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
+/* Row 2: Filters — mobile only (populated by JS cloning filter_container contents) */
+.explore-row2 {
+    display: none;
+}
+
+/* Row 3: Chips (status + level + filter tokens) */
+.explore-row3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 8px;
+    min-height: 0;
+}
+
+/* Desktop: filters stay inline in row 1, row 2 hidden */
+@media (min-width: 1151px) {
+    .filter-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+        flex: 1;
+        min-width: 0;
+        padding: 4px;
+    }
+    .explore-row2 { display: none !important; }
+}
+
+/* Mobile: filters move to row 2 (always visible), hide from row 1 */
 @media (max-width: 1150px) {
-    .filter-overflow-btn { display: block; }
     .filter-container {
         display: none !important;
     }
-    .filter-container.show {
-        display: block !important;
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: white;
-        border-bottom: 1px solid #ddd;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        padding: 8px;
+    .explore-row2 {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+        padding: 2px 8px;
+        align-items: center;
+        border-bottom: 1px solid #eee;
     }
 }
+
+/* When filter tokens render into row 3, hide the one inside the filter bar */
+.explore-row3 ~ * .filter-tokens,
+#filter_tokens_row ~ .filter-tokens { display: none; }
+/* If filter_tokens_row exists, the filter-tokens inside filter-bar is redundant */
+body:has(#filter_tokens_row) #filter-tokens { display: none; }
 div.controls {
     color: var(--primary-color);
     background-color: white;
     align-items: center;
     flex-wrap: wrap;
-}
-@media (max-width: 768px) {
-    div.controls {
-        gap: 2px;
-        padding: 2px 4px;
-    }
-    .filter-container {
-        flex: 1 1 100% !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 2px !important;
-        gap: 2px !important;
-    }
 }
 .header-title {
     height: 100%;
@@ -410,12 +430,10 @@ hr {
     min-width: 0;
 }
 .filter-description {
-    font-size: 0.95em;
-    font-style: italic;
-    font-weight: bold;
-    text-decoration: underline;
-    padding: 2px 8px;
-    min-height: 1.2em;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    align-items: center;
 }
 
 /* Buttons */

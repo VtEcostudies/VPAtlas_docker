@@ -149,7 +149,9 @@ export async function fetchVisitById(id) { return fetchApiRoute(`pools/visit/${i
 export async function fetchVisitsByPool(poolId) { return fetchApiRoute(`pools/visit/pool/${poolId}`); }
 export async function fetchVisitPage(page, searchTerm) { return fetchApiRoute(`pools/visit/page/${page}`, searchTerm); }
 export async function createVisit(body) { return postApiRoute('pools/visit', body); }
+export async function createPoolAndVisit(body) { return postApiRoute('pools/visit/new', body); }
 export async function updateVisit(id, body) { return putApiRoute(`pools/visit/${id}`, body); }
+export async function fetchVisitPhotos(visitId) { return fetchApiRoute(`pools/visit/${visitId}/photos`); }
 
 // =============================================================================
 // COMBINED POOLS (mapped + visits)

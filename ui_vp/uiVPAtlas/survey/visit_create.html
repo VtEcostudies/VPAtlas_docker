@@ -568,7 +568,13 @@
             <!-- MAP TAB -->
             <div class="visit-tab visit-tab-map active" id="tab_map">
                 <div id="map" style="position:relative;"></div>
-                <button id="btn_use_gps" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;
+                <div id="btn_zoom_pool" title="Zoom to pool" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;
+                    background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
+                    width:40px; height:40px; align-items:center; justify-content:center;
+                    cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                    <i class="fa fa-crosshairs"></i>
+                </div>
+                <button id="btn_use_gps" style="display:none; position:absolute; top:10px; left:56px; z-index:1000;
                     padding:6px 12px; border:2px solid rgba(0,0,0,0.2); border-radius:6px;
                     background:white; color:#333; cursor:pointer; font-size:13px; font-weight:600;
                     box-shadow:0 1px 4px rgba(0,0,0,0.2);" title="Set visit location to GPS">
@@ -765,6 +771,27 @@
                     <div class="form-field">
                         <span class="help-label" onclick="showHelp('voice')">Pool Characteristics Comments</span> <button type="button" class="voice-btn" data-target="visitPoolCharComments" title="Voice input"><i class="fa fa-microphone"></i></button>
                         <textarea id="visitPoolCharComments" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Photos</div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <div>
+                            <label style="font-size:13px; font-weight:600;">Pool</label>
+                            <div class="species-photo-row">
+                                <button type="button" class="photo-capture-btn" data-species="pool"><i class="fa fa-camera"></i> Photo</button>
+                                <input type="file" class="species-photo-input" data-species="pool" accept="image/*" capture="environment" multiple style="display:none;">
+                                <div class="photo-thumbs" id="thumbs_pool"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size:13px; font-weight:600;">Vegetation</label>
+                            <div class="species-photo-row">
+                                <button type="button" class="photo-capture-btn" data-species="vegetation"><i class="fa fa-camera"></i> Photo</button>
+                                <input type="file" class="species-photo-input" data-species="vegetation" accept="image/*" capture="environment" multiple style="display:none;">
+                                <div class="photo-thumbs" id="thumbs_vegetation"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -998,6 +1025,7 @@
         const localUUID = params.get('local');  // resume a local draft
         const isEdit = !!visitId;
         let map, marker, poolMarker;
+        let poolLocation = null;        // { lat, lng } of mapped pool
         let currentVisitState = null;   // local IndexedDB state
         let autoSaveTimer = null;
         let gpsPosition = null;         // { lat, lng, accuracy }
@@ -1148,6 +1176,12 @@
                 );
             }
 
+            // Zoom to pool button
+            document.getElementById('btn_zoom_pool').addEventListener('click', function() {
+                if (!poolLocation) return;
+                map.setView([poolLocation.lat, poolLocation.lng], 17);
+            });
+
             // Persistent GPS button — always available once GPS position is acquired
             document.getElementById('btn_use_gps').addEventListener('click', function() {
                 if (!gpsPosition) return;
@@ -1177,11 +1211,11 @@
                     populateVisitForm(v);
                 } catch(err) { showMsg('Error: ' + err.message, 'error'); }
             } else {
-                let newTitle = poolId ? `New Visit for Pool ${poolId}` : 'New Pool Visit';
+                let newTitle = poolId ? `New Pool Visit to ${poolId}` : 'New Pool Visit to New Pool';
                 document.getElementById('page_title').textContent = newTitle;
                 document.title = `VPAtlas - ${newTitle}`;
                 if (poolId) document.getElementById('visitPoolId').value = poolId;
-                document.getElementById('visitDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('visitDate').value = new Date().toLocaleDateString('sv-SE');
                 if (user) document.getElementById('visitObserverUserName').value = user.handle || user.username || '';
 
                 if (poolId) {
@@ -1190,7 +1224,9 @@
                         let pool = data.rows ? data.rows[0] : data;
                         if (pool && pool.mappedLatitude) {
                             let lat = Number(pool.mappedLatitude), lng = Number(pool.mappedLongitude);
+                            poolLocation = { lat, lng };
                             map.setView([lat, lng], 16);
+                            document.getElementById('btn_zoom_pool').style.display = 'flex';
                             poolMarker = addPoolMarker(map, [lat, lng], {
                                 status: pool.mappedPoolStatus || 'Potential',
                                 surveyLevel: 'potential', size: 18,
@@ -1225,9 +1261,56 @@
                 if (currentVisitState && currentVisitState.formData) {
                     populateVisitForm(currentVisitState.formData);
                 }
+                // If draft has a poolId that wasn't in the URL, load that pool's data
+                if (currentVisitState && !poolId) {
+                    let draftPoolId = currentVisitState.visitPoolId || currentVisitState.formData?.visitPoolId;
+                    let draftTitle = draftPoolId ? `New Pool Visit to ${draftPoolId}` : 'New Pool Visit to New Pool';
+                    document.getElementById('page_title').textContent = draftTitle;
+                    document.title = `VPAtlas - ${draftTitle}`;
+
+                    if (draftPoolId) {
+                        try {
+                            let data = await fetchMappedPoolById(draftPoolId);
+                            let pool = data.rows ? data.rows[0] : data;
+                            if (pool && pool.mappedLatitude) {
+                                let lat = Number(pool.mappedLatitude), lng = Number(pool.mappedLongitude);
+                                poolLocation = { lat, lng };
+                                map.setView([lat, lng], 16);
+                                document.getElementById('btn_zoom_pool').style.display = 'flex';
+                                poolMarker = addPoolMarker(map, [lat, lng], {
+                                    status: pool.mappedPoolStatus || 'Potential',
+                                    surveyLevel: 'potential', size: 18,
+                                    tooltip: `Pool ${draftPoolId} — tap to use this location`
+                                });
+                                poolMarker.on('click', function(e) {
+                                    L.DomEvent.stopPropagation(e);
+                                    setVisitLocation(lat, lng, `Location set to Pool ${draftPoolId}`);
+                                });
+                                initGps();
+                            }
+                        } catch(err) {}
+                    }
+                }
             }
             if (!currentVisitState && !isEdit) {
                 currentVisitState = createVisitState(poolId, user);
+            }
+
+            // Restore photos from draft
+            if (currentVisitState && currentVisitState.photos) {
+                for (let [species, photos] of Object.entries(currentVisitState.photos)) {
+                    if (!photos || !photos.length) continue;
+                    if (!speciesPhotos[species]) speciesPhotos[species] = [];
+                    for (let p of photos) {
+                        if (p && p.data) {
+                            // Convert stored ArrayBuffer back to File
+                            let blob = new Blob([p.data], { type: p.type || 'image/jpeg' });
+                            let file = new File([blob], p.name || 'photo.jpg', { type: p.type || 'image/jpeg' });
+                            speciesPhotos[species].push(file);
+                        }
+                    }
+                    renderPhotoThumbs(species);
+                }
             }
 
             // Auto-save every 30 seconds (drafts only)

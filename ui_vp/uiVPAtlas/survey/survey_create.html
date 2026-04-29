@@ -699,7 +699,7 @@
                 document.getElementById('page_title').textContent = title;
                 document.title = `VPAtlas - ${title}`;
                 if (poolId) document.getElementById('surveyPoolId').value = poolId;
-                document.getElementById('combinedTimeDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('combinedTimeDate').value = new Date().toLocaleDateString('sv-SE');
                 let now = new Date();
                 document.getElementById('surveyTime').value =
                     now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
@@ -752,7 +752,7 @@
                 let val = s[dbKey] != null ? s[dbKey] : s[f];
                 if (el && val != null && val !== 'None') {
                     if (f === 'combinedTimeDate' && val) {
-                        el.value = new Date(val).toISOString().split('T')[0];
+                        el.value = new Date(val).toLocaleDateString('sv-SE');
                     } else {
                         el.value = val;
                     }

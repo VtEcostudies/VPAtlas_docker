@@ -231,8 +231,8 @@ for page in login.html register.html reset.html; do
     fi
 done
 
-# Pool pages
-for page in pool_view.html pool_create.html visit_create.html; do
+# Pool pages (explore)
+for page in pool_view.html pool_create.html visit_list.html; do
     http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$UI_URL/explore/$page" 2>/dev/null)
     if [ "$http_code" = "200" ]; then
         pass "GET /explore/$page returns 200"
@@ -241,8 +241,18 @@ for page in pool_view.html pool_create.html visit_create.html; do
     fi
 done
 
+# Survey pages
+for page in visit_create.html survey_create.html; do
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$UI_URL/survey/$page" 2>/dev/null)
+    if [ "$http_code" = "200" ]; then
+        pass "GET /survey/$page returns 200"
+    else
+        fail "GET /survey/$page returned $http_code"
+    fi
+done
+
 # List pages
-for page in review_list.html survey_list.html; do
+for page in survey_list.html; do
     http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$UI_URL/explore/$page" 2>/dev/null)
     if [ "$http_code" = "200" ]; then
         pass "GET /explore/$page returns 200"
@@ -252,17 +262,17 @@ for page in review_list.html survey_list.html; do
 done
 
 # Admin pages
-for page in profile.html users_admin.html; do
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$UI_URL/explore/$page" 2>/dev/null)
+for page in profile.html users_admin.html review_list.html; do
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$UI_URL/admin/$page" 2>/dev/null)
     if [ "$http_code" = "200" ]; then
-        pass "GET /explore/$page returns 200"
+        pass "GET /admin/$page returns 200"
     else
-        fail "GET /explore/$page returned $http_code"
+        fail "GET /admin/$page returned $http_code"
     fi
 done
 
 # Survey sub-app
-for page in survey_start.html survey_main.html; do
+for page in find_pool.html survey_main.html; do
     http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$UI_URL/survey/$page" 2>/dev/null)
     if [ "$http_code" = "200" ]; then
         pass "GET /survey/$page returns 200"
@@ -308,6 +318,161 @@ if [ "$http_code" = "200" ]; then
 else
     fail "GET / returned $http_code after redirect"
 fi
+
+# =============================================================================
+section "Authenticated API Tests"
+# =============================================================================
+
+# Create test user directly in DB (bypasses email verification)
+TEST_USER="__test_e2e_$$"
+TEST_EMAIL="${TEST_USER}@test.local"
+TEST_PASS="test_pass_123"
+
+# Generate bcrypt hash inside API container and insert test user
+TEST_HASH=$(docker exec api_vp node -e "require('bcryptjs').hash('${TEST_PASS}', 10).then(h => process.stdout.write(h))" 2>/dev/null)
+
+docker exec db_vp psql -U postgres -d vpatlas -q -c \
+  "INSERT INTO vpuser (username, email, hash, firstname, lastname, status, userrole)
+   VALUES ('${TEST_USER}', '${TEST_EMAIL}', '${TEST_HASH}', 'Test', 'User', 'confirmed', 'admin')
+   ON CONFLICT DO NOTHING;" 2>/dev/null
+
+# Authenticate
+AUTH_RESPONSE=$(curl -s --max-time 5 -X POST \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"${TEST_USER}\",\"password\":\"${TEST_PASS}\"}" \
+  "$API_URL/users/authenticate" 2>/dev/null)
+
+TOKEN=$(echo "$AUTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+
+if [ -n "$TOKEN" ] && [ "$TOKEN" != "" ]; then
+    pass "Test user authenticated (got JWT)"
+else
+    fail "Test user authentication failed" "$AUTH_RESPONSE"
+fi
+
+AUTH_HEADER="Authorization: Bearer ${TOKEN}"
+
+if [ -n "$TOKEN" ] && [ "$TOKEN" != "" ]; then
+
+    # --- POST /pools/mapped (create pool) ---
+    CREATE_POOL_RESP=$(curl -s --max-time 10 -X POST \
+      -H "Content-Type: application/json" \
+      -H "$AUTH_HEADER" \
+      -d "{
+        \"mappedPoolId\": \"__TEST_POOL_$$\",
+        \"mappedLatitude\": 44.26,
+        \"mappedLongitude\": -72.57,
+        \"mappedPoolStatus\": \"Potential\",
+        \"mappedMethod\": \"Visit\",
+        \"mappedByUser\": \"${TEST_USER}\",
+        \"mappedDateText\": \"2026-01-01\",
+        \"mappedObserverUserName\": \"${TEST_USER}\"
+      }" "$API_URL/pools/mapped" 2>/dev/null)
+
+    CREATED_POOL=$(echo "$CREATE_POOL_RESP" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+rows = data.get('rows', [data]) if isinstance(data, dict) else data
+print(rows[0].get('mappedPoolId', '') if rows else '')" 2>/dev/null)
+
+    if [ "$CREATED_POOL" = "__TEST_POOL_$$" ]; then
+        pass "POST /pools/mapped creates pool ($CREATED_POOL)"
+    else
+        fail "POST /pools/mapped failed" "$CREATE_POOL_RESP"
+    fi
+
+    # --- POST /pools/visit (create visit for existing pool) ---
+    CREATE_VISIT_RESP=$(curl -s --max-time 10 -X POST \
+      -H "Content-Type: application/json" \
+      -H "$AUTH_HEADER" \
+      -d "{
+        \"visitPoolId\": \"__TEST_POOL_$$\",
+        \"visitDate\": \"2026-01-01\",
+        \"visitLatitude\": 44.26,
+        \"visitLongitude\": -72.57,
+        \"visitUserName\": \"${TEST_USER}\",
+        \"visitObserverUserName\": \"${TEST_USER}\"
+      }" "$API_URL/pools/visit" 2>/dev/null)
+
+    CREATED_VISIT_ID=$(echo "$CREATE_VISIT_RESP" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+rows = data.get('rows', [data]) if isinstance(data, dict) else data
+print(rows[0].get('visitId', '') if rows else '')" 2>/dev/null)
+
+    if [ -n "$CREATED_VISIT_ID" ] && [ "$CREATED_VISIT_ID" != "" ]; then
+        pass "POST /pools/visit creates visit (visitId=$CREATED_VISIT_ID)"
+    else
+        fail "POST /pools/visit failed" "$CREATE_VISIT_RESP"
+    fi
+
+    # --- POST /pools/visit/new (atomic pool+visit creation) ---
+    NEW_POOL_VISIT_RESP=$(curl -s --max-time 10 -X POST \
+      -H "Content-Type: application/json" \
+      -H "$AUTH_HEADER" \
+      -d "{
+        \"visitDate\": \"2026-01-01\",
+        \"visitLatitude\": 44.50,
+        \"visitLongitude\": -72.80,
+        \"visitUserName\": \"${TEST_USER}\",
+        \"visitObserverUserName\": \"${TEST_USER}\"
+      }" "$API_URL/pools/visit/new" 2>/dev/null)
+
+    NEW_POOL_ID=$(echo "$NEW_POOL_VISIT_RESP" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(data.get('mappedPoolId', ''))" 2>/dev/null)
+
+    NEW_VISIT_ID=$(echo "$NEW_POOL_VISIT_RESP" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(data.get('visitId', ''))" 2>/dev/null)
+
+    if [ -n "$NEW_POOL_ID" ] && [ -n "$NEW_VISIT_ID" ] && [ "$NEW_POOL_ID" != "" ] && [ "$NEW_VISIT_ID" != "" ]; then
+        pass "POST /pools/visit/new creates pool ($NEW_POOL_ID) + visit ($NEW_VISIT_ID)"
+    else
+        fail "POST /pools/visit/new failed" "$NEW_POOL_VISIT_RESP"
+    fi
+
+    # --- PUT /pools/visit/:id (update visit) ---
+    if [ -n "$CREATED_VISIT_ID" ] && [ "$CREATED_VISIT_ID" != "" ]; then
+        UPDATE_RESP=$(curl -s --max-time 10 -X PUT \
+          -H "Content-Type: application/json" \
+          -H "$AUTH_HEADER" \
+          -d "{\"visitObserverUserName\": \"${TEST_USER}_updated\"}" \
+          "$API_URL/pools/visit/$CREATED_VISIT_ID" 2>/dev/null)
+
+        UPDATE_OK=$(echo "$UPDATE_RESP" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+rows = data.get('rows', [data]) if isinstance(data, dict) else data
+print('ok' if rows else '')" 2>/dev/null)
+
+        if [ "$UPDATE_OK" = "ok" ]; then
+            pass "PUT /pools/visit/$CREATED_VISIT_ID updates visit"
+        else
+            fail "PUT /pools/visit/$CREATED_VISIT_ID failed" "$UPDATE_RESP"
+        fi
+    fi
+
+    # --- Cleanup: delete test data ---
+    # Delete visits first (FK constraint), then pools, then user
+    if [ -n "$CREATED_VISIT_ID" ] && [ "$CREATED_VISIT_ID" != "" ]; then
+        curl -s -X DELETE -H "$AUTH_HEADER" "$API_URL/pools/visit/$CREATED_VISIT_ID" >/dev/null 2>&1
+    fi
+    if [ -n "$NEW_VISIT_ID" ] && [ "$NEW_VISIT_ID" != "" ]; then
+        curl -s -X DELETE -H "$AUTH_HEADER" "$API_URL/pools/visit/$NEW_VISIT_ID" >/dev/null 2>&1
+    fi
+    if [ -n "$NEW_POOL_ID" ] && [ "$NEW_POOL_ID" != "" ]; then
+        curl -s -X DELETE -H "$AUTH_HEADER" "$API_URL/pools/mapped/$NEW_POOL_ID" >/dev/null 2>&1
+    fi
+    curl -s -X DELETE -H "$AUTH_HEADER" "$API_URL/pools/mapped/__TEST_POOL_$$" >/dev/null 2>&1
+
+fi
+
+# Always clean up test user from DB
+docker exec db_vp psql -U postgres -d vpatlas -q -c \
+  "DELETE FROM vpuser WHERE username='${TEST_USER}';" 2>/dev/null
 
 # =============================================================================
 section "Cross-Service Integration"

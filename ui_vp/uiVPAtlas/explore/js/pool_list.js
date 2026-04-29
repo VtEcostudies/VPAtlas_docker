@@ -352,7 +352,7 @@ export function renderFilteredRows(rows) {
             pfBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 if (selectedPoolIds.size) {
-                    window.location.href = `/survey/survey_start.html?pools=${[...selectedPoolIds].join(',')}`;
+                    window.location.href = `/survey/find_pool.html?pools=${[...selectedPoolIds].join(',')}`;
                 }
             });
         }

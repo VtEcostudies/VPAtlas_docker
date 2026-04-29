@@ -70,7 +70,7 @@ export function initFilterBar(filterCallback) {
             </label>
         </div>
 
-        <!-- Active filter tokens -->
+        <!-- Active filter tokens (rendered into row 3 if available, else here) -->
         <div id="filter-tokens" class="filter-tokens"></div>
     `;
 
@@ -407,7 +407,8 @@ async function loadCounties() {
 // RENDER FILTER TOKENS
 // =============================================================================
 function renderTokens() {
-    let container = document.getElementById('filter-tokens');
+    // Prefer the shared row-3 container if the explore page provides it
+    let container = document.getElementById('filter_tokens_row') || document.getElementById('filter-tokens');
     if (!container) return;
 
     let tokens = [];

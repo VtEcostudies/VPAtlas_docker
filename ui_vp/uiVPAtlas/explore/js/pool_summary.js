@@ -247,11 +247,19 @@ export async function showPoolSummary(poolId, onBack = null) {
         }
         html += `</table>`;
 
+        // Check if user can add monitoring surveys (admin/monitor + pool already monitored)
+        let user = await getUser();
+        let isMonitor = user && (user.userrole === 'admin' || user.userrole === 'monitor');
+        let surveyData = null;
+        try { surveyData = await fetchSurveysByPool(poolId); } catch(err) {}
+        let surveyRows = surveyData ? (surveyData.rows || (Array.isArray(surveyData) ? surveyData : [])) : [];
+        let canSurvey = isMonitor && surveyRows.length > 0;
+
         html += `<div style="margin:8px 0; display:flex; gap:8px; flex-wrap:wrap;">
             <a href="pool_view.html?poolId=${poolId}" class="summary-link">Full Detail</a>
-            <a href="/survey/survey_start.html?poolId=${poolId}" class="summary-link">Find Pool</a>
+            <a href="/survey/find_pool.html?poolId=${poolId}" class="summary-link">Find Pool</a>
             <a href="/survey/visit_create.html?poolId=${poolId}" class="summary-link">+ Atlas Visit</a>
-            <a href="/survey/survey_create.html?poolId=${poolId}" class="summary-link">+ Monitoring Survey</a>
+            ${canSurvey ? `<a href="/survey/survey_create.html?poolId=${poolId}" class="summary-link">+ Monitoring Survey</a>` : ''}
         </div>`;
         html += `</div>`;
 
@@ -290,10 +298,8 @@ export async function showPoolSummary(poolId, onBack = null) {
             }
         } catch(err) {}
 
-        // Surveys
+        // Surveys (already fetched above for canSurvey check)
         try {
-            let surveys = await fetchSurveysByPool(poolId);
-            let surveyRows = surveys.rows || (Array.isArray(surveys) ? surveys : []);
             if (surveyRows.length) {
                 html += `<div class="summary-section"><h6>Surveys (${surveyRows.length})</h6>`;
                 surveyRows.slice(0, 10).forEach(s => {

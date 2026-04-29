@@ -34,6 +34,7 @@ types.setTypeParser(1082, parseDate);
 
 module.exports = {
   query: (text, params) => connPool.query(text, params),
+  pool: connPool,
   pgp: pgp,
   pgpDb: pgpDb
 };

@@ -140,7 +140,7 @@
             }
             if (!isEdit) {
                 document.getElementById('mappedObserverUserName').value = user.username || user.email || '';
-                document.getElementById('mappedDateText').value = new Date().toISOString().split('T')[0];
+                document.getElementById('mappedDateText').value = new Date().toLocaleDateString('sv-SE');
             }
 
             // Init map

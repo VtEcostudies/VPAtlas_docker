@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - My Visits</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2c5530">
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/pool_list.css">
+    <link rel="stylesheet" href="./css/modal.css">
+    <link rel="stylesheet" href="/survey/css/visit_queue.css">
+    <style>
+        .vl-container { max-width: 960px; margin: 0 auto; padding: 10px 16px; }
+        .vl-section { margin-bottom: 24px; }
+        .vl-section h5 { margin: 0 0 8px; font-size: 15px; }
+        .vl-empty { font-size: 14px; color: var(--text-muted, #666); padding: 8px 0; }
+        .vl-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+        .vl-filter label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+        .vl-filter select, .vl-filter input {
+            font-size: 13px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;
+        }
+        .pool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .pool-table th { cursor: pointer; user-select: none; padding: 6px 8px; border-bottom: 2px solid #ddd; font-size: 12px; text-transform: uppercase; color: #666; white-space: nowrap; }
+        .pool-table td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+        .pool-row:hover { background: #f5f5f5; }
+        .sort-arrow { font-size: 10px; margin-left: 2px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="detail-header">
+            <button class="exit-button" onclick="history.back()">&times;</button>
+            <h3 class="header-name light-foreground detail-title" id="page_title">My Visits</h3>
+            <div id="profile_container" style="margin-left:auto;"></div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <div class="vl-container">
+        <!-- Local drafts -->
+        <div class="vl-section">
+            <h5><i class="fa fa-inbox"></i> Local Drafts &amp; Pending Uploads</h5>
+            <div id="local_visits"></div>
+            <div id="local_empty" class="vl-empty" style="display:none;">No local drafts.</div>
+        </div>
+
+        <!-- Server visits -->
+        <div class="vl-section">
+            <h5 id="server_title">Uploaded Visits</h5>
+            <div id="server_visits"></div>
+            <div id="server_empty" class="vl-empty" style="display:none;">No uploaded visits found.</div>
+            <div id="server_loading" class="vl-empty"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/resource_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/app.js"></script>
+
+    <script type="module">
+        import { fetchVisits } from '/js/api.js';
+        import { formatDate } from './js/utils.js';
+        import { getUser } from '/js/auth.js';
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        import { renderVisitQueue } from '/survey/js/visit_queue_ui.js';
+
+        setupProfileIcon('profile_container');
+
+        let currentUser = null;
+        let sortState = { col: 'visitDate', asc: false };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await getUser();
+
+            if (!currentUser) {
+                document.getElementById('page_title').textContent = 'Visits (log in to see yours)';
+            }
+
+            // Local drafts
+            let result = await renderVisitQueue('local_visits');
+            if (!result || !result.count) {
+                document.getElementById('local_empty').style.display = 'block';
+            }
+
+            // Load server visits for current user
+            if (currentUser) {
+                loadServerVisits(currentUser.handle || currentUser.username);
+            } else {
+                document.getElementById('server_loading').style.display = 'none';
+                document.getElementById('server_empty').textContent = 'Log in to see your uploaded visits.';
+                document.getElementById('server_empty').style.display = 'block';
+            }
+
+            // Refresh both lists after any sync event (upload success, error, etc.)
+            window.addEventListener('visitSyncStatus', async (e) => {
+                let type = e.detail?.type;
+                // Always re-render local queue to reflect status changes
+                let result = await renderVisitQueue('local_visits');
+                document.getElementById('local_empty').style.display = (!result || !result.count) ? 'block' : 'none';
+                // Reload server visits on successful upload
+                if (type === 'uploaded' && currentUser) {
+                    loadServerVisits(currentUser.handle || currentUser.username, true);
+                }
+            });
+
+        });
+
+        async function loadServerVisits(username, bustCache = false) {
+            let container = document.getElementById('server_visits');
+            let loading = document.getElementById('server_loading');
+            let empty = document.getElementById('server_empty');
+            let title = document.getElementById('server_title');
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            container.innerHTML = '';
+
+            try {
+                let searchTerm = username ? `visitObserverUserName=${username}` : '';
+                if (bustCache) searchTerm += `${searchTerm ? '&' : ''}_t=${Date.now()}`;
+                let data = await fetchVisits(searchTerm);
+                let rows = data.rows || (Array.isArray(data) ? data : []);
+
+                loading.style.display = 'none';
+
+                title.textContent = `Uploaded Visits (${rows.length})`;
+
+                if (!rows.length) {
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                renderServerVisits(rows);
+            } catch (err) {
+                loading.style.display = 'none';
+                container.innerHTML = `<div class="vl-empty" style="color:var(--danger-color);">Error: ${err.message || 'Failed to load'}</div>`;
+            }
+        }
+
+        function renderServerVisits(rows) {
+            rows = sortRows(rows, sortState.col, sortState.asc);
+            let container = document.getElementById('server_visits');
+
+            let html = `<table class="pool-table"><thead><tr>
+                <th data-col="visitId">Visit ID${sortIndicator('visitId')}</th>
+                <th data-col="visitPoolId">Pool${sortIndicator('visitPoolId')}</th>
+                <th data-col="visitDate">Date${sortIndicator('visitDate')}</th>
+                <th data-col="visitObserverUserName">Observer${sortIndicator('visitObserverUserName')}</th>
+                <th data-col="visitLocatePool">Located${sortIndicator('visitLocatePool')}</th>
+            </tr></thead><tbody>`;
+            rows.forEach(v => {
+                html += `<tr class="pool-row" style="cursor:pointer;" data-visit-id="${v.visitId}">
+                    <td>${v.visitId || ''}</td>
+                    <td><a href="pool_view.html?poolId=${v.visitPoolId}" style="color:inherit;">${v.visitPoolId || ''}</a></td>
+                    <td>${formatDate(v.visitDate)}</td>
+                    <td>${v.visitObserverUserName || v.visitUserName || ''}</td>
+                    <td>${v.visitLocatePool || ''}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+
+            // Row click → visit view
+            container.querySelectorAll('tr[data-visit-id]').forEach(tr => {
+                tr.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'A') return; // let pool link work
+                    window.location.href = `visit_view.html?visitId=${tr.dataset.visitId}`;
+                });
+            });
+
+            // Sort headers
+            container.querySelectorAll('th[data-col]').forEach(th => {
+                th.addEventListener('click', () => {
+                    let col = th.dataset.col;
+                    if (sortState.col === col) sortState.asc = !sortState.asc;
+                    else { sortState.col = col; sortState.asc = true; }
+                    renderServerVisits(rows);
+                });
+            });
+        }
+
+        function sortRows(rows, col, asc) {
+            return [...rows].sort((a, b) => {
+                let va = a[col] ?? '', vb = b[col] ?? '';
+                if (typeof va === 'string') va = va.toLowerCase();
+                if (typeof vb === 'string') vb = vb.toLowerCase();
+                if (va < vb) return asc ? -1 : 1;
+                if (va > vb) return asc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function sortIndicator(col) {
+            if (sortState.col !== col) return '';
+            return ` <span class="sort-arrow">${sortState.asc ? '\u25B2' : '\u25BC'}</span>`;
+        }
+    </script>
+</body>
+</html>

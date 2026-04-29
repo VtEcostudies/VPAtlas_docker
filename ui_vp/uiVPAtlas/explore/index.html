@@ -17,39 +17,34 @@
     <link rel="stylesheet" href="/survey/css/visit_queue.css">
 </head>
 <body>
-    <header style="position:relative;">
-        <div class="row controls controls-top">
-            <!-- Logo -->
-            <div class="col-auto header-title-logo" style="padding:4px 8px;">
-                <a id="logo_link" href="/explore/">
-                    <h3 class="header-name light-foreground" style="font-size:16px; margin:0;">VPAtlas</h3>
-                </a>
+    <header>
+        <!-- Row 1: Logo + hamburger + profile (always visible) -->
+        <div class="explore-row1">
+            <a id="logo_link" href="/explore/" style="display:flex; align-items:center; gap:4px; text-decoration:none;">
+                <h3 class="header-name light-foreground" style="font-size:16px; margin:0;">VPAtlas</h3>
                 <span id="app_version" class="app-version"></span>
-            </div>
+            </a>
 
-            <!-- Filter Container (injected by filter_bar.js) -->
-            <div id="filter_container" class="col filter-container" style="position:relative;"></div>
+            <!-- Desktop: filters inline here -->
+            <div id="filter_container" class="filter-container"></div>
 
-            <!-- Filter overflow button (mobile) -->
-            <div class="col-auto" style="padding:4px;">
-                <button class="filter-overflow-btn" id="filter_overflow_btn"><i class="fa fa-sliders"></i></button>
-            </div>
-
-            <!-- Profile / Auth + App Menu -->
-            <div class="col-auto info-profile-container" style="justify-content:flex-end; padding:4px 8px; gap:6px;">
-                <div id="profile_container" class="profile-container"></div>
+            <!-- Right group: hamburger + profile -->
+            <div class="explore-row1-right">
                 <div style="position:relative;">
                     <button class="action-overflow-btn" id="app_menu_btn" style="display:block;"><i class="fa fa-bars"></i></button>
                     <div class="action-overflow-panel" id="app_menu_panel" style="right:0; min-width:200px;"></div>
                 </div>
+                <div id="profile_container" class="profile-container"></div>
             </div>
         </div>
 
-        <!-- Filter description -->
-        <div class="row">
-            <div class="col-12">
-                <div id="filter_description" class="filter-description"></div>
-            </div>
+        <!-- Row 2: Filters (mobile: always visible row; desktop: hidden, inline in row 1) -->
+        <div id="filter_container_mobile" class="explore-row2"></div>
+
+        <!-- Row 3: Status chips + level chips + active filter tokens -->
+        <div class="explore-row3">
+            <div id="filter_description" class="filter-description" style="display:inline;"></div>
+            <div id="filter_tokens_row" style="display:inline;"></div>
         </div>
     </header>
 
@@ -124,6 +119,7 @@
         import { getUser, logout } from '/js/auth.js';
         import { showModal } from './js/modal.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
 
         // Master pool dataset — loaded once, filtered client-side
         var masterRows = [];
@@ -176,33 +172,8 @@
                 renderStatusChips();
             });
 
-            // Wire filter overflow toggle (sticky — persisted in user settings)
-            let filterBtn = document.getElementById('filter_overflow_btn');
-            let filterContainer = document.getElementById('filter_container');
-            if (filterBtn && filterContainer) {
-                // Restore saved state
-                if (filters.showFilters) {
-                    filterContainer.classList.add('show');
-                    filterBtn.classList.add('active');
-                }
-                filterBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    let showing = filterContainer.classList.toggle('show');
-                    filterBtn.classList.toggle('active', showing);
-                    filters.showFilters = showing;
-                    putUserState(0, { showFilters: showing });
-                });
-                document.addEventListener('click', (e) => {
-                    if (!e.target.closest('#filter_container') && !e.target.closest('#filter_overflow_btn')) {
-                        filterContainer.classList.remove('show');
-                        filterBtn.classList.remove('active');
-                        if (filters.showFilters) {
-                            filters.showFilters = false;
-                            putUserState(0, { showFilters: false });
-                        }
-                    }
-                });
-            }
+            // Mobile: clone filter bar contents into row 2
+            populateMobileFilters();
 
             // Handle browser back/forward
             setPopState(onFilterChange);
@@ -437,16 +408,43 @@
             });
         }
 
+        // Mobile: move filter bar into row 2 so it's always visible
+        function populateMobileFilters() {
+            let mobileRow = document.getElementById('filter_container_mobile');
+            let desktopBar = document.getElementById('filter-bar');
+            if (!mobileRow || !desktopBar) return;
+
+            // On mobile, move the filter bar DOM node into row 2
+            // On desktop, move it back into filter_container
+            function syncFilterLocation() {
+                if (window.matchMedia('(max-width: 1150px)').matches) {
+                    if (desktopBar.parentElement !== mobileRow) mobileRow.appendChild(desktopBar);
+                } else {
+                    let fc = document.getElementById('filter_container');
+                    if (fc && desktopBar.parentElement !== fc) fc.appendChild(desktopBar);
+                }
+            }
+            syncFilterLocation();
+            window.matchMedia('(max-width: 1150px)').addEventListener('change', syncFilterLocation);
+        }
+
         // App hamburger menu — navigation + admin links
-        function setupAppMenu(user) {
+        async function setupAppMenu(user) {
             let btn = document.getElementById('app_menu_btn');
             let panel = document.getElementById('app_menu_panel');
             if (!btn || !panel) return;
 
-            let items = [
+            let items = [];
+            if (user) {
+                let counts = await getLocalVisitCount();
+                let badge = counts.total ? ` (${counts.total})` : '';
+                items.push({ label: `My Visits${badge}`, href: '/explore/visit_list.html', icon: 'fa-inbox' });
+                items.push({ divider: true });
+            }
+            items.push(
                 { label: 'About VPAtlas', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/', icon: 'fa-info-circle', external: true },
                 { label: 'Volunteer How To', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/help-us-find-and-map-vernal-pools/', icon: 'fa-book', external: true },
-            ];
+            );
             if (user && user.userrole === 'admin') {
                 items.push({ divider: true });
                 items.push({ label: 'Users', href: '/admin/users_admin.html', icon: 'fa-users-cog' });

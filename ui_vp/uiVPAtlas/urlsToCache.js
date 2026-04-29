@@ -11,12 +11,13 @@ appConfig.urlsToCache = [
 '/explore/pool_view.html',
 '/explore/pool_create.html',
 '/explore/visit_view.html',
+'/explore/visit_list.html',
 '/explore/survey_view.html',
 '/explore/login.html',
 '/explore/register.html',
 
 // === Survey pages ===
-'/survey/survey_start.html',
+'/survey/find_pool.html',
 '/survey/survey_create.html',
 '/survey/visit_create.html',
 

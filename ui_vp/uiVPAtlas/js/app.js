@@ -81,8 +81,11 @@ console.log(`app.js: SW_PATH=${SW_PATH}`);
 // =============================================================================
 // INIT APP WRAPPER
 // =============================================================================
+let initAppCalled = false;
 function callInitApp() {
+  if (initAppCalled) return;
   if (typeof window.initApp === 'function') {
+    initAppCalled = true;
     window.initApp();
   } else {
     // Pages using ES module top-level await don't define initApp.

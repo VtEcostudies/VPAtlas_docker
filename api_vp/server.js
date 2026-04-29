@@ -28,6 +28,10 @@ app.use(function (req, res, next) {
   next();
 });
 
+// Serve uploaded photos as static files (before JWT — photos are public)
+const path = require('path');
+app.use('/photos', express.static(path.join(__dirname, 'photos')));
+
 // JWT auth
 app.use(jwt());
 

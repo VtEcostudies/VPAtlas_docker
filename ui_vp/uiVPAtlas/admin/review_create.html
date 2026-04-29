@@ -272,7 +272,7 @@
                 document.getElementById('page_title').textContent = 'New Review';
                 if (poolId) document.getElementById('reviewPoolId').value = poolId;
                 if (visitId) document.getElementById('reviewVisitId').value = visitId;
-                document.getElementById('reviewQADate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('reviewQADate').value = new Date().toLocaleDateString('sv-SE');
                 if (user) {
                     document.getElementById('reviewQAPerson').value = user.handle || user.username || '';
                 }
@@ -523,7 +523,7 @@
                 let el = document.getElementById(f);
                 let val = r[f];
                 if (el && val != null && val !== 'None') {
-                    if (f === 'reviewQADate' && val) el.value = new Date(val).toISOString().split('T')[0];
+                    if (f === 'reviewQADate' && val) el.value = /^\d{4}-\d{2}-\d{2}$/.test(val) ? val : new Date(val).toLocaleDateString('sv-SE');
                     else el.value = val;
                 }
             });

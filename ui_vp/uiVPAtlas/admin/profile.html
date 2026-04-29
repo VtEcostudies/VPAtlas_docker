@@ -43,8 +43,7 @@
         <div class="detail-header">
             <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">My Profile</h3>
-            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
-            <div id="profile_container" style="margin-left:auto;"></div>
+            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px; margin-left:auto;">Save</button>
         </div>
     </header>
     <hr class="divider-header">
@@ -117,8 +116,7 @@
         import { getUser, requireAuth } from '/js/auth.js';
         import { setLocal } from '/js/storage.js';
         import { formatDate } from '/explore/js/utils.js';
-        import { setupProfileIcon } from '/js/profile_icon.js';
-        setupProfileIcon();
+        // No profile icon on profile page — that would be recursive
 
         let currentUser = null;
 
