@@ -98,6 +98,9 @@
             <div id="visits_table"></div>
             <div id="local_visits" style="margin-top:6px;"></div>
             <hr>
+            <h5 id="photos_title">Photos</h5>
+            <div id="photos_section"></div>
+            <hr>
             <h5 id="surveys_title">Surveys (Monitoring)</h5>
             <div id="surveys_table"></div>
             <hr>
@@ -158,7 +161,7 @@
     </script>
 
     <script type="module">
-        import { fetchMappedPoolById, fetchVisitsByPool, fetchSurveysByPool, fetchReviews } from '/js/api.js';
+        import { fetchMappedPoolById, fetchVisitsByPool, fetchVisitPhotos, fetchSurveysByPool, fetchReviews } from '/js/api.js';
         import { getPoolById, getVisitsByPoolId, getSurveysByPoolId } from '/js/pool_data_cache.js';
         import { prefetchParcelsNear, getCachedParcels } from '/js/parcels.js';
         import { formatDate } from './js/utils.js';
@@ -234,14 +237,22 @@
 
             // Load visits + surveys — API first, cache fallback
             let hasVisits = false, hasSurveys = false;
+            let visitRows = [];
             try {
                 let visits;
                 try { visits = await fetchVisitsByPool(poolId); }
                 catch(e) { visits = await getVisitsByPoolId(poolId); }
-                let visitRows = visits.rows || [];
+                visitRows = visits.rows || [];
                 hasVisits = visitRows.length > 0;
                 renderVisits(visitRows);
             } catch(err) { renderVisits([]); }
+
+            // Load photos for all visits
+            if (hasVisits) loadVisitPhotos(visitRows);
+            else {
+                document.getElementById('photos_title').textContent = 'Photos (0)';
+                document.getElementById('photos_section').innerHTML = '<p style="font-size:14px;">No photos.</p>';
+            }
 
             // Local draft/pending visits
             await renderVisitQueue('local_visits', { poolId });
@@ -518,6 +529,57 @@
             let container = document.getElementById('reviews_table');
             container.innerHTML = html;
             wireSort(container, 'reviews', rows, renderReviews);
+        }
+
+        // ---- Photos ----
+        async function loadVisitPhotos(visitRows) {
+            let section = document.getElementById('photos_section');
+            let title = document.getElementById('photos_title');
+            section.innerHTML = '<p style="font-size:14px;"><i class="fa fa-spinner fa-spin"></i> Loading photos...</p>';
+
+            // Fetch photos for all visits in parallel
+            let allPhotos = [];
+            try {
+                let results = await Promise.all(
+                    visitRows.map(v => fetchVisitPhotos(v.visitId).catch(() => []))
+                );
+                results.forEach((photos, i) => {
+                    let arr = Array.isArray(photos) ? photos : [];
+                    arr.forEach(p => { p._visitId = visitRows[i].visitId; });
+                    allPhotos.push(...arr);
+                });
+            } catch(err) {}
+
+            if (!allPhotos.length) {
+                title.textContent = 'Photos (0)';
+                section.innerHTML = '<p style="font-size:14px;">No photos.</p>';
+                return;
+            }
+
+            // Group by type
+            let byType = {};
+            allPhotos.forEach(p => {
+                let type = p.visitPhotoSpecies || 'Other';
+                if (!byType[type]) byType[type] = [];
+                byType[type].push(p);
+            });
+
+            title.textContent = `Photos (${allPhotos.length})`;
+            let html = '';
+            let apiBase = appConfig.api.fqdn;
+            for (let [type, photos] of Object.entries(byType)) {
+                html += `<div style="margin-bottom:10px;">
+                    <strong style="font-size:13px;">${type}</strong> <span style="color:var(--text-muted); font-size:12px;">(${photos.length})</span>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">`;
+                photos.forEach(p => {
+                    let url = p.visitPhotoUrl.startsWith('http') ? p.visitPhotoUrl : apiBase + p.visitPhotoUrl;
+                    html += `<a href="${url}" target="_blank" title="Visit ${p._visitId} — ${type}">
+                        <img src="${url}" alt="${type}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ddd; cursor:pointer;">
+                    </a>`;
+                });
+                html += `</div></div>`;
+            }
+            section.innerHTML = html;
         }
 
         async function initPoolMap(pool, surveyLevel = 'potential') {

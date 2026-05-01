@@ -1344,12 +1344,51 @@
                     showMsg('Uploading...', 'info');
                     try {
                         // Direct API upload (immediate, same as before)
-                        if (isEdit) { await updateVisit(visitId, body); }
-                        else { await createVisit(body); }
+                        let result;
+                        if (isEdit) { result = await updateVisit(visitId, body); }
+                        else { result = await createVisit(body); }
+
+                        // Determine the server-side visitId for photo upload
+                        let serverVisitId = visitId; // for edits
+                        if (!isEdit) {
+                            let rows = result.rows || [result];
+                            serverVisitId = rows[0]?.visitId || rows[0]?.id;
+                        }
+
+                        // Upload photos if any
+                        if (serverVisitId && Object.keys(speciesPhotos).length) {
+                            let photoCount = 0;
+                            for (let files of Object.values(speciesPhotos)) { if (files) photoCount += files.length; }
+                            if (photoCount > 0) {
+                                showMsg(`Uploading ${photoCount} photos...`, 'info');
+                                let apiUrl = appConfig?.api?.fqdn || '';
+                                let token = '';
+                                try { let { getLocal } = await import('/js/storage.js'); token = await getLocal('auth_token'); } catch(e) {}
+                                for (let [species, files] of Object.entries(speciesPhotos)) {
+                                    if (!files || !files.length) continue;
+                                    for (let file of files) {
+                                        try {
+                                            let blob = (file instanceof File || file instanceof Blob) ? file
+                                                : file.data ? new Blob([file.data], { type: file.type || 'image/jpeg' }) : null;
+                                            if (!blob) continue;
+                                            let fd = new FormData();
+                                            fd.append('photos', blob, file.name || `${species}.jpg`);
+                                            fd.append('photoType', species);
+                                            await fetch(`${apiUrl}/pools/visit/${serverVisitId}/photos`, {
+                                                method: 'POST',
+                                                headers: { 'Authorization': `Bearer ${token}` },
+                                                body: fd
+                                            });
+                                        } catch(e) { console.warn('Photo upload failed:', species, e); }
+                                    }
+                                }
+                            }
+                        }
 
                         // Mark as uploaded in local store
                         if (currentVisitState) {
                             currentVisitState.status = 'uploaded';
+                            currentVisitState.photos_uploaded = true;
                             currentVisitState.uploaded_at = new Date().toISOString();
                             await saveVisit(currentVisitState);
                         }

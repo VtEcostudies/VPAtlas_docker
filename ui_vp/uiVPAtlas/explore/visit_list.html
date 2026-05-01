@@ -22,9 +22,10 @@
         .vl-filter select, .vl-filter input {
             font-size: 13px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;
         }
+        .pool-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .pool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .pool-table th { cursor: pointer; user-select: none; padding: 6px 8px; border-bottom: 2px solid #ddd; font-size: 12px; text-transform: uppercase; color: #666; white-space: nowrap; }
-        .pool-table td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+        .pool-table td { padding: 6px 8px; border-bottom: 1px solid #eee; white-space: nowrap; }
         .pool-row:hover { background: #f5f5f5; }
         .sort-arrow { font-size: 10px; margin-left: 2px; }
     </style>
@@ -145,7 +146,7 @@
             rows = sortRows(rows, sortState.col, sortState.asc);
             let container = document.getElementById('server_visits');
 
-            let html = `<table class="pool-table"><thead><tr>
+            let html = `<div class="pool-table-wrap"><table class="pool-table"><thead><tr>
                 <th data-col="visitId">Visit ID${sortIndicator('visitId')}</th>
                 <th data-col="visitPoolId">Pool${sortIndicator('visitPoolId')}</th>
                 <th data-col="visitDate">Date${sortIndicator('visitDate')}</th>
@@ -161,7 +162,7 @@
                     <td>${v.visitLocatePool || ''}</td>
                 </tr>`;
             });
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             container.innerHTML = html;
 
             // Row click → visit view

@@ -34,10 +34,11 @@
 .vq-item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 8px 0;
     border-bottom: 1px solid #f0f0f0;
     font-size: 14px;
+    flex-wrap: wrap;
 }
 .vq-item:last-child { border-bottom: none; }
 
@@ -72,16 +73,23 @@
 }
 .vq-info .vq-pool {
     font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .vq-info .vq-date {
     font-size: 12px;
     color: var(--text-secondary, #5a6c7d);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .vq-actions {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-shrink: 0;
+    margin-left: auto;
 }
 
 .vq-btn {
@@ -89,9 +97,9 @@
     align-items: center;
     justify-content: center;
     font-size: 16px;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 6px 12px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 6px 10px;
     border: 1px solid var(--primary-color, #2c5530);
     border-radius: 6px;
     background: white;
@@ -103,6 +111,20 @@
 .vq-btn.vq-upload { background: var(--primary-color, #2c5530); color: white; }
 .vq-btn.vq-delete { border-color: var(--danger-color, #e74c3c); color: var(--danger-color, #e74c3c); }
 .vq-btn.vq-delete:active { background: var(--danger-color, #e74c3c); color: white; }
+
+/* Mobile: stack visit items vertically on narrow screens */
+@media (max-width: 400px) {
+    .vq-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    .vq-actions {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
 
 /* Sync status messages */
 .vq-status-msg {

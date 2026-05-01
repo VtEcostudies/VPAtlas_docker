@@ -9,7 +9,7 @@
     All summaries are computed from the same filtered rows that drive the
     pool list and map — ensuring all three panes always agree.
 */
-import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchSurveysByPool } from '/js/api.js';
+import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchVisitPhotos, fetchSurveysByPool } from '/js/api.js';
 import { getPoolById, getVisitsByPoolId, getSurveysByPoolId } from '/js/pool_data_cache.js';
 import { getUser } from '/js/auth.js';
 import { formatDate } from './utils.js';
@@ -276,11 +276,12 @@ export async function showPoolSummary(poolId, onBack = null) {
         html += `</div>`;
 
         // Visits
+        let visitRows = [];
         try {
             let visits;
             try { visits = await fetchVisitsByPool(poolId); }
             catch(e) { visits = await getVisitsByPoolId(poolId); }
-            let visitRows = visits.rows || (Array.isArray(visits) ? visits : []);
+            visitRows = visits.rows || (Array.isArray(visits) ? visits : []);
             if (visitRows.length) {
                 html += `<div class="summary-section"><h6>Visits (${visitRows.length})</h6>`;
                 visitRows.slice(0, 10).forEach(v => {
@@ -295,6 +296,29 @@ export async function showPoolSummary(poolId, onBack = null) {
                 html += `</div>`;
             }
         } catch(err) {}
+
+        // Photo counts by type
+        if (visitRows.length) {
+            try {
+                let results = await Promise.all(
+                    visitRows.map(v => fetchVisitPhotos(v.visitId).catch(() => []))
+                );
+                let allPhotos = results.flat().filter(p => p && p.visitPhotoSpecies);
+                if (allPhotos.length) {
+                    let byType = {};
+                    allPhotos.forEach(p => {
+                        let t = p.visitPhotoSpecies;
+                        byType[t] = (byType[t] || 0) + 1;
+                    });
+                    html += `<div class="summary-section"><h6><i class="fa fa-camera" style="margin-right:4px;"></i>Photos (${allPhotos.length})</h6>`;
+                    html += `<table class="summary-stats-table">`;
+                    for (let [type, count] of Object.entries(byType)) {
+                        html += `<tr><td class="stat-label">${type}</td><td class="stat-value">${count}</td></tr>`;
+                    }
+                    html += `</table></div>`;
+                }
+            } catch(err) {}
+        }
 
         // Local (unsaved) visits
         try {
