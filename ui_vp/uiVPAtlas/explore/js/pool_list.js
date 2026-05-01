@@ -347,18 +347,40 @@ export function renderFilteredRows(rows) {
     if (titleContainer) {
         titleContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between;">
             <h5 style="margin:0;">Vernal Pools (${rows.length})</h5>
-            <a id="poolfinder-btn" href="#" title="Open selected pools in Pool Finder"
-                style="display:none; font-size:13px; padding:2px 8px; border:1px solid var(--primary-color); border-radius:4px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">
-                <i class="fa fa-location-arrow"></i> <span id="poolfinder-count"></span>
-            </a>
+            <div id="poolfinder-btn" style="display:none; align-items:stretch; gap:0;">
+                <a id="poolfinder-link" href="#" title="Open selected pools in Pool Finder"
+                    style="display:flex; align-items:center; font-size:13px; padding:2px 8px; border:1px solid var(--primary-color); border-radius:4px 0 0 4px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">
+                    <i class="fa fa-location-arrow"></i>&nbsp;<span id="poolfinder-count"></span>
+                </a><button id="poolfinder-clear" title="Clear all selected pools"
+                    style="display:flex; align-items:center; font-size:16px; font-weight:bold; padding:0 6px; border:1px solid var(--primary-color); border-left:none;
+                    border-radius:0 4px 4px 0; background:white; color:var(--primary-color); cursor:pointer;">&times;</button>
+            </div>
         </div>`;
-        let pfBtn = document.getElementById('poolfinder-btn');
-        if (pfBtn) {
-            pfBtn.addEventListener('click', (e) => {
+        let pfLink = document.getElementById('poolfinder-link');
+        if (pfLink) {
+            pfLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 if (selectedPoolIds.size) {
                     window.location.href = `/survey/find_pool.html?pools=${[...selectedPoolIds].join(',')}`;
                 }
+            });
+        }
+        let pfClear = document.getElementById('poolfinder-clear');
+        if (pfClear) {
+            pfClear.addEventListener('click', () => {
+                selectedPoolIds.clear();
+                updateSelectionCount();
+                // Uncheck all checkboxes and remove selected highlight
+                if (listContainer) {
+                    listContainer.querySelectorAll('.pool-check').forEach(cb => { cb.checked = false; });
+                    listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('selected'));
+                }
+                // Clear from user_state so pool finder doesn't restore them
+                import('/js/storage.js').then(({ setLocal, getLocal }) => {
+                    getLocal('user_state').then(s => {
+                        if (s) { s.poolFinderPools = []; setLocal('user_state', s); }
+                    });
+                });
             });
         }
         updateSelectionCount();

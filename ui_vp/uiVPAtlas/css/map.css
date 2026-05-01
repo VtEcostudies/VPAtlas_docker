@@ -86,6 +86,49 @@ label.pool-legend-toggle:hover {
     display: none;
 }
 
+/* Collapsible legend */
+.pool-legend-toggle-header {
+    display: none; /* hidden on desktop */
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    color: #555;
+    padding: 2px 0;
+    user-select: none;
+}
+.pool-legend-arrow {
+    font-size: 14px;
+    transition: transform 0.2s;
+}
+.pool-legend-toggle-header {
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+}
+.pool-legend-collapsible.collapsed .pool-legend-toggle-header {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 2px;
+}
+.pool-legend-collapsible.collapsed .pool-legend-arrow {
+    transform: rotate(-90deg);
+}
+.pool-legend-collapsible.collapsed .pool-legend-body {
+    display: none;
+}
+
+/* On narrow screens (mobile), show the toggle and start collapsed */
+@media (max-width: 768px) {
+    .pool-legend-toggle-header {
+        display: flex;
+    }
+    .pool-legend-collapsible {
+        max-width: 130px;
+    }
+}
+
 .btn-disabled {
     background: #95a5a6;
     color: #7f8c8d;

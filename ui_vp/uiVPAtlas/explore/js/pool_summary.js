@@ -15,6 +15,7 @@ import { getUser } from '/js/auth.js';
 import { formatDate } from './utils.js';
 import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
 import { filters, getCurrentScope } from './url_state.js';
+import { prefetchParcelsNear, getParcelBySPAN, getCachedParcels } from '/js/parcels.js';
 
 var summaryContainer = null;
 var summaryTitle = null;
@@ -250,6 +251,13 @@ export async function showPoolSummary(poolId, onBack = null) {
         }
         html += `</table>`;
 
+        // Landowner info from parcel layer
+        let lat = parseFloat(pool.mappedLatitude || pool.latitude);
+        let lng = parseFloat(pool.mappedLongitude || pool.longitude);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            html += await renderParcelInfo(lat, lng);
+        }
+
         // Check if user can add monitoring surveys (admin/monitor + pool already monitored)
         let user = await getUser();
         let isMonitor = user && (user.userrole === 'admin' || user.userrole === 'monitor');
@@ -335,4 +343,72 @@ export async function showPoolSummary(poolId, onBack = null) {
         summaryContainer.innerHTML = `<div style="padding:10px; color:var(--danger-color);">
             Error loading pool: ${err.message || 'Unknown error'}</div>`;
     }
+}
+
+// =============================================================================
+// PARCEL / LANDOWNER INFO
+// =============================================================================
+
+/** Find parcel at lat/lng from cache, or fetch nearby parcels first */
+async function renderParcelInfo(lat, lng) {
+    // Try to find parcel in cache via point-in-polygon
+    let parcel = findParcelAtPoint(lng, lat);
+
+    // If not cached, fetch parcels near this pool and try again
+    if (!parcel) {
+        try {
+            await prefetchParcelsNear(lat, lng);
+            parcel = findParcelAtPoint(lng, lat);
+        } catch (e) {}
+    }
+
+    if (!parcel) return '';
+
+    let p = parcel.properties || {};
+    let ownerName = [p.OWNER1, p.OWNER2].filter(Boolean).join(', ');
+    let html = `<div class="summary-section" style="margin-top:8px; padding-top:8px; border-top:1px solid #eee;">
+        <h6 style="font-size:13px; color:var(--text-secondary);"><i class="fa fa-home" style="margin-right:4px;"></i>Landowner</h6>
+        <table class="summary-stats-table">`;
+    if (ownerName) html += `<tr><td class="stat-label">Owner</td><td class="stat-value">${ownerName}</td></tr>`;
+    if (p.E911ADDR) html += `<tr><td class="stat-label">Address</td><td class="stat-value">${p.E911ADDR}</td></tr>`;
+    if (p.TNAME || p.TOWN) html += `<tr><td class="stat-label">Town</td><td class="stat-value">${p.TNAME || p.TOWN}</td></tr>`;
+    if (p.ACRESGL) html += `<tr><td class="stat-label">Acres</td><td class="stat-value">${p.ACRESGL.toFixed(1)}</td></tr>`;
+    html += `</table></div>`;
+    return html;
+}
+
+/** Ray-casting point-in-polygon against all cached parcels */
+function findParcelAtPoint(x, y) {
+    let parcels = getCachedParcels();
+    for (let feature of parcels) {
+        if (pointInFeature(x, y, feature)) return feature;
+    }
+    return null;
+}
+
+function pointInFeature(x, y, feature) {
+    let geom = feature.geometry;
+    if (!geom) return false;
+    if (geom.type === 'Polygon') {
+        return pointInRings(x, y, geom.coordinates);
+    } else if (geom.type === 'MultiPolygon') {
+        for (let poly of geom.coordinates) {
+            if (pointInRings(x, y, poly)) return true;
+        }
+    }
+    return false;
+}
+
+function pointInRings(x, y, rings) {
+    let ring = rings[0];
+    if (!ring || ring.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        let xi = ring[i][0], yi = ring[i][1];
+        let xj = ring[j][0], yj = ring[j][1];
+        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+        }
+    }
+    return inside;
 }

@@ -28,8 +28,9 @@
             <!-- Desktop: filters inline here -->
             <div id="filter_container" class="filter-container"></div>
 
-            <!-- Right group: hamburger + profile -->
+            <!-- Right group: filter toggle + hamburger + profile -->
             <div class="explore-row1-right">
+                <button class="filter-toggle-btn" id="filter_toggle_btn" style="display:none;" title="Show/hide filters"><i class="fa fa-sliders"></i></button>
                 <div style="position:relative;">
                     <button class="action-overflow-btn" id="app_menu_btn" style="display:block;"><i class="fa fa-bars"></i></button>
                     <div class="action-overflow-panel" id="app_menu_panel" style="right:0; min-width:200px;"></div>
@@ -120,6 +121,7 @@
         import { showModal } from './js/modal.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
+        import { getLocal, setLocal } from '/js/storage.js';
 
         // Master pool dataset — loaded once, filtered client-side
         var masterRows = [];
@@ -359,7 +361,7 @@
             let userIsAdmin = currentUser && currentUser.userrole === 'admin';
             let chipStatuses = userIsAdmin ? ALL_STATUS_NAMES : ALL_STATUS_NAMES.filter(s => !ADMIN_ONLY.includes(s));
 
-            // Status chips
+            // Status chips — sized to match .filter-token (county/town chips)
             let html = chipStatuses.map(status => {
                 let active = mf.statusVisible[status] !== false;
                 let color = getPoolColor(status);
@@ -367,22 +369,22 @@
                     ? `background:${color}; color:white; border-color:${color}; opacity:1;`
                     : `background:transparent; color:#999; border-color:#ccc; opacity:0.5;`;
                 return `<span class="status-chip" data-status="${status}"
-                    style="display:inline-block; padding:1px 8px; margin:1px 2px; border-radius:12px;
-                    font-size:11px; font-weight:600; cursor:pointer; border:1.5px solid; ${style}">${status}</span>`;
+                    style="display:inline-block; padding:2px 8px; border-radius:12px;
+                    font-size:13px; font-weight:600; cursor:pointer; border:1px solid; ${style}">${status}</span>`;
             }).join('');
 
             // Divider
-            html += `<span style="display:inline-block; width:1px; height:14px; background:#ccc; margin:0 4px; vertical-align:middle;"></span>`;
+            html += `<span style="display:inline-block; width:1px; height:18px; background:#ccc; margin:0 4px; vertical-align:middle;"></span>`;
 
-            // Level chips
+            // Level chips — sized to match .filter-token
             html += LEVEL_CHIPS.map(lev => {
                 let active = mf.levelVisible[lev.key] !== false;
                 let style = active
                     ? `background:var(--primary-light); color:var(--primary-color); border-color:var(--primary-color); opacity:1;`
                     : `background:transparent; color:#999; border-color:#ccc; opacity:0.5;`;
                 return `<span class="level-chip" data-level="${lev.key}"
-                    style="display:inline-flex; align-items:center; gap:3px; padding:1px 8px; margin:1px 2px; border-radius:12px;
-                    font-size:11px; font-weight:600; cursor:pointer; border:1.5px solid; ${style}">${lev.shape} ${lev.label}</span>`;
+                    style="display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:12px;
+                    font-size:13px; font-weight:600; cursor:pointer; border:1px solid; ${style}">${lev.shape} ${lev.label}</span>`;
             }).join('');
 
             container.innerHTML = html;
@@ -407,6 +409,69 @@
                 });
             });
         }
+
+        // =================================================================
+        // Mobile: dynamic header height + filter toggle
+        // =================================================================
+        function measureHeader() {
+            let header = document.querySelector('header');
+            let divider = document.querySelector('.divider-header');
+            if (!header) return;
+            let h = header.offsetHeight + (divider ? divider.offsetHeight : 0);
+            document.documentElement.style.setProperty('--header-h', h + 'px');
+            // Invalidate map after height change
+            let m = getMap();
+            if (m) setTimeout(() => m.invalidateSize(), 50);
+        }
+
+        // Observe header size changes (filter tokens wrapping, etc.)
+        if (typeof ResizeObserver !== 'undefined') {
+            let headerEl = document.querySelector('header');
+            if (headerEl) {
+                new ResizeObserver(measureHeader).observe(headerEl);
+            }
+        }
+
+        // Filter toggle button (mobile only) — persisted in map_settings
+        (async function() {
+            let btn = document.getElementById('filter_toggle_btn');
+            let row2 = document.getElementById('filter_container_mobile');
+            if (!btn || !row2) return;
+
+            // Restore saved state
+            let mapSettings = await getLocal('map_settings') || {};
+            let filtersCollapsed = !!mapSettings.filtersCollapsed;
+
+            function syncToggle() {
+                if (mobileQuery.matches) {
+                    btn.style.display = 'flex';
+                    if (filtersCollapsed) {
+                        row2.classList.add('collapsed');
+                        btn.classList.remove('active');
+                    } else {
+                        row2.classList.remove('collapsed');
+                        btn.classList.add('active');
+                    }
+                    measureHeader();
+                } else {
+                    btn.style.display = 'none';
+                    row2.classList.remove('collapsed');
+                }
+            }
+
+            btn.addEventListener('click', async () => {
+                filtersCollapsed = !filtersCollapsed;
+                row2.classList.toggle('collapsed', filtersCollapsed);
+                btn.classList.toggle('active', !filtersCollapsed);
+                measureHeader();
+                let s = await getLocal('map_settings') || {};
+                s.filtersCollapsed = filtersCollapsed;
+                await setLocal('map_settings', s);
+            });
+
+            mobileQuery.addEventListener('change', syncToggle);
+            syncToggle();
+        })();
 
         // Mobile: move filter bar into row 2 so it's always visible
         function populateMobileFilters() {

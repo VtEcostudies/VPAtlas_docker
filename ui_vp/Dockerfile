@@ -12,8 +12,9 @@ RUN chown -R ui:ui /opt/ui
 USER ui
 RUN npm install
 
-# Build unified service worker with version injection
-RUN node uiVPAtlas/sw-build.js patch
+# sw.js is pre-built locally by: node uiVPAtlas/sw-build.js patch
+# Do NOT run sw-build.js here — it would bump the version inside the
+# container without updating local source files, causing version drift.
 
 EXPOSE 8090
 

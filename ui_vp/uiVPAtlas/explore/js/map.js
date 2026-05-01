@@ -286,15 +286,28 @@ async function initStatusControl() {
     statusControl = L.Control.extend({
         options: { position: 'bottomleft' },
         onAdd: function() {
-            let div = L.DomUtil.create('div', 'leaflet-control pool-legend');
+            let div = L.DomUtil.create('div', 'leaflet-control pool-legend pool-legend-collapsible');
             L.DomEvent.disableClickPropagation(div);
             L.DomEvent.disableScrollPropagation(div);
 
+            // Restore collapsed state from shared settings
+            if (settings.legendCollapsed) div.classList.add('collapsed');
+
+            // Collapse toggle header
+            let toggle = L.DomUtil.create('div', 'pool-legend-toggle-header', div);
+            toggle.innerHTML = '<span>Legend</span><span class="pool-legend-arrow">&#9660;</span>';
+            toggle.addEventListener('click', () => {
+                div.classList.toggle('collapsed');
+                saveSettings({ legendCollapsed: div.classList.contains('collapsed') });
+            });
+
+            let body = L.DomUtil.create('div', 'pool-legend-body', div);
+
             // ── Status checkboxes ──
-            L.DomUtil.create('div', 'pool-legend-title', div).textContent = 'Pool Status';
+            L.DomUtil.create('div', 'pool-legend-title', body).textContent = 'Pool Status';
 
             visibleStatuses.forEach(status => {
-                let item = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', div);
+                let item = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', body);
 
                 let cb = document.createElement('input');
                 cb.type = 'checkbox';
@@ -317,11 +330,11 @@ async function initStatusControl() {
             });
 
             // ── Parcel overlay toggle ──
-            let parcelSection = L.DomUtil.create('div', 'pool-legend-title', div);
+            let parcelSection = L.DomUtil.create('div', 'pool-legend-title', body);
             parcelSection.style.marginTop = '6px';
             parcelSection.textContent = 'Overlays';
 
-            let parcelItem = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', div);
+            let parcelItem = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', body);
             let parcelCb = document.createElement('input');
             parcelCb.type = 'checkbox';
             parcelCb.checked = parcelsEnabled();
@@ -365,12 +378,12 @@ async function initStatusControl() {
             });
 
             // ── Survey level checkboxes with shape swatches ──
-            let title2 = L.DomUtil.create('div', 'pool-legend-title', div);
+            let title2 = L.DomUtil.create('div', 'pool-legend-title', body);
             title2.style.marginTop = '6px';
             title2.textContent = 'Survey Level';
 
             LEVEL_ORDER.forEach(level => {
-                let item = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', div);
+                let item = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', body);
 
                 let cb = document.createElement('input');
                 cb.type = 'checkbox';

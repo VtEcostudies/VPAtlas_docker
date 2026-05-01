@@ -1,7 +1,7 @@
 // sw.js - Service Worker for VPAtlas (unified app)
 // Generated from sw_template.js by sw-build.js — do not edit directly
-const APP_VERSION = '3.5.19';
-const BUILD_TIMESTAMP = '1777574486302';
+const APP_VERSION = '3.5.27';
+const BUILD_TIMESTAMP = '1777630603326';
 const ME = 'sw.js';
 
 const SW_BASE = self.location.pathname.replace(/\/[^\/]*$/, '');
@@ -63,7 +63,7 @@ const TILE_CACHE_NAME = 'vpAtlas-map';
 
 const APP_CACHE = `${APP_CACHE_NAME}-${APP_VERSION}`;
 const DATA_CACHE = `${DATA_CACHE_NAME}-${APP_VERSION}`;
-const TILE_CACHE = `${TILE_CACHE_NAME}-${APP_VERSION}`;
+const TILE_CACHE = TILE_CACHE_NAME; // version-independent — tiles persist across updates
 
 // Data patterns to cache (lookup/reference data)
 const DATA_CACHE_PATTERNS = [
@@ -295,11 +295,25 @@ async function precacheApp(urls = URLS_TO_CACHE) {
 async function cleanupOldCaches() {
   const cacheNames = await caches.keys();
   const validCaches = [APP_CACHE, DATA_CACHE, TILE_CACHE];
-  await Promise.all(cacheNames.map(name => {
-    if (name.includes('vpAtlas') && !validCaches.includes(name)) {
-      return caches.delete(name);
+  for (const name of cacheNames) {
+    // Migrate old versioned tile caches into the unversioned one
+    if (name.startsWith(TILE_CACHE_NAME + '-')) {
+      try {
+        const oldCache = await caches.open(name);
+        const tileCache = await caches.open(TILE_CACHE);
+        const keys = await oldCache.keys();
+        for (const req of keys) {
+          const resp = await oldCache.match(req);
+          if (resp) await tileCache.put(req, resp);
+        }
+      } catch(e) {}
+      await caches.delete(name);
+      continue;
     }
-  }));
+    if (name.includes('vpAtlas') && !validCaches.includes(name)) {
+      await caches.delete(name);
+    }
+  }
 }
 
 async function clearCache(cacheType) {

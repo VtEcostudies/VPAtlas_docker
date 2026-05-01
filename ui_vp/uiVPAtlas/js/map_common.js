@@ -255,13 +255,28 @@ export function addBoundaryOverlays(map, layerControl, boundaries, savedBoundary
 // =============================================================================
 // LEGEND — pool status colors + survey level shapes
 // =============================================================================
-export function addLegend(map, position = 'bottomleft') {
+export async function addLegend(map, position = 'bottomleft') {
+    let settings = await loadSettings();
     let ctl = L.Control.extend({
         options: { position: position },
         onAdd: function() {
-            let div = L.DomUtil.create('div', 'leaflet-control pool-legend');
+            let div = L.DomUtil.create('div', 'leaflet-control pool-legend pool-legend-collapsible');
             L.DomEvent.disableClickPropagation(div);
-            div.innerHTML = `
+            L.DomEvent.disableScrollPropagation(div);
+
+            // Restore collapsed state from shared settings
+            if (settings.legendCollapsed) div.classList.add('collapsed');
+
+            // Collapse toggle header
+            let toggle = L.DomUtil.create('div', 'pool-legend-toggle-header', div);
+            toggle.innerHTML = '<span>Legend</span><span class="pool-legend-arrow">&#9660;</span>';
+            toggle.addEventListener('click', () => {
+                div.classList.toggle('collapsed');
+                saveSettings({ legendCollapsed: div.classList.contains('collapsed') });
+            });
+
+            let body = L.DomUtil.create('div', 'pool-legend-body', div);
+            body.innerHTML = `
                 <div class="pool-legend-title">Pool Status</div>
                 <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#DAA520" stroke="#333" stroke-width="1"/></svg> Potential</div>
                 <div class="pool-legend-item"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#00BFFF" stroke="#333" stroke-width="1"/></svg> Probable</div>

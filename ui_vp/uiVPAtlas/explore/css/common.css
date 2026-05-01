@@ -160,7 +160,7 @@ select {
     }
     .tri-pane {
         display: none !important;
-        height: calc(100dvh - 140px - 52px);
+        height: calc(100dvh - var(--header-h, 100px) - 52px);
         min-height: 0;
         border: none !important;
         border-radius: 0 !important;
@@ -186,12 +186,37 @@ select {
 
     /* Map needs explicit height for Leaflet */
     .content-row[data-active-tab="map"] .tri-pane-center {
-        height: calc(100dvh - 140px - 52px);
+        height: calc(100dvh - var(--header-h, 100px) - 52px);
         padding: 0;
     }
 
     body {
         padding-bottom: 52px;
+    }
+
+    /* Filter hamburger toggle — same size as app hamburger (.action-overflow-btn) */
+    .filter-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: 1px solid var(--primary-color);
+        border-radius: 6px;
+        color: var(--primary-color);
+        font-size: 18px;
+        padding: 4px 10px;
+        cursor: pointer;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    .filter-toggle-btn.active {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    /* When filters are hidden on mobile */
+    .explore-row2.collapsed {
+        display: none !important;
     }
 }
 

@@ -64,14 +64,6 @@
         .pf-map-container { flex: 1; min-height: 0; position: relative; }
         .pf-map-container #map { height: 100%; width: 100%; }
 
-        /* GPS info */
-        .pf-gps-info {
-            position: absolute; bottom: 10px; left: 10px;
-            background: rgba(255,255,255,0.9); padding: 4px 8px;
-            border-radius: 6px; font-size: 12px; z-index: 1000;
-            box-shadow: var(--shadow-light);
-        }
-
         /* Center-on-me button — top-left of map */
         .pf-center-btn {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
@@ -81,6 +73,14 @@
             box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         }
         .pf-center-btn:hover, .pf-center-btn:active { background: #e8f5e9; }
+
+        /* GPS info — top-left, below center button */
+        .pf-gps-info {
+            position: absolute; top: 56px; left: 10px;
+            background: rgba(255,255,255,0.9); padding: 4px 8px;
+            border-radius: 6px; font-size: 12px; z-index: 1000;
+            box-shadow: var(--shadow-light);
+        }
 
         /* Nav panel */
         .pf-nav-panel {
@@ -103,8 +103,9 @@
             display: flex; gap: 4px; padding-top: 6px; flex-wrap: wrap;
         }
         .pf-nav-actions a {
-            font-size: 12px; padding: 3px 8px; border: 1px solid var(--primary-color);
+            font-size: 14px; padding: 6px 16px; border: 1px solid var(--primary-color);
             border-radius: 6px; color: var(--primary-color); text-decoration: none; white-space: nowrap;
+            font-weight: 600;
         }
         .pf-nav-actions a.near { background: var(--primary-color); color: white; }
 
@@ -135,8 +136,7 @@
         <!-- Navigation panel -->
         <div class="pf-nav-panel" id="nav_panel"></div>
 
-        <!-- Saved visits queue (rendered by visit_queue_ui.js) -->
-        <div id="visit_queue" style="flex-shrink:0; border-top:1px solid #ddd; max-height:35vh; overflow-y:auto; display:none;"></div>
+        <!-- (visit queue removed — managed on explore page) -->
     </div>
 
     <script src="/js/console_manager.js"></script>
@@ -155,7 +155,7 @@
         import { getPoolById } from '/js/pool_data_cache.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { getUser } from '/js/auth.js';
-        import { renderVisitQueue } from './js/visit_queue_ui.js';
+        import { initParcelLayer, showParcels, hideParcels, parcelsEnabled } from '/js/parcels.js';
         setupProfileIcon();
 
         let map, gps, userMarker, accuracyCircle;
@@ -210,16 +210,13 @@
                 }
             }
 
+            // Init parcel layer and restore saved preference
+            await initParcelLayer(map);
+            let parcelPref = await getLocal('map_settings');
+            if (parcelPref && parcelPref.parcelsVisible) showParcels();
+
             // Auto-start GPS
             startGps();
-
-            // Load visit queue
-            await renderVisitQueue('visit_queue');
-
-            // Refresh queue on sync events
-            window.addEventListener('visitSyncStatus', async (e) => {
-                if (e.detail.type === 'uploaded') await renderVisitQueue('visit_queue');
-            });
         });
 
         // =================================================================
@@ -286,9 +283,13 @@
 
         function fitToSelectedPools() {
             if (selectedPools.size === 0) return;
-            let group = L.featureGroup([...selectedPools.values()].map(e => e.marker));
-            map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 16 });
-            followUser = false;
+            // Delay so invalidateSize() from renderNavPanel takes effect first
+            setTimeout(() => {
+                map.invalidateSize();
+                let group = L.featureGroup([...selectedPools.values()].map(e => e.marker));
+                map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 16 });
+                followUser = false;
+            }, 50);
         }
 
         // Persist selected pools to IndexedDB
@@ -345,9 +346,12 @@
             let panel = document.getElementById('nav_panel');
             if (selectedPools.size === 0) {
                 panel.classList.remove('active');
+                map.invalidateSize();
                 return;
             }
             panel.classList.add('active');
+            // Tell Leaflet the map container changed size
+            map.invalidateSize();
             updateNavContent();
         }
 
@@ -388,7 +392,8 @@
 
                 let monitorHtml = '';
                 let userRole = currentUser && currentUser.userrole;
-                if (userRole === 'admin' || userRole === 'monitor') {
+                let surveyLevel = getSurveyLevel(row);
+                if ((userRole === 'admin' || userRole === 'monitor') && surveyLevel === 'monitored') {
                     monitorHtml = `<a href="/survey/survey_create.html?poolId=${pid}" class="${nearClass}">+ Monitor Survey</a>`;
                 }
 

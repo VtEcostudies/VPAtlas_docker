@@ -159,6 +159,8 @@
 
     <script type="module">
         import { fetchMappedPoolById, fetchVisitsByPool, fetchSurveysByPool, fetchReviews } from '/js/api.js';
+        import { getPoolById, getVisitsByPoolId, getSurveysByPoolId } from '/js/pool_data_cache.js';
+        import { prefetchParcelsNear, getCachedParcels } from '/js/parcels.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { createMap, addPoolMarker, getPoolColor, getSurveyLevel } from '/js/map_common.js';
@@ -202,10 +204,12 @@
 
             document.getElementById('page_title').textContent = `Pool ${poolId}`;
 
-            // Load pool data
+            // Load pool data — try API first, fall back to IndexedDB cache
             let pool = null;
             try {
-                let data = await fetchMappedPoolById(poolId);
+                let data;
+                try { data = await fetchMappedPoolById(poolId); }
+                catch(e) { data = await getPoolById(poolId); }
                 pool = data.rows ? data.rows[0] : data;
 
                 // Descriptive title
@@ -222,14 +226,18 @@
                 }
 
                 renderPoolInfo(pool);
+                // Landowner info from parcel layer (async, appends when ready)
+                loadLandownerInfo(pool);
             } catch(err) {
                 document.getElementById('pool_info').innerHTML = `<p style="color:var(--danger-color);">Error: ${err.message}</p>`;
             }
 
-            // Load visits + surveys (needed to determine survey level for map marker)
+            // Load visits + surveys — API first, cache fallback
             let hasVisits = false, hasSurveys = false;
             try {
-                let visits = await fetchVisitsByPool(poolId);
+                let visits;
+                try { visits = await fetchVisitsByPool(poolId); }
+                catch(e) { visits = await getVisitsByPoolId(poolId); }
                 let visitRows = visits.rows || [];
                 hasVisits = visitRows.length > 0;
                 renderVisits(visitRows);
@@ -239,7 +247,9 @@
             await renderVisitQueue('local_visits', { poolId });
 
             try {
-                let surveys = await fetchSurveysByPool(poolId);
+                let surveys;
+                try { surveys = await fetchSurveysByPool(poolId); }
+                catch(e) { surveys = await getSurveysByPoolId(poolId); }
                 let surveyRows = Array.isArray(surveys) ? surveys : surveys.rows || [];
                 hasSurveys = surveyRows.length > 0;
                 renderSurveys(surveyRows);
@@ -251,11 +261,11 @@
                 initPoolMap(pool, level);
             }
 
-            // Load reviews
+            // Load reviews (no offline cache — just show empty if offline)
             try {
                 let reviews = await fetchReviews(`reviewPoolId=${poolId}`);
                 renderReviews(reviews.rows || []);
-            } catch(err) { renderReviews([]); }
+            } catch(err) { renderReviews([], true); }
 
             // Setup buttons
             let user = await getUser();
@@ -307,7 +317,70 @@
                 <tr><td><strong>Location</strong></td><td>${pool.mappedLatitude ? Number(pool.mappedLatitude).toFixed(5) + ', ' + Number(pool.mappedLongitude).toFixed(5) : ''}</td></tr>
                 <tr><td><strong>Comments</strong></td><td>${pool.mappedComments || ''}</td></tr>
             </table>`;
+            html += `<div id="landowner_info"></div>`;
             document.getElementById('pool_info').innerHTML = html;
+        }
+
+        async function loadLandownerInfo(pool) {
+            let lat = parseFloat(pool.mappedLatitude || pool.latitude);
+            let lng = parseFloat(pool.mappedLongitude || pool.longitude);
+            if (isNaN(lat) || isNaN(lng)) return;
+
+            let parcel = findParcelAtPoint(lng, lat);
+            if (!parcel) {
+                try {
+                    await prefetchParcelsNear(lat, lng);
+                    parcel = findParcelAtPoint(lng, lat);
+                } catch (e) {}
+            }
+            if (!parcel) return;
+
+            let p = parcel.properties || {};
+            let html = `<h5 style="margin-top:12px;"><i class="fa fa-home" style="margin-right:4px;"></i>Landowner</h5>
+                <table class="pool-table" style="font-size:15px;">`;
+            if (p.OWNER1) html += `<tr><td><strong>Owner</strong></td><td>${p.OWNER1}</td></tr>`;
+            if (p.OWNER2) html += `<tr><td><strong></strong></td><td>${p.OWNER2}</td></tr>`;
+            if (p.E911ADDR) html += `<tr><td><strong>Address</strong></td><td>${p.E911ADDR}</td></tr>`;
+            if (p.LOCAPROP) html += `<tr><td><strong>Location</strong></td><td>${p.LOCAPROP}</td></tr>`;
+            if (p.TNAME || p.TOWN) html += `<tr><td><strong>Town</strong></td><td>${p.TNAME || p.TOWN}</td></tr>`;
+            if (p.ACRESGL) html += `<tr><td><strong>Acres</strong></td><td>${p.ACRESGL.toFixed(1)}</td></tr>`;
+            if (p.DESCPROP) html += `<tr><td><strong>Property</strong></td><td>${p.DESCPROP}</td></tr>`;
+            if (p.REAL_FLV) html += `<tr><td><strong>Assessed Value</strong></td><td>$${p.REAL_FLV.toLocaleString()}</td></tr>`;
+            if (p.SPAN) html += `<tr><td><strong>SPAN</strong></td><td>${p.SPAN}</td></tr>`;
+            if (p.PARCID) html += `<tr><td><strong>Parcel ID</strong></td><td>${p.PARCID}</td></tr>`;
+            html += `</table>`;
+
+            let el = document.getElementById('landowner_info');
+            if (el) el.innerHTML = html;
+        }
+
+        function findParcelAtPoint(x, y) {
+            let parcels = getCachedParcels();
+            for (let feature of parcels) {
+                if (pointInFeature(x, y, feature)) return feature;
+            }
+            return null;
+        }
+
+        function pointInFeature(x, y, feature) {
+            let geom = feature.geometry;
+            if (!geom) return false;
+            if (geom.type === 'Polygon') return pointInRings(x, y, geom.coordinates);
+            if (geom.type === 'MultiPolygon') {
+                for (let poly of geom.coordinates) { if (pointInRings(x, y, poly)) return true; }
+            }
+            return false;
+        }
+
+        function pointInRings(x, y, rings) {
+            let ring = rings[0];
+            if (!ring || ring.length < 3) return false;
+            let inside = false;
+            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                let xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+                if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+            }
+            return inside;
         }
 
         // ---- Sorting ----
@@ -415,13 +488,14 @@
         }
 
         // ---- Reviews ----
-        function renderReviews(rows) {
+        function renderReviews(rows, offline = false) {
             if (!sortState.reviews) { sortState.reviews = { col: 'reviewQADate', asc: false }; }
             rows = sortRows(rows, sortState.reviews.col, sortState.reviews.asc);
 
             document.getElementById('reviews_title').textContent = `Reviews (${rows.length})`;
             if (!rows.length) {
-                document.getElementById('reviews_table').innerHTML = '<p style="font-size:14px;">No reviews.</p>';
+                let msg = offline ? 'Reviews unavailable offline.' : 'No reviews.';
+                document.getElementById('reviews_table').innerHTML = `<p style="font-size:14px;">${msg}</p>`;
                 return;
             }
             let html = `<table class="pool-table"><thead><tr>
