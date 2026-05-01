@@ -9,6 +9,7 @@ module.exports = {
     getColumns,
     getCount,
     getOverview,
+    getSummary,
     getAll,
     getPage,
     getById,
@@ -94,6 +95,17 @@ async function getOverview(params={}) {
     ${where.text} ${orderClause};`;
     console.log(text, where.values);
     return await query(text, where.values);
+}
+
+// Lightweight summary for offline cache — only fields needed for pool detail view
+async function getSummary() {
+  const text = `
+  SELECT "visitId", "visitPoolId", "visitDate",
+         visituser.username AS "visitObserverUserName"
+  FROM vpvisit
+  LEFT JOIN vpuser AS visituser ON "visitUserId"=visituser."id"
+  ORDER BY "visitPoolId", "visitDate" DESC`;
+  return await query(text);
 }
 
 async function getAll(params={}) {

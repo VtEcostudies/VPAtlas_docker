@@ -41,17 +41,17 @@
                 <div class="row mb-2">
                     <div class="col-12">
                         <label for="mappedObserverUserName">Observer</label>
-                        <input type="text" id="mappedObserverUserName" required style="width:100%">
+                        <input type="text" id="mappedObserverUserName" required readonly style="width:100%">
                     </div>
                 </div>
                 <div class="row mb-2">
                     <div class="col-6">
                         <label for="mappedLatitude">Latitude</label>
-                        <input type="text" id="mappedLatitude" required style="width:100%" placeholder="Click map or enter">
+                        <input type="text" id="mappedLatitude" required style="width:100%" readonly placeholder="Click map">
                     </div>
                     <div class="col-6">
                         <label for="mappedLongitude">Longitude</label>
-                        <input type="text" id="mappedLongitude" required style="width:100%" placeholder="Click map or enter">
+                        <input type="text" id="mappedLongitude" required style="width:100%" readonly placeholder="Click map">
                     </div>
                 </div>
                 <div class="row mb-2">
@@ -121,6 +121,7 @@
 
     <script type="module">
         import { fetchMappedPoolById, createMappedPool, updateMappedPool } from '/js/api.js';
+        import { getPoolById } from '/js/pool_data_cache.js';
         import { requireAuth, getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         setupProfileIcon();
@@ -139,7 +140,7 @@
                 return;
             }
             if (!isEdit) {
-                document.getElementById('mappedObserverUserName').value = user.username || user.email || '';
+                document.getElementById('mappedObserverUserName').value = user.handle || user.username || user.email || '';
                 document.getElementById('mappedDateText').value = new Date().toLocaleDateString('sv-SE');
             }
 
@@ -158,7 +159,9 @@
             if (isEdit) {
                 document.getElementById('page_title').textContent = `Edit Pool ${poolId}`;
                 try {
-                    let data = await fetchMappedPoolById(poolId);
+                    let data;
+                    try { data = await fetchMappedPoolById(poolId); }
+                    catch(e) { data = await getPoolById(poolId); }
                     let pool = data.rows ? data.rows[0] : data;
                     if (pool) {
                         let town = pool.townName || pool.mappedTownName || '';

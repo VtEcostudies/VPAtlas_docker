@@ -20,6 +20,7 @@ router.get('/poolids', getPoolIds); //get surveyed pool ids
 router.get('/types', getTypes); //get pool-survey types
 router.get('/observers', getObservers); //get pool-survey observers
 router.get('/years', getYears); //get pool-survey years
+router.get('/summary', getSummary);
 router.get('/', getAll);
 router.get('/s123', getS123);
 router.get('/s123/attachments', getS123attachments);
@@ -99,6 +100,12 @@ function postS123Attachments(req, res, next) {
 
 function getCount(req, res, next) {
     service.getCount(req.query)
+        .then(items => res.json(items))
+        .catch(err => next(err));
+}
+
+function getSummary(req, res, next) {
+    service.getSummary()
         .then(items => res.json(items))
         .catch(err => next(err));
 }

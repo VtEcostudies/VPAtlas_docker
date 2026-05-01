@@ -587,16 +587,16 @@
                 <div class="form-section">
                     <div class="form-section-title">Visit Info</div>
                     <div class="form-row">
-                        <div class="form-field"><label for="visitPoolId">Pool ID</label><input type="text" id="visitPoolId" required></div>
+                        <div class="form-field"><label for="visitPoolId">Pool ID</label><input type="text" id="visitPoolId" required readonly></div>
                         <div class="form-field"><label for="visitDate">Date</label><input type="date" id="visitDate" required></div>
-                        <div class="form-field"><label for="visitObserverUserName">Observer</label><input type="text" id="visitObserverUserName" required></div>
+                        <div class="form-field"><label for="visitObserverUserName">Observer</label><input type="text" id="visitObserverUserName" required readonly></div>
                     </div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Location</div>
                     <div class="form-row">
-                        <div class="form-field"><label for="visitLatitude">Latitude</label><input type="text" id="visitLatitude" placeholder="Tap map"></div>
-                        <div class="form-field"><label for="visitLongitude">Longitude</label><input type="text" id="visitLongitude" placeholder="Tap map"></div>
+                        <div class="form-field"><label for="visitLatitude">Latitude</label><input type="text" id="visitLatitude" placeholder="Tap map" readonly></div>
+                        <div class="form-field"><label for="visitLongitude">Longitude</label><input type="text" id="visitLongitude" placeholder="Tap map" readonly></div>
                     </div>
                     <div class="form-field">
                         <span class="help-label" onclick="showHelp('voice')">Location Comments</span> <button type="button" class="voice-btn" data-target="visitLocationComments" title="Voice input"><i class="fa fa-microphone"></i></button>
@@ -1012,6 +1012,7 @@
 
     <script type="module">
         import { fetchVisitById, fetchMappedPoolById, fetchMappedPoolGeoJson, createVisit, updateVisit } from '/js/api.js';
+        import { getPoolById } from '/js/pool_data_cache.js';
         import { requireAuth, getUser } from '/js/auth.js';
         import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
@@ -1220,7 +1221,9 @@
 
                 if (poolId) {
                     try {
-                        let data = await fetchMappedPoolById(poolId);
+                        let data;
+                        try { data = await fetchMappedPoolById(poolId); }
+                        catch(e) { data = await getPoolById(poolId); }
                         let pool = data.rows ? data.rows[0] : data;
                         if (pool && pool.mappedLatitude) {
                             let lat = Number(pool.mappedLatitude), lng = Number(pool.mappedLongitude);
@@ -1270,7 +1273,9 @@
 
                     if (draftPoolId) {
                         try {
-                            let data = await fetchMappedPoolById(draftPoolId);
+                            let data;
+                            try { data = await fetchMappedPoolById(draftPoolId); }
+                            catch(e) { data = await getPoolById(draftPoolId); }
                             let pool = data.rows ? data.rows[0] : data;
                             if (pool && pool.mappedLatitude) {
                                 let lat = Number(pool.mappedLatitude), lng = Number(pool.mappedLongitude);

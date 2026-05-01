@@ -21,6 +21,7 @@ router.get('/columns', getColumns);
 router.get('/routes', getRoutes);
 router.get('/count', getCount);
 router.get('/overview', getOverview);
+router.get('/summary', getSummary);
 router.get('/', getAll);
 router.get('/page/:page', getPage);
 router.get('/s123', getS123);
@@ -109,6 +110,12 @@ function getStats(req, res, next) {
 
 function getOverview(req, res, next) {
     service.getOverview(req.query)
+        .then(items => res.json(items))
+        .catch(err => next(err));
+}
+
+function getSummary(req, res, next) {
+    service.getSummary()
         .then(items => res.json(items))
         .catch(err => next(err));
 }

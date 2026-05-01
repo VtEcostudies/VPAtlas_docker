@@ -144,6 +144,7 @@ export async function updateMappedPool(id, body) { return putApiRoute(`pools/map
 // =============================================================================
 // POOL VISITS
 // =============================================================================
+export async function fetchVisitSummary() { return fetchApiRoute('pools/visit/summary'); }
 export async function fetchVisits(searchTerm) { return fetchApiRoute('pools/visit', searchTerm); }
 export async function fetchVisitById(id) { return fetchApiRoute(`pools/visit/${id}`); }
 export async function fetchVisitsByPool(poolId) { return fetchApiRoute(`pools/visit/pool/${poolId}`); }
@@ -172,6 +173,7 @@ export async function updateReview(id, body) { return putApiRoute(`review/${id}`
 // =============================================================================
 // SURVEYS (vpsurvey / monitoring)
 // =============================================================================
+export async function fetchSurveySummary() { return fetchApiRoute('survey/summary'); }
 export async function fetchSurveys(searchTerm) { return fetchApiRoute('survey', searchTerm); }
 export async function fetchSurveyById(id) { return fetchApiRoute(`survey/${id}`); }
 export async function fetchSurveysByPool(poolId) { return fetchApiRoute(`survey/pool/${poolId}`); }

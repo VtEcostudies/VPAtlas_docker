@@ -152,6 +152,7 @@
                  buildShapeIcon, stateCenter, stateZoom } from '/js/map_common.js';
         import { getLocal, setLocal } from '/js/storage.js';
         import { fetchApiRoute } from '/js/api.js';
+        import { getPoolById } from '/js/pool_data_cache.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { getUser } from '/js/auth.js';
         import { renderVisitQueue } from './js/visit_queue_ui.js';
@@ -226,7 +227,9 @@
         // =================================================================
         async function addPoolById(poolId) {
             try {
-                let data = await fetchApiRoute(`pools/mapped/${poolId}`);
+                let data;
+                try { data = await fetchApiRoute(`pools/mapped/${poolId}`); }
+                catch(e) { data = await getPoolById(poolId); }
                 let row = data.rows ? data.rows[0] : data;
                 if (row) addPool(row);
             } catch(e) { console.warn('PoolFinder: could not load pool', poolId); }

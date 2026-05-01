@@ -69,6 +69,8 @@ const TILE_CACHE = `${TILE_CACHE_NAME}-${APP_VERSION}`;
 const DATA_CACHE_PATTERNS = [
   /\/vtinfo\//,
   /\/pools\/mapped\/stats/,
+  /\/pools\/visit\/summary$/,
+  /\/survey\/summary$/,
 ];
 
 // Data patterns to never cache (dynamic/user data)

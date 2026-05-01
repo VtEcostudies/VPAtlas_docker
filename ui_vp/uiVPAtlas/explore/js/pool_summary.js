@@ -10,6 +10,7 @@
     pool list and map — ensuring all three panes always agree.
 */
 import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchSurveysByPool } from '/js/api.js';
+import { getPoolById, getVisitsByPoolId, getSurveysByPoolId } from '/js/pool_data_cache.js';
 import { getUser } from '/js/auth.js';
 import { formatDate } from './utils.js';
 import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
@@ -220,7 +221,9 @@ export async function showPoolSummary(poolId, onBack = null) {
     summaryContainer.innerHTML = '<div style="padding:10px;"><i class="fa fa-spinner fa-spin"></i> Loading...</div>';
 
     try {
-        let data = await fetchMappedPoolById(poolId);
+        let data;
+        try { data = await fetchMappedPoolById(poolId); }
+        catch(e) { data = await getPoolById(poolId); }
         let pool = data.rows ? data.rows[0] : data;
 
         if (!pool) {
@@ -251,7 +254,8 @@ export async function showPoolSummary(poolId, onBack = null) {
         let user = await getUser();
         let isMonitor = user && (user.userrole === 'admin' || user.userrole === 'monitor');
         let surveyData = null;
-        try { surveyData = await fetchSurveysByPool(poolId); } catch(err) {}
+        try { surveyData = await fetchSurveysByPool(poolId); }
+        catch(err) { try { surveyData = await getSurveysByPoolId(poolId); } catch(e) {} }
         let surveyRows = surveyData ? (surveyData.rows || (Array.isArray(surveyData) ? surveyData : [])) : [];
         let canSurvey = isMonitor && surveyRows.length > 0;
 
@@ -265,7 +269,9 @@ export async function showPoolSummary(poolId, onBack = null) {
 
         // Visits
         try {
-            let visits = await fetchVisitsByPool(poolId);
+            let visits;
+            try { visits = await fetchVisitsByPool(poolId); }
+            catch(e) { visits = await getVisitsByPoolId(poolId); }
             let visitRows = visits.rows || (Array.isArray(visits) ? visits : []);
             if (visitRows.length) {
                 html += `<div class="summary-section"><h6>Visits (${visitRows.length})</h6>`;

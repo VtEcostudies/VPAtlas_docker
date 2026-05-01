@@ -16,6 +16,7 @@ module.exports = {
     getTypes,
     getObservers,
     getYears,
+    getSummary,
     getAll,
     getById,
     getByPoolId,
@@ -122,6 +123,18 @@ async function getObservers(params={}) {
   `;
   console.log(text, where.values);
   return await query(text, where.values);
+}
+
+// Lightweight summary for offline cache — only fields needed for pool detail view
+async function getSummary() {
+  const text = `
+  SELECT "surveyId", "surveyPoolId", "surveyDate",
+         (SELECT "surveyTypeName" FROM def_survey_type WHERE def_survey_type."surveyTypeId"=vpsurvey."surveyTypeId"),
+         surveyuser.username AS "surveyUserLogin"
+  FROM vpsurvey
+  LEFT JOIN vpuser AS surveyuser ON "surveyUserId"=surveyuser."id"
+  ORDER BY "surveyPoolId", "surveyDate" DESC`;
+  return await query(text);
 }
 
 async function getAll(params={}) {

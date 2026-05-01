@@ -1,7 +1,7 @@
 // sw.js - Service Worker for VPAtlas (unified app)
 // Generated from sw_template.js by sw-build.js — do not edit directly
-const APP_VERSION = '4.0.2';
-const BUILD_TIMESTAMP = '1777120681358';
+const APP_VERSION = '3.5.19';
+const BUILD_TIMESTAMP = '1777574486302';
 const ME = 'sw.js';
 
 const SW_BASE = self.location.pathname.replace(/\/[^\/]*$/, '');
@@ -69,6 +69,8 @@ const TILE_CACHE = `${TILE_CACHE_NAME}-${APP_VERSION}`;
 const DATA_CACHE_PATTERNS = [
   /\/vtinfo\//,
   /\/pools\/mapped\/stats/,
+  /\/pools\/visit\/summary$/,
+  /\/survey\/summary$/,
 ];
 
 // Data patterns to never cache (dynamic/user data)

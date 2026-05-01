@@ -4,6 +4,7 @@
     Pattern from LoonWeb explore/js/signup_table.js
 */
 import { fetchPools, fetchMappedPoolStats } from '/js/api.js';
+import { ensureCachesLoaded } from '/js/pool_data_cache.js';
 import { showWait, hideWait } from './utils.js';
 import { filters, putUserState } from './url_state.js';
 import { getLocal, setLocal } from '/js/storage.js';
@@ -51,6 +52,8 @@ export async function loadPools(onRefresh = null) {
         console.log(`pool_list: loaded ${cache.rows.length} pools from cache`);
         // Check freshness in background
         checkFreshness(cache, onRefresh);
+        // Populate visit/survey caches for offline use (fire-and-forget)
+        ensureCachesLoaded();
         return cache.rows;
     }
 
@@ -81,6 +84,8 @@ async function fetchAndCache(onRefresh) {
 
         await setLocal(CACHE_KEY, { rows, fingerprint, ts: Date.now() });
         console.log(`pool_list: fetched and cached ${rows.length} pools (fp: ${fingerprint})`);
+        // Also refresh visit/survey caches (fire-and-forget)
+        ensureCachesLoaded();
         return rows;
     } catch(err) {
         console.error('pool_list.js=>loadPools error:', err);

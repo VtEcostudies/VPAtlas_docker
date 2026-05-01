@@ -35,6 +35,7 @@ appConfig.urlsToCache = [
 '/js/auth.js',
 '/js/storage.js',
 '/js/map_common.js',
+'/js/pool_data_cache.js',
 
 // === Explore JS modules ===
 '/explore/js/utils.js',

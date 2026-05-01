@@ -11,6 +11,7 @@ import {
     stateBounds
 } from '/js/map_common.js';
 import { getLocal, setLocal } from '/js/storage.js';
+import { initParcelLayer, showParcels, hideParcels, parcelsEnabled, parcelMinZoom } from '/js/parcels.js';
 
 // =============================================================================
 // CANVAS SHAPE MARKERS — extend L.CircleMarker for triangle & diamond shapes
@@ -132,6 +133,11 @@ export async function initMap(opts = {}) {
 
     // Resize pool markers on zoom change
     map.on('zoomend', onZoomResizeMarkers);
+
+    // Parcel overlay (VCGI landowner parcels)
+    await initParcelLayer(map);
+    let savedParcels = settings.parcelsVisible !== undefined ? settings.parcelsVisible : false;
+    if (savedParcels) showParcels();
 
     // Status layer control (interactive legend + toggle)
     await initStatusControl();
@@ -308,6 +314,54 @@ async function initStatusControl() {
                     applyFilters();
                     saveSettings({ statusVisible: Object.assign({}, statusVisible) });
                 });
+            });
+
+            // ── Parcel overlay toggle ──
+            let parcelSection = L.DomUtil.create('div', 'pool-legend-title', div);
+            parcelSection.style.marginTop = '6px';
+            parcelSection.textContent = 'Overlays';
+
+            let parcelItem = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', div);
+            let parcelCb = document.createElement('input');
+            parcelCb.type = 'checkbox';
+            parcelCb.checked = parcelsEnabled();
+            parcelCb.style.cssText = 'margin:0 5px 0 0; accent-color:#8B0000;';
+            parcelItem.appendChild(parcelCb);
+
+            let parcelIcon = document.createElement('span');
+            parcelIcon.innerHTML = '<svg width="14" height="14"><rect x="1" y="1" width="12" height="12" fill="none" stroke="#8B0000" stroke-width="1.5" opacity="0.7"/></svg>';
+            parcelIcon.style.cssText = 'display:inline-flex; align-items:center; margin-right:3px;';
+            parcelItem.appendChild(parcelIcon);
+
+            parcelItem.appendChild(document.createTextNode('Parcels'));
+
+            let parcelStatus = document.createElement('span');
+            parcelStatus.className = 'pool-legend-count';
+            parcelStatus.id = 'parcel_status';
+            parcelItem.appendChild(parcelStatus);
+
+            parcelCb.addEventListener('change', () => {
+                if (parcelCb.checked) {
+                    showParcels();
+                    if (map.getZoom() < parcelMinZoom()) {
+                        parcelStatus.textContent = ' (zoom in)';
+                    }
+                } else {
+                    hideParcels();
+                    parcelStatus.textContent = '';
+                }
+                saveSettings({ parcelsVisible: parcelCb.checked });
+            });
+
+            // Listen for parcel status events
+            document.addEventListener('parcels:status', (e) => {
+                let { state, count } = e.detail;
+                if (!parcelCb.checked) { parcelStatus.textContent = ''; return; }
+                if (state === 'loading') parcelStatus.textContent = ' (loading…)';
+                else if (state === 'zoom-in') parcelStatus.textContent = ' (zoom in)';
+                else if (state === 'error') parcelStatus.textContent = count ? ` (${count} cached)` : ' (error)';
+                else if (count) parcelStatus.textContent = ` (${count.toLocaleString()})`;
+                else parcelStatus.textContent = '';
             });
 
             // ── Survey level checkboxes with shape swatches ──
