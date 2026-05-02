@@ -20,10 +20,18 @@
     <header>
         <!-- Row 1: Logo + hamburger + profile (always visible) -->
         <div class="explore-row1">
-            <a id="logo_link" href="/explore/" style="display:flex; align-items:center; gap:4px; text-decoration:none;">
-                <h3 class="header-name light-foreground" style="font-size:16px; margin:0;">VPAtlas</h3>
-                <span id="app_version" class="app-version"></span>
-            </a>
+            <span class="header-logo-link">
+                <a href="https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/" target="_blank" rel="noopener" title="Vermont Center for Ecostudies — Vernal Pool Atlas">
+                    <picture>
+                        <source media="(max-width: 419px)" srcset="/images/vce_logo_abbrev.png">
+                        <img src="/images/vce_logo_no_tagline.png" alt="VCE" class="header-vce-logo">
+                    </picture>
+                </a>
+                <a id="logo_link" href="/explore/" class="header-app-stack" style="text-decoration:none;">
+                    <span class="header-name light-foreground header-app-name">VPAtlas</span>
+                    <span id="app_version" class="app-version"></span>
+                </a>
+            </span>
 
             <!-- Desktop: filters inline here -->
             <div id="filter_container" class="filter-container"></div>
@@ -195,7 +203,7 @@
             });
             if (tabName === 'map') {
                 let m = getMap();
-                if (m) setTimeout(() => m.invalidateSize(), 100);
+                if (m) setTimeout(() => { m.invalidateSize(); zoomToFilteredPools(); }, 100);
             }
         }
 

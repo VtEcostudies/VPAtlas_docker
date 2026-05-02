@@ -1,6 +1,9 @@
 db_data_vt/
 db_backup/
 
+# Local photo uploads (mounted to api_vp:/opt/api/photos)
+photo_data/
+
 # Generated service worker (built from sw_template.js by sw-build.js)
 ui_vp/uiVPAtlas/explore/sw.js
 ui_vp/uiVPAtlas/survey/sw.js

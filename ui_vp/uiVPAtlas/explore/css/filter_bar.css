@@ -178,7 +178,8 @@
     font-size: 14px;
     border-bottom: 1px solid #f5f5f5;
 }
-.suggestion-item:hover {
+.suggestion-item:hover,
+.suggestion-item.highlighted {
     background-color: var(--primary-light);
 }
 .suggestion-item:last-child {

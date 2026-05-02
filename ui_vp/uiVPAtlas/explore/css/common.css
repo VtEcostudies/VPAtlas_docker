@@ -204,10 +204,13 @@ select {
         border-radius: 6px;
         color: var(--primary-color);
         font-size: 18px;
-        padding: 4px 10px;
+        height: 40px;
+        min-width: 44px;
+        padding: 0 12px;
         cursor: pointer;
         line-height: 1;
         white-space: nowrap;
+        box-sizing: border-box;
     }
     .filter-toggle-btn.active {
         background: var(--primary-color);
@@ -304,9 +307,12 @@ header {
     border-radius: 6px;
     color: var(--primary-color);
     font-size: 18px;
-    padding: 4px 10px;
+    height: 40px;
+    min-width: 44px;
+    padding: 0 12px;
     cursor: pointer;
     line-height: 1;
+    box-sizing: border-box;
 }
 .action-overflow-panel {
     display: none;
@@ -437,6 +443,43 @@ div.controls {
 .header-title-logo img {
     max-height: 50px;
 }
+
+/* Explore header logo block: VCE logo + VPAtlas wordmark + version */
+.header-logo-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+.header-logo-link:hover { text-decoration: none; }
+.header-vce-logo {
+    height: 36px;
+    width: auto;
+    flex-shrink: 0;
+}
+.header-app-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1;
+    gap: 2px;
+}
+.header-app-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1;
+    color: var(--primary-color);
+}
+.header-app-stack .app-version {
+    margin-left: 0;
+    font-size: 11px;
+}
+@media (max-width: 768px) {
+    .header-vce-logo { height: 32px; }
+    .header-app-name { font-size: 15px; }
+}
 hr {
     margin: 0;
 }
@@ -550,8 +593,8 @@ select:invalid {
     align-items: center;
 }
 .profile-icon {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: 2px solid var(--primary-color);
     display: flex;
@@ -561,7 +604,8 @@ select:invalid {
     background: white;
     color: var(--primary-color);
     font-weight: bold;
-    font-size: 16px;
+    font-size: 18px;
+    box-sizing: border-box;
 }
 .profile-icon.signed-in {
     background: var(--primary-color);

@@ -64,15 +64,35 @@
         .pf-map-container { flex: 1; min-height: 0; position: relative; }
         .pf-map-container #map { height: 100%; width: 100%; }
 
-        /* Center-on-me button — top-left of map */
-        .pf-center-btn {
+        /* Map zoom toolbar — top-left */
+        .pf-zoom-bar {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
-            width: 40px; height: 40px; display: flex; align-items: center;
-            justify-content: center; cursor: pointer; font-size: 20px; color: #333;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            display: flex; gap: 6px;
         }
-        .pf-center-btn:hover, .pf-center-btn:active { background: #e8f5e9; }
+        .pf-zoom-btn {
+            background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
+            height: 40px; padding: 0 10px; display: flex; align-items: center; gap: 4px;
+            cursor: pointer; font-size: 14px; font-weight: 600; color: #333;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2); white-space: nowrap;
+        }
+        .pf-zoom-btn i { font-size: 18px; }
+        .pf-zoom-btn:hover, .pf-zoom-btn:active { background: #e8f5e9; }
+
+        /* Distance/bearing label centered on each GPS-to-pool line */
+        .pf-line-label {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #4285F4;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #1a4ea0;
+            white-space: nowrap;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
 
         /* GPS info — top-left, below center button */
         .pf-gps-info {
@@ -116,7 +136,7 @@
         <!-- Header: search + GPS -->
         <div class="pf-header">
             <a href="/explore/" class="exit-button" style="text-decoration:none;">&times;</a>
-            <h3 class="header-name light-foreground" style="margin-right:6px; white-space:normal;">Pool Finder</h3>
+            <h3 class="header-name light-foreground" style="margin-right:6px; white-space:normal; line-height:1.1; font-size:16px; max-width:6em;">Pool<br>Finder</h3>
             <div class="pf-chips" id="pool_chips" style="flex:1; min-width:0;"></div>
             <div class="detail-actions" style="position:relative;">
                 <button id="btn_new_pool" class="action-button" style="font-size:13px; padding:4px 10px; white-space:nowrap;"><i class="fa fa-plus"></i> New Pool</button>
@@ -133,8 +153,16 @@
             <div class="pf-gps-info" id="gps_info" style="display:none;">
                 <span id="gps_accuracy"></span>
             </div>
-            <div class="pf-center-btn" id="btn_center" title="Center on my location" style="display:none;">
-                <i class="fa fa-crosshairs"></i>
+            <div class="pf-zoom-bar">
+                <button class="pf-zoom-btn" id="btn_zoom_pools" title="Zoom to selected pools">
+                    <i class="fa fa-crosshairs"></i>
+                </button>
+                <button class="pf-zoom-btn" id="btn_zoom_gps" title="Zoom to my GPS location" style="display:none;">
+                    <i class="fa fa-crosshairs"></i><span>GPS</span>
+                </button>
+                <button class="pf-zoom-btn" id="btn_zoom_both" title="Zoom to pools and my GPS" style="display:none;">
+                    <i class="fa fa-crosshairs"></i><span>Both</span>
+                </button>
             </div>
         </div>
 
@@ -164,7 +192,7 @@
         setupProfileIcon();
 
         let map, gps, userMarker, accuracyCircle;
-        let selectedPools = new Map(); // poolId → { row, marker }
+        let selectedPools = new Map(); // poolId → { row, marker, line, lineLabel }
         let followUser = true;
         let currentUser = null;
 
@@ -175,12 +203,28 @@
             currentUser = await getUser();
             map = await createMap('map');
 
-            // Center button
-            document.getElementById('btn_center').addEventListener('click', () => {
+            // Zoom buttons
+            document.getElementById('btn_zoom_pools').addEventListener('click', () => {
+                followUser = false;
+                fitToSelectedPools();
+            });
+            document.getElementById('btn_zoom_gps').addEventListener('click', () => {
                 if (gps && gps.position) {
                     map.setView([gps.position.lat, gps.position.lng], Math.max(map.getZoom(), 15));
                     followUser = true;
                 }
+            });
+            document.getElementById('btn_zoom_both').addEventListener('click', () => {
+                if (!gps || !gps.position) { fitToSelectedPools(); return; }
+                followUser = false;
+                let layers = [...selectedPools.values()].map(e => e.marker);
+                if (userMarker) layers.push(userMarker);
+                if (!layers.length) return;
+                let group = L.featureGroup(layers);
+                setTimeout(() => {
+                    map.invalidateSize();
+                    map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 16 });
+                }, 50);
             });
             map.on('dragstart', () => { followUser = false; });
 
@@ -287,9 +331,10 @@
             });
             marker.on('click', () => zoomToPool(pid));
 
-            selectedPools.set(pid, { row, marker, lat, lng });
+            selectedPools.set(pid, { row, marker, lat, lng, line: null, lineLabel: null });
             renderChips();
             renderNavPanel();
+            updateGpsLines();
             savePools();
 
             // Fit map to all selected pools
@@ -305,6 +350,8 @@
             let entry = selectedPools.get(poolId);
             if (entry) {
                 map.removeLayer(entry.marker);
+                if (entry.line) map.removeLayer(entry.line);
+                if (entry.lineLabel) map.removeLayer(entry.lineLabel);
                 selectedPools.delete(poolId);
                 renderChips();
                 renderNavPanel();
@@ -469,7 +516,8 @@
                     if (z < 12) map.setView([pos.lat, pos.lng], 14);
                     else map.panTo([pos.lat, pos.lng]);
                 }
-                // Update nav distances
+                // Update GPS-to-pool lines and nav distances
+                updateGpsLines();
                 if (selectedPools.size > 0) updateNavContent();
             });
 
@@ -477,7 +525,9 @@
                 let dot = document.getElementById('gps_dot');
                 dot.className = 'pf-gps-dot' +
                     (s.denied ? ' denied' : s.acquiring ? ' acquiring' : s.tracking ? ' tracking' : '');
-                document.getElementById('btn_center').style.display = s.tracking ? 'flex' : 'none';
+                let show = s.tracking ? 'flex' : 'none';
+                document.getElementById('btn_zoom_gps').style.display = show;
+                document.getElementById('btn_zoom_both').style.display = show;
                 document.getElementById('gps_info').style.display = s.tracking ? 'block' : 'none';
             });
 
@@ -507,6 +557,46 @@
             let q = GPSMonitor.accuracyLabel(pos.accuracy);
             document.getElementById('gps_accuracy').innerHTML =
                 `<span style="color:${q.color};">\u25cf</span> ${q.label} (${Math.round(pos.accuracy)}m)`;
+        }
+
+        // Draw a dashed line from GPS to each selected pool with a midpoint
+        // tooltip showing distance + compass bearing. Removes lines when GPS
+        // is unavailable.
+        function updateGpsLines() {
+            let havePos = !!(gps && gps.position);
+            for (let entry of selectedPools.values()) {
+                if (!havePos) {
+                    if (entry.line) { map.removeLayer(entry.line); entry.line = null; }
+                    if (entry.lineLabel) { map.removeLayer(entry.lineLabel); entry.lineLabel = null; }
+                    continue;
+                }
+                let from = [gps.position.lat, gps.position.lng];
+                let to = [entry.lat, entry.lng];
+                let dist = GPSMonitor.distance(gps.position.lat, gps.position.lng, entry.lat, entry.lng);
+                let bearing = GPSMonitor.bearing(gps.position.lat, gps.position.lng, entry.lat, entry.lng);
+                let compass = GPSMonitor.compassDir(bearing);
+                let labelHtml = `<div class="pf-line-label">${GPSMonitor.formatDistance(dist)} ${compass}</div>`;
+                let mid = [(from[0]+to[0])/2, (from[1]+to[1])/2];
+
+                if (!entry.line) {
+                    entry.line = L.polyline([from, to], {
+                        color: '#4285F4', weight: 2, opacity: 0.85, dashArray: '6,6', interactive: false
+                    }).addTo(map);
+                } else {
+                    entry.line.setLatLngs([from, to]);
+                }
+
+                if (!entry.lineLabel) {
+                    entry.lineLabel = L.marker(mid, {
+                        icon: L.divIcon({ className: '', html: labelHtml, iconSize: null, iconAnchor: [0, 0] }),
+                        interactive: false, keyboard: false
+                    }).addTo(map);
+                } else {
+                    entry.lineLabel.setLatLng(mid);
+                    let el = entry.lineLabel.getElement();
+                    if (el) el.innerHTML = labelHtml;
+                }
+            }
         }
     </script>
     <script src="/js/app.js"></script>

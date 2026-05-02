@@ -288,6 +288,22 @@ function setupTypeAhead(inputId, sugBoxId, getListFn, onSelectFn) {
     let input = document.getElementById(inputId);
     let sugBox = document.getElementById(sugBoxId);
 
+    function setHighlighted(idx) {
+        let items = sugBox.querySelectorAll('.suggestion-item');
+        if (!items.length) return;
+        if (idx < 0) idx = items.length - 1;
+        if (idx >= items.length) idx = 0;
+        items.forEach((it, i) => it.classList.toggle('highlighted', i === idx));
+        // Scroll the highlighted item into view if it's outside the visible area
+        let active = items[idx];
+        if (active) active.scrollIntoView({ block: 'nearest' });
+    }
+
+    function getHighlightedIdx() {
+        let items = [...sugBox.querySelectorAll('.suggestion-item')];
+        return items.findIndex(it => it.classList.contains('highlighted'));
+    }
+
     input.addEventListener('input', () => {
         let val = input.value.trim().toLowerCase();
         if (val.length < 1) { sugBox.style.display = 'none'; return; }
@@ -307,18 +323,34 @@ function setupTypeAhead(inputId, sugBoxId, getListFn, onSelectFn) {
                 sugBox.style.display = 'none';
                 onSelectFn(item.dataset.value);
             });
+            // Mouse hover updates the highlight for visual consistency
+            item.addEventListener('mouseenter', () => {
+                sugBox.querySelectorAll('.suggestion-item').forEach(i => i.classList.remove('highlighted'));
+                item.classList.add('highlighted');
+            });
         });
     });
 
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        let visible = sugBox.style.display === 'block';
+        if (e.key === 'ArrowDown') {
+            if (!visible) return;
             e.preventDefault();
-            // Select first visible suggestion
-            let first = sugBox.querySelector('.suggestion-item');
-            if (first) {
-                sugBox.style.display = 'none';
-                onSelectFn(first.dataset.value);
-            }
+            setHighlighted(getHighlightedIdx() + 1);
+        } else if (e.key === 'ArrowUp') {
+            if (!visible) return;
+            e.preventDefault();
+            setHighlighted(getHighlightedIdx() - 1);
+        } else if (e.key === 'Escape') {
+            sugBox.style.display = 'none';
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            let items = sugBox.querySelectorAll('.suggestion-item');
+            if (!items.length) return;
+            let idx = getHighlightedIdx();
+            let target = idx >= 0 ? items[idx] : items[0];
+            sugBox.style.display = 'none';
+            onSelectFn(target.dataset.value);
         }
     });
 

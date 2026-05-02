@@ -3,9 +3,11 @@
 # deploy-dev.sh — Deploy VPAtlas to dev.vpatlas.org
 #
 # Run from your local machine:
-#   ./deploy/deploy-dev.sh              # full deploy (pull + build all)
-#   ./deploy/deploy-dev.sh ui           # rebuild UI only
-#   ./deploy/deploy-dev.sh setup        # first-time setup (nginx + certs)
+#   ./deploy/deploy-dev.sh                          # full deploy (auto-commit + pull + build all)
+#   ./deploy/deploy-dev.sh deploy "your message"    # full deploy with custom commit message
+#   ./deploy/deploy-dev.sh ui                       # rebuild UI only (auto-commit + pull)
+#   ./deploy/deploy-dev.sh ui "your message"        # UI rebuild with custom commit message
+#   ./deploy/deploy-dev.sh setup                    # first-time setup (nginx + certs)
 #
 set -e
 
@@ -16,6 +18,23 @@ COMPOSE_FILES="-f docker-compose-vpatlas.yml -f docker-compose-dev.yml"
 
 ssh_cmd() {
     ssh -i "$SSH_KEY" "$SSH_HOST" "$@"
+}
+
+# Auto-commit any local changes before pushing.
+# Honors .gitignore. Safe to run when there's nothing to commit (no-op).
+# Optional argument: custom commit message tail (default: "v<version>").
+commit_local_changes() {
+    local custom_msg="$1"
+    git add -A
+    if git diff --cached --quiet; then
+        echo "No local changes to commit."
+        return 0
+    fi
+    local version
+    version=$(python3 -c "import json; print(json.load(open('ui_vp/uiVPAtlas/manifest.json'))['version'])" 2>/dev/null || echo "")
+    local msg="${custom_msg:-deploy v${version:-unknown}}"
+    echo "Committing local changes: \"$msg\""
+    git commit -m "$msg"
 }
 
 # Auto-detect docker compose command on remote
@@ -66,7 +85,10 @@ setup)
 deploy)
     echo "=== Deploying to dev.vpatlas.org ==="
 
-    # Push local commits first
+    # Auto-commit any local changes ($2 = optional custom commit message)
+    commit_local_changes "${2:-}"
+
+    # Push local commits
     echo "Pushing to origin..."
     git push origin main 2>/dev/null || echo "(push skipped or failed — continuing)"
 
@@ -86,6 +108,7 @@ deploy)
 ui)
     echo "=== Rebuilding UI on dev.vpatlas.org ==="
 
+    commit_local_changes "${2:-}"
     git push origin main 2>/dev/null || echo "(push skipped)"
 
     ssh_cmd "cd $REMOTE_DIR && \
