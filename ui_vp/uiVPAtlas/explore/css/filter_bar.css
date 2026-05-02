@@ -41,45 +41,29 @@
     box-sizing: border-box;
 }
 
-/* Mobile: smaller, everything must wrap and fit */
+/* Mobile: touch-friendly sizing — min 40px tall, 16px font (no iOS zoom on focus) */
 @media (max-width: 768px) {
     .filter-bar {
-        gap: 3px;
+        gap: 6px;
     }
     .data-type-btn {
-        font-size: 11px;
-        padding: 2px 5px;
-        height: 26px;
+        font-size: 15px;
+        padding: 6px 12px;
+        height: 40px;
+        min-width: 44px;
     }
     .filter-input {
-        font-size: 13px;
-        padding: 2px 6px;
-        height: 26px;
+        font-size: 16px;
+        padding: 6px 10px;
+        height: 40px;
         min-width: 0;
-        max-width: 80px !important;
+        max-width: 130px !important;
     }
     .filter-dropdown-btn {
-        font-size: 11px;
-        padding: 2px 6px;
-        height: 26px;
-        line-height: 20px;
-    }
-}
-@media (max-width: 420px) {
-    .data-type-btn {
-        font-size: 10px;
-        padding: 2px 4px;
-        height: 24px;
-    }
-    .filter-input {
-        font-size: 12px;
-        height: 24px;
-        max-width: 70px !important;
-    }
-    .filter-dropdown-btn {
-        font-size: 10px;
-        height: 24px;
-        line-height: 18px;
+        font-size: 15px;
+        padding: 6px 12px;
+        height: 40px;
+        line-height: 26px;
     }
 }
 
@@ -93,33 +77,70 @@
     padding: 2px 0;
     min-height: 4px;
 }
+/* Filter tokens — split pill: tinted label + white X side, like the poolfinder button.
+   Wrapper has no padding; the label and X each provide their own padding. */
 .filter-token {
     display: inline-flex;
-    align-items: center;
+    align-items: stretch;
     background: var(--primary-light);
     color: var(--primary-color);
-    padding: 2px 8px;
+    padding: 0;
     border-radius: 12px;
     font-size: 13px;
-    gap: 4px;
+    font-weight: 600;
+    line-height: 1.2;
     border: 1px solid var(--primary-color);
+    overflow: hidden;
 }
-.filter-token strong {
-    font-weight: 700;
+.filter-token-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 8px;
 }
+.filter-token strong { font-weight: 600; }
 .filter-token-remove {
-    background: none;
+    background: white;
     border: none;
+    border-left: 1px solid var(--primary-color);
     color: var(--primary-color);
     cursor: pointer;
-    font-size: 15px;
-    padding: 0 2px;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 0 8px;
     line-height: 1;
-    opacity: 0.6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 .filter-token-remove:hover {
-    color: var(--danger-color);
-    opacity: 1;
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Mobile: touch-friendly. Wrapper height = chip height. Label/X scale to fill. */
+@media (max-width: 768px) {
+    .status-chip, .level-chip {
+        padding: 8px 14px !important;
+        font-size: 14px !important;
+        border-radius: 18px !important;
+        min-height: 36px;
+        line-height: 1.2;
+    }
+    .filter-token {
+        padding: 0 !important;       /* override the chip-rule above if specificity collides */
+        font-size: 14px !important;
+        border-radius: 18px !important;
+        min-height: 36px;
+        line-height: 1.2;
+    }
+    .filter-token-label {
+        padding: 8px 14px;
+    }
+    .filter-token-remove {
+        font-size: 18px;
+        padding: 0 12px;
+    }
 }
 .filter-token-clear-all {
     font-size: 12px;

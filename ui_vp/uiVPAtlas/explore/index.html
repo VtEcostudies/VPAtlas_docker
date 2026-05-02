@@ -44,8 +44,8 @@
 
         <!-- Row 3: Status chips + level chips + active filter tokens -->
         <div class="explore-row3">
-            <div id="filter_description" class="filter-description" style="display:inline;"></div>
-            <div id="filter_tokens_row" style="display:inline;"></div>
+            <div id="filter_description" class="filter-description"></div>
+            <div id="filter_tokens_row" class="filter-description"></div>
         </div>
     </header>
 
@@ -111,7 +111,7 @@
 
     <!-- Main app entry point -->
     <script type="module">
-        import { initPoolList, loadPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId } from './js/pool_list.js';
+        import { initPoolList, loadPools, refreshPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId } from './js/pool_list.js';
         import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
@@ -373,8 +373,7 @@
                     font-size:13px; font-weight:600; cursor:pointer; border:1px solid; ${style}">${status}</span>`;
             }).join('');
 
-            // Divider
-            html += `<span style="display:inline-block; width:1px; height:18px; background:#ccc; margin:0 4px; vertical-align:middle;"></span>`;
+
 
             // Level chips — sized to match .filter-token
             html += LEVEL_CHIPS.map(lev => {
@@ -506,6 +505,11 @@
                 items.push({ label: `My Visits${badge}`, href: '/explore/visit_list.html', icon: 'fa-inbox' });
                 items.push({ divider: true });
             }
+            items.push({ label: 'Refresh Pool Data', icon: 'fa-rotate', action: async () => {
+                let fresh = await refreshPools();
+                if (fresh && fresh.length) { masterRows = fresh; refreshUI(); }
+            }});
+            items.push({ divider: true });
             items.push(
                 { label: 'About VPAtlas', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/', icon: 'fa-info-circle', external: true },
                 { label: 'Volunteer How To', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/help-us-find-and-map-vernal-pools/', icon: 'fa-book', external: true },

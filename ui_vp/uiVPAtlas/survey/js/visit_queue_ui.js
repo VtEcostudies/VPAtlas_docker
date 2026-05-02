@@ -94,16 +94,17 @@ export async function renderVisitQueue(containerId, opts = {}) {
 
         if (opts.compact) {
             html += `<div class="vq-item vq-compact">
-                <span class="vq-status ${statusClass}">${statusLabel}${uploadedInfo}</span>
-                <span class="vq-pool">${opts.poolId ? '' : poolId + ' '}${date}</span>
-                <span class="vq-actions">${actions}</span>
+                <div class="vq-info">
+                    <span class="vq-status ${statusClass}">${statusLabel}${uploadedInfo}</span>
+                    ${opts.poolId ? '' : poolId + ' '}${date}
+                </div>
+                <div class="vq-actions">${actions}</div>
             </div>`;
         } else {
             html += `<div class="vq-item">
-                <span class="vq-status ${statusClass}">${statusLabel}${uploadedInfo}</span>
                 <div class="vq-info">
-                    <span class="vq-pool">${poolId}</span>
-                    <span class="vq-date">${date}${observer ? ' — ' + observer : ''}</span>
+                    <div><span class="vq-status ${statusClass}">${statusLabel}${uploadedInfo}</span> <span class="vq-pool">${poolId}</span></div>
+                    <div class="vq-date">${date}${observer ? ' — ' + observer : ''}</div>
                 </div>
                 <div class="vq-actions">${actions}</div>
             </div>`;

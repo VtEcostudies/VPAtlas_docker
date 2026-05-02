@@ -32,6 +32,97 @@
     background-color: #fff3e0;
     border-left: 3px solid var(--selected-color);
 }
+/* Card view (vq-item) versions of the same states */
+.vq-item.pool-row.selected {
+    background-color: var(--primary-light);
+}
+.vq-item.pool-row.focused {
+    background-color: #fff3e0;
+    border-left: 3px solid var(--selected-color);
+    padding-left: 6px;
+}
+
+/* ===== Explore left-pane pool list (pl-*) ===== */
+.pl-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.pl-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 6px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+    cursor: pointer;
+}
+.pl-row:hover {
+    background-color: var(--primary-light);
+}
+.pl-row.selected {
+    background-color: var(--primary-light);
+}
+.pl-row.focused {
+    background-color: #fff3e0;
+    border-left: 3px solid var(--selected-color);
+    padding-left: 3px;
+}
+.pl-pin {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s;
+}
+.pl-pin:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+.pl-pin.pinned {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    transform: rotate(-15deg);
+}
+.pl-status {
+    flex-shrink: 0;
+    font-size: 11px;
+    padding: 2px 6px;
+}
+.pl-pool-id {
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+.pl-town {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-color);
+    white-space: normal;
+    word-break: break-word;
+}
+.pl-counts {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary-color);
+    white-space: nowrap;
+}
 .pool-check {
     width: 16px;
     height: 16px;
@@ -110,16 +201,29 @@
     background-color: var(--primary-light);
 }
 
-/* Summary action links */
+/* Summary action links — chip-style pills */
 .summary-link {
-    font-size: 13px;
-    padding: 3px 10px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 14px;
+    background: var(--primary-light);
     border: 1px solid var(--primary-color);
-    border-radius: 8px;
+    border-radius: 18px;
     text-decoration: none;
     color: var(--primary-color);
+    white-space: nowrap;
 }
 .summary-link:hover {
-    background-color: var(--primary-light);
+    background-color: var(--primary-medium);
+    color: white;
     text-decoration: none;
+}
+@media (max-width: 768px) {
+    .summary-link {
+        padding: 8px 16px;
+        font-size: 15px;
+        min-height: 36px;
+    }
 }

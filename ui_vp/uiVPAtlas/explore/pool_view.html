@@ -89,6 +89,7 @@
     <div class="row pv-content" id="pv_content">
         <!-- Pane 1: Pool summary -->
         <div class="col-lg-4 col-12 pv-pane pv-pane-summary" style="max-height:85vh; overflow-y:auto; padding:10px;">
+            <div id="latest_photos"></div>
             <div id="pool_info"></div>
         </div>
 
@@ -97,9 +98,6 @@
             <h5 id="visits_title">Visits</h5>
             <div id="visits_table"></div>
             <div id="local_visits" style="margin-top:6px;"></div>
-            <hr>
-            <h5 id="photos_title">Photos</h5>
-            <div id="photos_section"></div>
             <hr>
             <h5 id="surveys_title">Surveys (Monitoring)</h5>
             <div id="surveys_table"></div>
@@ -247,12 +245,8 @@
                 renderVisits(visitRows);
             } catch(err) { renderVisits([]); }
 
-            // Load photos for all visits
-            if (hasVisits) loadVisitPhotos(visitRows);
-            else {
-                document.getElementById('photos_title').textContent = 'Photos (0)';
-                document.getElementById('photos_section').innerHTML = '<p style="font-size:14px;">No photos.</p>';
-            }
+            // Show latest visit's pool/vegetation photos at top of pool_info
+            if (hasVisits) loadLatestVisitPhotos(visitRows);
 
             // Local draft/pending visits
             await renderVisitQueue('local_visits', { poolId });
@@ -437,149 +431,120 @@
             });
         }
 
-        // ---- Visits ----
+        // ---- Visits ---- card view
         function renderVisits(rows) {
-            // Default sort by date desc on first render
-            if (!sortState.visits) { sortState.visits = { col: 'visitDate', asc: false }; }
-            rows = sortRows(rows, sortState.visits.col, sortState.visits.asc);
+            // Sort by date desc
+            rows = [...rows].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''));
 
             document.getElementById('visits_title').textContent = `Visits (${rows.length})`;
+            let container = document.getElementById('visits_table');
             if (!rows.length) {
-                document.getElementById('visits_table').innerHTML = '<p style="font-size:14px;">No visits recorded.</p>';
+                container.innerHTML = '<p style="font-size:14px;">No visits recorded.</p>';
                 return;
             }
-            let html = `<table class="pool-table"><thead><tr>
-                <th data-col="visitId">Visit ID${sortIndicator('visits','visitId')}</th>
-                <th data-col="visitDate">Date${sortIndicator('visits','visitDate')}</th>
-                <th data-col="visitObserverUserName">Observer${sortIndicator('visits','visitObserverUserName')}</th>
-                <th data-col="visitLocatePool">Pool Located${sortIndicator('visits','visitLocatePool')}</th>
-            </tr></thead><tbody>`;
+            let html = '<div class="vq-list">';
             rows.forEach(v => {
-                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='visit_view.html?visitId=${v.visitId}'">
-                    <td>${v.visitId || ''}</td>
-                    <td>${formatDate(v.visitDate)}</td>
-                    <td>${v.visitObserverUserName || v.visitUserName || ''}</td>
-                    <td>${v.visitLocatePool || ''}</td>
-                </tr>`;
+                let observer = v.visitObserverUserName || v.visitUserName || '';
+                let located = v.visitLocatePool ? `Located: ${v.visitLocatePool}` : '';
+                let detail = [formatDate(v.visitDate), observer, located].filter(Boolean).join(' — ');
+                html += `<div class="vq-item">
+                    <div class="vq-info">
+                        <div><span class="vq-status vq-status-uploaded">visit</span> <span class="vq-pool">#${v.visitId || ''}</span></div>
+                        <div class="vq-date">${detail}</div>
+                    </div>
+                    <div class="vq-actions">
+                        <a class="vq-btn" href="visit_view.html?visitId=${v.visitId}" title="View"><i class="fa fa-eye"></i></a>
+                    </div>
+                </div>`;
             });
-            html += '</tbody></table>';
-            let container = document.getElementById('visits_table');
+            html += '</div>';
             container.innerHTML = html;
-            wireSort(container, 'visits', rows, renderVisits);
         }
 
-        // ---- Surveys ----
+        // ---- Surveys ---- card view
         function renderSurveys(rows) {
-            if (!sortState.surveys) { sortState.surveys = { col: 'surveyDate', asc: false }; }
-            rows = sortRows(rows, sortState.surveys.col, sortState.surveys.asc);
+            rows = [...rows].sort((a, b) => (b.surveyDate || '').localeCompare(a.surveyDate || ''));
 
             document.getElementById('surveys_title').textContent = `Surveys (${rows.length})`;
+            let container = document.getElementById('surveys_table');
             if (!rows.length) {
-                document.getElementById('surveys_table').innerHTML = '<p style="font-size:14px;">No monitoring surveys recorded.</p>';
+                container.innerHTML = '<p style="font-size:14px;">No monitoring surveys recorded.</p>';
                 return;
             }
-            let html = `<table class="pool-table"><thead><tr>
-                <th data-col="surveyId">Survey ID${sortIndicator('surveys','surveyId')}</th>
-                <th data-col="surveyDate">Date${sortIndicator('surveys','surveyDate')}</th>
-                <th data-col="surveyTypeName">Type${sortIndicator('surveys','surveyTypeName')}</th>
-                <th data-col="surveyUserName">Observer${sortIndicator('surveys','surveyUserName')}</th>
-            </tr></thead><tbody>`;
+            let html = '<div class="vq-list">';
             rows.forEach(s => {
-                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='survey_view.html?surveyId=${s.surveyId}'">
-                    <td>${s.surveyId || ''}</td>
-                    <td>${formatDate(s.surveyDate)}</td>
-                    <td>${s.surveyTypeName || ''}</td>
-                    <td>${s.surveyUserName || ''}</td>
-                </tr>`;
+                let detail = [formatDate(s.surveyDate), s.surveyTypeName, s.surveyUserName].filter(Boolean).join(' — ');
+                html += `<div class="vq-item">
+                    <div class="vq-info">
+                        <div><span class="vq-status vq-status-uploaded">survey</span> <span class="vq-pool">#${s.surveyId || ''}</span></div>
+                        <div class="vq-date">${detail}</div>
+                    </div>
+                    <div class="vq-actions">
+                        <a class="vq-btn" href="survey_view.html?surveyId=${s.surveyId}" title="View"><i class="fa fa-eye"></i></a>
+                    </div>
+                </div>`;
             });
-            html += '</tbody></table>';
-            let container = document.getElementById('surveys_table');
+            html += '</div>';
             container.innerHTML = html;
-            wireSort(container, 'surveys', rows, renderSurveys);
         }
 
-        // ---- Reviews ----
+        // ---- Reviews ---- card view
         function renderReviews(rows, offline = false) {
-            if (!sortState.reviews) { sortState.reviews = { col: 'reviewQADate', asc: false }; }
-            rows = sortRows(rows, sortState.reviews.col, sortState.reviews.asc);
+            rows = [...rows].sort((a, b) => (b.reviewQADate || '').localeCompare(a.reviewQADate || ''));
 
             document.getElementById('reviews_title').textContent = `Reviews (${rows.length})`;
+            let container = document.getElementById('reviews_table');
             if (!rows.length) {
                 let msg = offline ? 'Reviews unavailable offline.' : 'No reviews.';
-                document.getElementById('reviews_table').innerHTML = `<p style="font-size:14px;">${msg}</p>`;
+                container.innerHTML = `<p style="font-size:14px;">${msg}</p>`;
                 return;
             }
-            let html = `<table class="pool-table"><thead><tr>
-                <th data-col="reviewId">Review ID${sortIndicator('reviews','reviewId')}</th>
-                <th data-col="reviewQACode">QA Code${sortIndicator('reviews','reviewQACode')}</th>
-                <th data-col="reviewQAPerson">QA Person${sortIndicator('reviews','reviewQAPerson')}</th>
-                <th data-col="reviewQADate">Date${sortIndicator('reviews','reviewQADate')}</th>
-                <th data-col="reviewStatus">Status${sortIndicator('reviews','reviewStatus')}</th>
-            </tr></thead><tbody>`;
+            let html = '<div class="vq-list">';
             rows.forEach(r => {
-                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='/admin/review_view.html?reviewId=${r.reviewId}'">
-                    <td>${r.reviewId || ''}</td>
-                    <td>${r.reviewQACode || ''}</td>
-                    <td>${r.reviewQAPerson || ''}</td>
-                    <td>${formatDate(r.reviewQADate)}</td>
-                    <td>${r.reviewStatus || ''}</td>
-                </tr>`;
+                let detail = [formatDate(r.reviewQADate), r.reviewQAPerson, r.reviewStatus].filter(Boolean).join(' — ');
+                html += `<div class="vq-item">
+                    <div class="vq-info">
+                        <div><span class="vq-status vq-status-uploaded">${r.reviewQACode || 'review'}</span> <span class="vq-pool">#${r.reviewId || ''}</span></div>
+                        <div class="vq-date">${detail}</div>
+                    </div>
+                    <div class="vq-actions">
+                        <a class="vq-btn" href="/admin/review_view.html?reviewId=${r.reviewId}" title="View"><i class="fa fa-eye"></i></a>
+                    </div>
+                </div>`;
             });
-            html += '</tbody></table>';
-            let container = document.getElementById('reviews_table');
+            html += '</div>';
             container.innerHTML = html;
-            wireSort(container, 'reviews', rows, renderReviews);
         }
 
-        // ---- Photos ----
-        async function loadVisitPhotos(visitRows) {
-            let section = document.getElementById('photos_section');
-            let title = document.getElementById('photos_title');
-            section.innerHTML = '<p style="font-size:14px;"><i class="fa fa-spinner fa-spin"></i> Loading photos...</p>';
-
-            // Fetch photos for all visits in parallel
-            let allPhotos = [];
+        // ---- Latest visit photos (Pool / Vegetation only) ----
+        async function loadLatestVisitPhotos(visitRows) {
+            let container = document.getElementById('latest_photos');
+            if (!container || !visitRows.length) return;
+            // Sort by date desc, pick most recent
+            let sorted = [...visitRows].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''));
+            let latest = sorted[0];
             try {
-                let results = await Promise.all(
-                    visitRows.map(v => fetchVisitPhotos(v.visitId).catch(() => []))
+                let photos = await fetchVisitPhotos(latest.visitId);
+                let arr = Array.isArray(photos) ? photos : [];
+                let poolPhotos = arr.filter(p =>
+                    p && (p.visitPhotoSpecies === 'Pool' || p.visitPhotoSpecies === 'Vegetation')
                 );
-                results.forEach((photos, i) => {
-                    let arr = Array.isArray(photos) ? photos : [];
-                    arr.forEach(p => { p._visitId = visitRows[i].visitId; });
-                    allPhotos.push(...arr);
-                });
-            } catch(err) {}
-
-            if (!allPhotos.length) {
-                title.textContent = 'Photos (0)';
-                section.innerHTML = '<p style="font-size:14px;">No photos.</p>';
-                return;
-            }
-
-            // Group by type
-            let byType = {};
-            allPhotos.forEach(p => {
-                let type = p.visitPhotoSpecies || 'Other';
-                if (!byType[type]) byType[type] = [];
-                byType[type].push(p);
-            });
-
-            title.textContent = `Photos (${allPhotos.length})`;
-            let html = '';
-            let apiBase = appConfig.api.fqdn;
-            for (let [type, photos] of Object.entries(byType)) {
-                html += `<div style="margin-bottom:10px;">
-                    <strong style="font-size:13px;">${type}</strong> <span style="color:var(--text-muted); font-size:12px;">(${photos.length})</span>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">`;
-                photos.forEach(p => {
+                if (!poolPhotos.length) return;
+                let apiBase = (typeof appConfig !== 'undefined' && appConfig.api && appConfig.api.fqdn) || '';
+                let html = `<div style="margin-bottom:12px;">
+                    <h6 style="font-size:14px; margin:0 0 4px;"><i class="fa fa-camera" style="margin-right:4px;"></i>Latest Visit Photos
+                        <span style="font-weight:normal; color:var(--text-muted); font-size:12px;">(visit #${latest.visitId} — ${formatDate(latest.visitDate)})</span>
+                    </h6>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px;">`;
+                poolPhotos.forEach(p => {
                     let url = p.visitPhotoUrl.startsWith('http') ? p.visitPhotoUrl : apiBase + p.visitPhotoUrl;
-                    html += `<a href="${url}" target="_blank" title="Visit ${p._visitId} — ${type}">
-                        <img src="${url}" alt="${type}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ddd; cursor:pointer;">
+                    html += `<a href="${url}" target="_blank" title="${p.visitPhotoSpecies}">
+                        <img src="${url}" alt="${p.visitPhotoSpecies}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">
                     </a>`;
                 });
                 html += `</div></div>`;
-            }
-            section.innerHTML = html;
+                container.innerHTML = html;
+            } catch(err) {}
         }
 
         async function initPoolMap(pool, surveyLevel = 'potential') {

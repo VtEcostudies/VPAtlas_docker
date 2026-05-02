@@ -118,6 +118,11 @@
             <a href="/explore/" class="exit-button" style="text-decoration:none;">&times;</a>
             <h3 class="header-name light-foreground" style="margin-right:6px; white-space:normal;">Pool Finder</h3>
             <div class="pf-chips" id="pool_chips" style="flex:1; min-width:0;"></div>
+            <div class="detail-actions" style="position:relative;">
+                <button id="btn_new_pool" class="action-button" style="font-size:13px; padding:4px 10px; white-space:nowrap;"><i class="fa fa-plus"></i> New Pool</button>
+                <button class="action-overflow-btn" id="action_menu_btn"><i class="fa fa-ellipsis-v"></i></button>
+                <div class="action-overflow-panel" id="action_menu_panel"></div>
+            </div>
             <div class="pf-gps-dot" id="gps_dot" title="GPS Status"></div>
             <div id="profile_container" style="margin-left:auto;"></div>
         </div>
@@ -217,6 +222,40 @@
 
             // Auto-start GPS
             startGps();
+
+            // + New Pool button (header) — uses GPS location if available
+            function newPoolHref() {
+                return gps && gps.position
+                    ? `/survey/visit_create.html?lat=${gps.position.lat.toFixed(6)}&lng=${gps.position.lng.toFixed(6)}`
+                    : '/survey/visit_create.html';
+            }
+            document.getElementById('btn_new_pool').addEventListener('click', () => {
+                window.location.href = newPoolHref();
+            });
+
+            // Overflow menu (mobile) — same items as header buttons
+            let menuBtn = document.getElementById('action_menu_btn');
+            let menuPanel = document.getElementById('action_menu_panel');
+            if (menuBtn && menuPanel) {
+                let newPoolItem = document.createElement('button');
+                newPoolItem.className = 'action-button';
+                newPoolItem.innerHTML = '<i class="fa fa-plus" style="width:20px;"></i> New Pool';
+                newPoolItem.addEventListener('click', () => {
+                    menuPanel.classList.remove('show');
+                    window.location.href = newPoolHref();
+                });
+                menuPanel.appendChild(newPoolItem);
+
+                menuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menuPanel.classList.toggle('show');
+                });
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#action_menu_panel') && !e.target.closest('#action_menu_btn')) {
+                        menuPanel.classList.remove('show');
+                    }
+                });
+            }
         });
 
         // =================================================================
@@ -409,14 +448,6 @@
                     </div>
                 </div>`;
             });
-
-            // Add "+ New Pool" at the end
-            let newPoolCoords = gps && gps.position ? `?lat=${gps.position.lat.toFixed(6)}&lng=${gps.position.lng.toFixed(6)}` : '';
-            html += `<div class="pf-nav-item" style="justify-content:center; padding:8px;">
-                <a href="/survey/visit_create.html${newPoolCoords}" style="font-size:14px; font-weight:600; padding:6px 16px;
-                    border:1px solid var(--primary-color); border-radius:6px; color:var(--primary-color); text-decoration:none;">
-                    <i class="fa fa-plus"></i> New Pool</a>
-            </div>`;
 
             panel.innerHTML = html;
         }

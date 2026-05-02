@@ -9,7 +9,9 @@ import { showWait, hideWait } from './utils.js';
 import { filters, putUserState } from './url_state.js';
 import { getLocal, setLocal } from '/js/storage.js';
 
-const CACHE_KEY = 'pool_cache';         // { rows: [...], fingerprint: 'total:visited:monitored:review', ts: epoch }
+// Bump the version suffix when adding/changing fields the UI depends on
+// so existing client caches are abandoned and a fresh fetch is triggered.
+const CACHE_KEY = 'pool_cache_v2';      // { rows: [...], fingerprint: 'total:visited:monitored:review', ts: epoch }
 const STALE_MS = 60 * 1000;            // check freshness after 1 min
 
 var onPoolSelect = null;
@@ -99,6 +101,12 @@ async function fetchAndCache(onRefresh) {
     }
 }
 
+// Force-refresh: bypass the cache and re-fetch from the API.
+// Returns the freshly-fetched rows so the caller can update its state.
+export async function refreshPools() {
+    return await fetchAndCache(null);
+}
+
 // Background freshness check: compare stats fingerprint (pool counts, visit counts, etc.)
 // Any change in total/visited/monitored/review/status counts triggers a refresh.
 async function checkFreshness(cache, onRefresh) {
@@ -144,12 +152,15 @@ function deduplicateByPoolId(rows) {
                 _hasReview: !!row.reviewId,
                 _visitIds: new Set(row.visitId ? [row.visitId] : []),
                 _surveyIds: new Set(row.surveyId ? [row.surveyId] : []),
+                _photoCount: row.photoCount || 0,
             });
         } else {
             // Merge: mark if any joined row has a visit/survey/review
             if (row.visitId) { existing._hasVisit = true; existing._visitIds.add(row.visitId); }
             if (row.surveyId) { existing._hasSurvey = true; existing._surveyIds.add(row.surveyId); }
             if (row.reviewId) existing._hasReview = true;
+            // photoCount is per-pool — same value across joined rows; preserve it
+            if (row.photoCount && !existing._photoCount) existing._photoCount = row.photoCount;
             // Keep usernames from all rows for "Mine" filter
             if (row.visitUserName && !existing.visitUserName) existing.visitUserName = row.visitUserName;
             if (row.visitObserverUserName && !existing.visitObserverUserName) existing.visitObserverUserName = row.visitObserverUserName;
@@ -172,7 +183,7 @@ function deduplicateByPoolId(rows) {
 }
 
 // =============================================================================
-// RENDER TABLE
+// RENDER POOL LIST (card view)
 // =============================================================================
 function renderPoolTable(rows) {
     if (!listContainer) return;
@@ -182,65 +193,82 @@ function renderPoolTable(rows) {
         return;
     }
 
-    let html = `<table class="pool-table">
-        <thead>
-            <tr>
-                <th style="width:28px; padding:4px;"></th>
-                <th class="sortable" data-col="mappedPoolId">Pool ID</th>
-                <th class="sortable" data-col="townName">Town</th>
-                <th class="sortable" data-col="poolStatus">Status</th>
-                <th class="sortable" data-col="_visitCount">Visits</th>
-                <th class="sortable" data-col="_surveyCount">Surveys</th>
-            </tr>
-        </thead>
-        <tbody>`;
+    // Apply current sort
+    let sortedRows = sortCol ? sortRowsBy(rows, sortCol, sortAsc) : rows;
 
-    rows.forEach(row => {
+    let html = `<div class="pl-sort-bar" style="display:flex; gap:8px; align-items:stretch; padding:6px 8px; border-bottom:1px solid #eee;">
+        <label style="display:flex; align-items:center; font-weight:600; font-size:16px; margin:0;">Sort:</label>
+        <select id="pool_sort_select" style="font-size:16px; line-height:1.2; padding:6px 10px; height:40px; box-sizing:border-box; border:1px solid var(--primary-color); border-radius:6px; color:var(--primary-color); background:white; vertical-align:middle;">
+            <option value="mappedPoolId" style="font-size:16px;" ${sortCol==='mappedPoolId'?'selected':''}>Pool ID</option>
+            <option value="townName" style="font-size:16px;" ${sortCol==='townName'?'selected':''}>Town</option>
+            <option value="poolStatus" style="font-size:16px;" ${sortCol==='poolStatus'?'selected':''}>Status</option>
+            <option value="_visitCount" style="font-size:16px;" ${sortCol==='_visitCount'?'selected':''}>Visits</option>
+            <option value="_surveyCount" style="font-size:16px;" ${sortCol==='_surveyCount'?'selected':''}>Surveys</option>
+            <option value="_photoCount" style="font-size:16px;" ${sortCol==='_photoCount'?'selected':''}>Photos</option>
+        </select>
+        <button id="pool_sort_dir" title="Toggle direction" style="font-size:20px; font-weight:bold; line-height:1; height:40px; min-width:44px; padding:0; box-sizing:border-box; border:1px solid var(--primary-color); background:white; color:var(--primary-color); border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;">${sortAsc ? '↑' : '↓'}</button>
+    </div>`;
+
+    html += '<div class="vq-list pl-list">';
+    sortedRows.forEach(row => {
         let poolId = row.mappedPoolId || row.poolId || '';
         let town = row.townName || row.mappedTownName || '';
         let status = row.poolStatus || row.mappedPoolStatus || '';
         let statusClass = getStatusClass(status);
-
         let visits = row._visitCount || 0;
         let surveys = row._surveyCount || 0;
-        let checked = selectedPoolIds.has(poolId) ? ' checked' : '';
+        let photos = row._photoCount || row.photoCount || 0;
+        let isPinned = selectedPoolIds.has(poolId);
+        let countParts = [];
+        if (visits) countParts.push(`${visits}v`);
+        if (surveys) countParts.push(`${surveys}s`);
+        if (photos) countParts.push(`<i class="fa fa-camera"></i>${photos}`);
+        let counts = countParts.join(' · ');
 
-        html += `<tr class="pool-row" data-pool-id="${poolId}">
-            <td style="padding:4px; text-align:center;"><input type="checkbox" class="pool-check"${checked}></td>
-            <td>${poolId}</td>
-            <td>${town}</td>
-            <td><span class="status-badge ${statusClass}">${status}</span></td>
-            <td>${visits || ''}</td>
-            <td>${surveys || ''}</td>
-        </tr>`;
+        html += `<div class="pl-row pool-row" data-pool-id="${poolId}">
+            <button class="pl-pin${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Remove from Pool Finder' : 'Add to Pool Finder'}">
+                <i class="fa fa-thumbtack"></i>
+            </button>
+            <span class="pl-status status-badge ${statusClass}">${status}</span>
+            <span class="pl-pool-id">${poolId}</span>
+            <span class="pl-town">${town}</span>
+            ${counts ? `<span class="pl-counts">${counts}</span>` : ''}
+        </div>`;
     });
-
-    html += '</tbody></table>';
+    html += '</div>';
     listContainer.innerHTML = html;
 
     // Restore multi-select highlighting
-    listContainer.querySelectorAll('.pool-row').forEach(tr => {
-        if (selectedPoolIds.has(tr.dataset.poolId)) tr.classList.add('selected');
+    listContainer.querySelectorAll('.pool-row').forEach(el => {
+        if (selectedPoolIds.has(el.dataset.poolId)) el.classList.add('selected');
+        if (focusedPoolId === el.dataset.poolId) el.classList.add('focused');
     });
 
-    // Add click handlers — single click selects for summary, checkbox toggles multi-select
-    listContainer.querySelectorAll('.pool-row').forEach(tr => {
-        tr.addEventListener('click', function(e) {
+    // Click handlers
+    listContainer.querySelectorAll('.pool-row').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', function(e) {
             let poolId = this.dataset.poolId;
-            // Checkbox click → toggle multi-select
-            if (e.target.classList.contains('pool-check')) {
+            // Pin button → toggle Pool Finder selection
+            let pinBtn = e.target.closest('.pl-pin');
+            if (pinBtn) {
+                e.stopPropagation();
                 if (selectedPoolIds.has(poolId)) {
                     selectedPoolIds.delete(poolId);
+                    pinBtn.classList.remove('pinned');
+                    pinBtn.title = 'Add to Pool Finder';
                     this.classList.remove('selected');
                 } else {
                     selectedPoolIds.add(poolId);
+                    pinBtn.classList.add('pinned');
+                    pinBtn.title = 'Remove from Pool Finder';
                     this.classList.add('selected');
                 }
                 putUserState(0, { poolFinderPools: [...selectedPoolIds] });
                 updateSelectionCount();
                 return;
             }
-            // Row click → toggle focus (click again to deselect)
+            // Row click → focus
             if (focusedPoolId === poolId) {
                 focusedPoolId = null;
                 listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('focused'));
@@ -255,12 +283,21 @@ function renderPoolTable(rows) {
         });
     });
 
-    // Add sort handlers
-    listContainer.querySelectorAll('.sortable').forEach(th => {
-        th.addEventListener('click', function() {
-            sortTable(rows, this.dataset.col);
+    // Sort controls
+    let sortSelect = document.getElementById('pool_sort_select');
+    let sortDirBtn = document.getElementById('pool_sort_dir');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            sortCol = sortSelect.value;
+            renderPoolTable(rows);
         });
-    });
+    }
+    if (sortDirBtn) {
+        sortDirBtn.addEventListener('click', () => {
+            sortAsc = !sortAsc;
+            renderPoolTable(rows);
+        });
+    }
 }
 
 function getStatusClass(status) {
@@ -274,34 +311,24 @@ function getStatusClass(status) {
     }
 }
 
-var sortCol = '';
+var sortCol = 'mappedPoolId';
 var sortAsc = true;
 
-function sortTable(rows, col) {
-    if (sortCol === col) {
-        sortAsc = !sortAsc;
-    } else {
-        sortCol = col;
-        sortAsc = true;
-    }
-
-    rows.sort((a, b) => {
+function sortRowsBy(rows, col, asc) {
+    return [...rows].sort((a, b) => {
         let va = a[col] != null ? a[col] : '';
         let vb = b[col] != null ? b[col] : '';
-        // Numeric comparison when both values are numbers (or empty)
         if (typeof va === 'number' || typeof vb === 'number') {
             let na = Number(va) || 0;
             let nb = Number(vb) || 0;
-            return sortAsc ? na - nb : nb - na;
+            return asc ? na - nb : nb - na;
         }
         va = va.toString().toLowerCase();
         vb = vb.toString().toLowerCase();
-        if (va < vb) return sortAsc ? -1 : 1;
-        if (va > vb) return sortAsc ? 1 : -1;
+        if (va < vb) return asc ? -1 : 1;
+        if (va > vb) return asc ? 1 : -1;
         return 0;
     });
-
-    renderPoolTable(rows);
 }
 
 function updateSelectionCount() {
@@ -349,11 +376,11 @@ export function renderFilteredRows(rows) {
             <h5 style="margin:0;">Vernal Pools (${rows.length})</h5>
             <div id="poolfinder-btn" style="display:none; align-items:stretch; gap:0;">
                 <a id="poolfinder-link" href="#" title="Open selected pools in Pool Finder"
-                    style="display:flex; align-items:center; font-size:13px; padding:2px 8px; border:1px solid var(--primary-color); border-radius:4px 0 0 4px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">
+                    style="display:flex; align-items:center; font-size:14px; font-weight:600; padding:6px 14px; background:var(--primary-light); border:1px solid var(--primary-color); border-radius:18px 0 0 18px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">
                     <i class="fa fa-location-arrow"></i>&nbsp;<span id="poolfinder-count"></span>
                 </a><button id="poolfinder-clear" title="Clear all selected pools"
-                    style="display:flex; align-items:center; font-size:16px; font-weight:bold; padding:0 6px; border:1px solid var(--primary-color); border-left:none;
-                    border-radius:0 4px 4px 0; background:white; color:var(--primary-color); cursor:pointer;">&times;</button>
+                    style="display:flex; align-items:center; font-size:18px; font-weight:bold; padding:0 12px; border:1px solid var(--primary-color); border-left:none;
+                    border-radius:0 18px 18px 0; background:white; color:var(--primary-color); cursor:pointer;">&times;</button>
             </div>
         </div>`;
         let pfLink = document.getElementById('poolfinder-link');
@@ -370,9 +397,12 @@ export function renderFilteredRows(rows) {
             pfClear.addEventListener('click', () => {
                 selectedPoolIds.clear();
                 updateSelectionCount();
-                // Uncheck all checkboxes and remove selected highlight
+                // Unpin all and remove selected highlight
                 if (listContainer) {
-                    listContainer.querySelectorAll('.pool-check').forEach(cb => { cb.checked = false; });
+                    listContainer.querySelectorAll('.pl-pin').forEach(btn => {
+                        btn.classList.remove('pinned');
+                        btn.title = 'Add to Pool Finder';
+                    });
                     listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('selected'));
                 }
                 // Clear from user_state so pool finder doesn't restore them

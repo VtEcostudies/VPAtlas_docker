@@ -297,25 +297,31 @@ export async function showPoolSummary(poolId, onBack = null) {
             }
         } catch(err) {}
 
-        // Photo counts by type
+        // Photos from most recent visit only (Pool & Vegetation types)
         if (visitRows.length) {
             try {
-                let results = await Promise.all(
-                    visitRows.map(v => fetchVisitPhotos(v.visitId).catch(() => []))
+                // Sort by date desc to find the most recent visit
+                let sorted = [...visitRows].sort((a, b) =>
+                    (b.visitDate || '').localeCompare(a.visitDate || '')
                 );
-                let allPhotos = results.flat().filter(p => p && p.visitPhotoSpecies);
-                if (allPhotos.length) {
-                    let byType = {};
-                    allPhotos.forEach(p => {
-                        let t = p.visitPhotoSpecies;
-                        byType[t] = (byType[t] || 0) + 1;
+                let latest = sorted[0];
+                let photos = await fetchVisitPhotos(latest.visitId).catch(() => []);
+                let arr = Array.isArray(photos) ? photos : [];
+                // Show pool/vegetation photos (not species-specific)
+                let poolPhotos = arr.filter(p =>
+                    p && (p.visitPhotoSpecies === 'Pool' || p.visitPhotoSpecies === 'Vegetation')
+                );
+                if (poolPhotos.length) {
+                    let apiBase = (typeof appConfig !== 'undefined' && appConfig.api && appConfig.api.fqdn) || '';
+                    html += `<div class="summary-section"><h6><i class="fa fa-camera" style="margin-right:4px;"></i>Latest Visit Photos <span style="font-weight:normal; color:var(--text-muted); font-size:12px;">(visit #${latest.visitId} — ${formatDate(latest.visitDate)})</span></h6>`;
+                    html += `<div style="display:flex; flex-wrap:wrap; gap:6px;">`;
+                    poolPhotos.forEach(p => {
+                        let url = p.visitPhotoUrl.startsWith('http') ? p.visitPhotoUrl : apiBase + p.visitPhotoUrl;
+                        html += `<a href="${url}" target="_blank" title="${p.visitPhotoSpecies}">
+                            <img src="${url}" alt="${p.visitPhotoSpecies}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">
+                        </a>`;
                     });
-                    html += `<div class="summary-section"><h6><i class="fa fa-camera" style="margin-right:4px;"></i>Photos (${allPhotos.length})</h6>`;
-                    html += `<table class="summary-stats-table">`;
-                    for (let [type, count] of Object.entries(byType)) {
-                        html += `<tr><td class="stat-label">${type}</td><td class="stat-value">${count}</td></tr>`;
-                    }
-                    html += `</table></div>`;
+                    html += `</div></div>`;
                 }
             } catch(err) {}
         }

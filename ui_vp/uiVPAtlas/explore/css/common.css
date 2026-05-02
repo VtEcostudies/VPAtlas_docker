@@ -454,11 +454,10 @@ hr {
     align-items: center;
     min-width: 0;
 }
+/* Wrapper divs in explore-row3 — let their chips flow as direct flex children
+   of explore-row3 so status, level, and filter tokens line up inline together */
 .filter-description {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    align-items: center;
+    display: contents;
 }
 
 /* Buttons */

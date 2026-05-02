@@ -434,10 +434,7 @@ function renderTokens() {
             : t.key === 'countyName' ? `data-remove-county="${t.value}"`
             : t.key === 'poolStatus' ? `data-remove-status="${t.value}"`
             : `data-remove-key="${t.key}"`;
-        return `<span class="filter-token">
-            ${t.label}: <strong>${t.value}</strong>
-            <button class="filter-token-remove" ${removeData} title="Remove">&times;</button>
-        </span>`;
+        return `<span class="filter-token"><span class="filter-token-label">${t.label}: <strong>${t.value}</strong></span><button class="filter-token-remove" ${removeData} title="Remove">&times;</button></span>`;
     }).join('');
 
     // Clear all button if multiple tokens

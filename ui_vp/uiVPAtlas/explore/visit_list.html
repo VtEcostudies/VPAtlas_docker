@@ -13,21 +13,15 @@
     <link rel="stylesheet" href="./css/modal.css">
     <link rel="stylesheet" href="/survey/css/visit_queue.css">
     <style>
-        .vl-container { max-width: 960px; margin: 0 auto; padding: 10px 16px; }
-        .vl-section { margin-bottom: 24px; }
-        .vl-section h5 { margin: 0 0 8px; font-size: 15px; }
-        .vl-empty { font-size: 14px; color: var(--text-muted, #666); padding: 8px 0; }
-        .vl-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-        .vl-filter label { font-size: 13px; font-weight: 600; white-space: nowrap; }
-        .vl-filter select, .vl-filter input {
-            font-size: 13px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;
+        .vl-container { max-width: 750px; padding: 10px 16px; overflow-x: hidden; }
+        .vl-empty { font-size: 14px; color: var(--text-muted, #666); padding: 12px 0; }
+        .vl-header-row {
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 6px; margin-bottom: 8px;
         }
-        .pool-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .pool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .pool-table th { cursor: pointer; user-select: none; padding: 6px 8px; border-bottom: 2px solid #ddd; font-size: 12px; text-transform: uppercase; color: #666; white-space: nowrap; }
-        .pool-table td { padding: 6px 8px; border-bottom: 1px solid #eee; white-space: nowrap; }
-        .pool-row:hover { background: #f5f5f5; }
-        .sort-arrow { font-size: 10px; margin-left: 2px; }
+        .vl-header-row h5 { margin: 0; font-size: 15px; }
+        .vl-sort { font-size: 13px; display: flex; gap: 4px; align-items: center; }
+        .vl-sort select { font-size: 13px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -41,20 +35,22 @@
     <hr class="divider-header">
 
     <div class="vl-container">
-        <!-- Local drafts -->
-        <div class="vl-section">
-            <h5><i class="fa fa-inbox"></i> Local Drafts &amp; Pending Uploads</h5>
-            <div id="local_visits"></div>
-            <div id="local_empty" class="vl-empty" style="display:none;">No local drafts.</div>
+        <div class="vl-header-row">
+            <h5 id="list_title"><i class="fa fa-inbox"></i> Visits</h5>
+            <div class="vl-sort">
+                <label>Sort:</label>
+                <select id="sort_select">
+                    <option value="date-desc">Date (newest)</option>
+                    <option value="date-asc">Date (oldest)</option>
+                    <option value="pool-asc">Pool ID (A-Z)</option>
+                    <option value="status">Status</option>
+                </select>
+            </div>
         </div>
 
-        <!-- Server visits -->
-        <div class="vl-section">
-            <h5 id="server_title">Uploaded Visits</h5>
-            <div id="server_visits"></div>
-            <div id="server_empty" class="vl-empty" style="display:none;">No uploaded visits found.</div>
-            <div id="server_loading" class="vl-empty"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
-        </div>
+        <div id="visit_list" class="vq-list"></div>
+        <div id="visit_empty" class="vl-empty" style="display:none;">No visits found.</div>
+        <div id="visit_loading" class="vl-empty"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
     </div>
 
     <script src="/js/console_manager.js"></script>
@@ -68,12 +64,14 @@
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
-        import { renderVisitQueue } from '/survey/js/visit_queue_ui.js';
+        import { loadAllVisits, deleteVisit } from '/survey/js/visit_store.js';
+        import { syncVisit } from '/survey/js/visit_sync.js';
 
         setupProfileIcon('profile_container');
 
         let currentUser = null;
-        let sortState = { col: 'visitDate', asc: false };
+        let allVisits = [];  // unified list of local + server visits
+        let currentSort = 'date-desc';
 
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await getUser();
@@ -82,122 +80,196 @@
                 document.getElementById('page_title').textContent = 'Visits (log in to see yours)';
             }
 
-            // Local drafts
-            let result = await renderVisitQueue('local_visits');
-            if (!result || !result.count) {
-                document.getElementById('local_empty').style.display = 'block';
-            }
+            await loadAll();
 
-            // Load server visits for current user
-            if (currentUser) {
-                loadServerVisits(currentUser.handle || currentUser.username);
-            } else {
-                document.getElementById('server_loading').style.display = 'none';
-                document.getElementById('server_empty').textContent = 'Log in to see your uploaded visits.';
-                document.getElementById('server_empty').style.display = 'block';
-            }
-
-            // Refresh both lists after any sync event (upload success, error, etc.)
-            window.addEventListener('visitSyncStatus', async (e) => {
-                let type = e.detail?.type;
-                // Always re-render local queue to reflect status changes
-                let result = await renderVisitQueue('local_visits');
-                document.getElementById('local_empty').style.display = (!result || !result.count) ? 'block' : 'none';
-                // Reload server visits on successful upload
-                if (type === 'uploaded' && currentUser) {
-                    loadServerVisits(currentUser.handle || currentUser.username, true);
-                }
+            // Sort control
+            document.getElementById('sort_select').addEventListener('change', (e) => {
+                currentSort = e.target.value;
+                renderList();
             });
 
+            // Refresh on sync events
+            window.addEventListener('visitSyncStatus', async (e) => {
+                if (e.detail?.type === 'uploaded') await loadAll();
+            });
         });
 
-        async function loadServerVisits(username, bustCache = false) {
-            let container = document.getElementById('server_visits');
-            let loading = document.getElementById('server_loading');
-            let empty = document.getElementById('server_empty');
-            let title = document.getElementById('server_title');
+        // =====================================================================
+        // Load local + server visits into one unified list
+        // =====================================================================
+        async function loadAll() {
+            let loading = document.getElementById('visit_loading');
             loading.style.display = 'block';
-            empty.style.display = 'none';
-            container.innerHTML = '';
 
+            // Local visits from IndexedDB
+            let localVisits = [];
             try {
-                let searchTerm = username ? `visitObserverUserName=${username}` : '';
-                if (bustCache) searchTerm += `${searchTerm ? '&' : ''}_t=${Date.now()}`;
-                let data = await fetchVisits(searchTerm);
-                let rows = data.rows || (Array.isArray(data) ? data : []);
+                let raw = await loadAllVisits();
+                localVisits = raw.map(v => ({
+                    source: 'local',
+                    status: v.status || 'draft',
+                    visit_uuid: v.visit_uuid,
+                    server_visit_id: v.server_visit_id || null,
+                    photos_uploaded: v.photos_uploaded,
+                    visitId: v.server_visit_id || null,
+                    visitPoolId: v.visitPoolId || v.formData?.visitPoolId || '',
+                    visitDate: v.visitDate || v.formData?.visitDate || '',
+                    visitObserverUserName: v.visitObserverUserName || v.formData?.visitObserverUserName || '',
+                    townName: '',
+                    poolStatus: '',
+                    visitLocatePool: '',
+                    last_modified: v.last_modified || v.created_at || '',
+                }));
+            } catch(e) { console.warn('visit_list: local load failed', e); }
 
-                loading.style.display = 'none';
+            // Server visits
+            let serverVisits = [];
+            if (currentUser) {
+                try {
+                    let username = currentUser.handle || currentUser.username;
+                    let data = await fetchVisits(`visitObserverUserName=${username}`);
+                    let rows = data.rows || (Array.isArray(data) ? data : []);
+                    // Build set of server visitIds that are also in local (uploaded from here)
+                    let localServerIds = new Set(localVisits.filter(v => v.server_visit_id).map(v => v.server_visit_id));
+                    serverVisits = rows
+                        .filter(v => !localServerIds.has(v.visitId))  // skip dupes
+                        .map(v => ({
+                            source: 'server',
+                            status: 'server',
+                            visitId: v.visitId,
+                            visitPoolId: v.visitPoolId || v.poolId || '',
+                            visitDate: v.visitDate || '',
+                            visitObserverUserName: v.visitObserverUserName || v.visitUserName || '',
+                            townName: v.townName || '',
+                            poolStatus: v.poolStatus || v.mappedPoolStatus || '',
+                            visitLocatePool: v.visitLocatePool || '',
+                        }));
+                } catch(e) { console.warn('visit_list: server load failed', e); }
+            }
 
-                title.textContent = `Uploaded Visits (${rows.length})`;
+            allVisits = [...localVisits, ...serverVisits];
+            loading.style.display = 'none';
+            renderList();
+        }
 
-                if (!rows.length) {
-                    empty.style.display = 'block';
-                    return;
+        // =====================================================================
+        // Render unified list
+        // =====================================================================
+        function renderList() {
+            let container = document.getElementById('visit_list');
+            let empty = document.getElementById('visit_empty');
+            let title = document.getElementById('list_title');
+
+            let sorted = sortVisits(allVisits, currentSort);
+            title.innerHTML = `<i class="fa fa-inbox"></i> Visits (${sorted.length})`;
+
+            if (!sorted.length) {
+                container.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+
+            let html = '';
+            sorted.forEach(v => {
+                let statusClass, statusLabel, actions;
+
+                if (v.source === 'local') {
+                    statusClass = `vq-status-${v.status}`;
+                    statusLabel = v.status;
+                    if (v.status === 'draft') {
+                        actions = `
+                            <button class="vq-btn vq-edit" data-uuid="${v.visit_uuid}" title="Edit"><i class="fa fa-pen"></i></button>
+                            <button class="vq-btn vq-upload" data-uuid="${v.visit_uuid}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
+                            <button class="vq-btn vq-delete" data-uuid="${v.visit_uuid}" title="Delete"><i class="fa fa-trash"></i></button>`;
+                    } else if (v.status === 'complete') {
+                        actions = `
+                            <button class="vq-btn vq-upload" data-uuid="${v.visit_uuid}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
+                            <button class="vq-btn vq-delete" data-uuid="${v.visit_uuid}" title="Delete"><i class="fa fa-trash"></i></button>`;
+                    } else {
+                        // uploaded from this device
+                        let photoNote = (v.photos_uploaded === false) ? ' <i class="fa fa-image" title="Photos pending"></i>' : '';
+                        actions = `<span class="vq-btn" style="color:#2e7d32; border:none;"><i class="fa fa-check"></i>${photoNote}</span>`;
+                    }
+                } else {
+                    // server visit
+                    statusClass = 'vq-status-uploaded';
+                    statusLabel = 'server';
+                    actions = `<a class="vq-btn" href="visit_view.html?visitId=${v.visitId}" title="View"><i class="fa fa-eye"></i></a>`;
                 }
 
-                renderServerVisits(rows);
-            } catch (err) {
-                loading.style.display = 'none';
-                container.innerHTML = `<div class="vl-empty" style="color:var(--danger-color);">Error: ${err.message || 'Failed to load'}</div>`;
-            }
-        }
+                let poolLink = v.visitPoolId
+                    ? `<a href="pool_view.html?poolId=${v.visitPoolId}" style="color:inherit; text-decoration:underline;">${v.visitPoolId}</a>`
+                    : '—';
+                let dateStr = formatDate(v.visitDate);
+                let detail = [dateStr, v.townName].filter(Boolean).join(' — ');
+                let idStr = v.visitId ? `#${v.visitId}` : '';
 
-        function renderServerVisits(rows) {
-            rows = sortRows(rows, sortState.col, sortState.asc);
-            let container = document.getElementById('server_visits');
-
-            let html = `<div class="pool-table-wrap"><table class="pool-table"><thead><tr>
-                <th data-col="visitId">Visit ID${sortIndicator('visitId')}</th>
-                <th data-col="visitPoolId">Pool${sortIndicator('visitPoolId')}</th>
-                <th data-col="visitDate">Date${sortIndicator('visitDate')}</th>
-                <th data-col="visitObserverUserName">Observer${sortIndicator('visitObserverUserName')}</th>
-                <th data-col="visitLocatePool">Located${sortIndicator('visitLocatePool')}</th>
-            </tr></thead><tbody>`;
-            rows.forEach(v => {
-                html += `<tr class="pool-row" style="cursor:pointer;" data-visit-id="${v.visitId}">
-                    <td>${v.visitId || ''}</td>
-                    <td><a href="pool_view.html?poolId=${v.visitPoolId}" style="color:inherit;">${v.visitPoolId || ''}</a></td>
-                    <td>${formatDate(v.visitDate)}</td>
-                    <td>${v.visitObserverUserName || v.visitUserName || ''}</td>
-                    <td>${v.visitLocatePool || ''}</td>
-                </tr>`;
+                html += `<div class="vq-item">
+                    <div class="vq-info">
+                        <div><span class="vq-status ${statusClass}">${statusLabel}</span> ${poolLink} <span style="color:var(--text-muted); font-size:12px;">${idStr}</span></div>
+                        <div class="vq-date">${detail}${v.visitObserverUserName ? ' — ' + v.visitObserverUserName : ''}</div>
+                    </div>
+                    <div class="vq-actions">${actions}</div>
+                </div>`;
             });
-            html += '</tbody></table></div>';
+
             container.innerHTML = html;
+            wireActions(container);
+        }
 
-            // Row click → visit view
-            container.querySelectorAll('tr[data-visit-id]').forEach(tr => {
-                tr.addEventListener('click', (e) => {
-                    if (e.target.tagName === 'A') return; // let pool link work
-                    window.location.href = `visit_view.html?visitId=${tr.dataset.visitId}`;
+        // =====================================================================
+        // Wire action buttons
+        // =====================================================================
+        function wireActions(container) {
+            container.querySelectorAll('.vq-edit').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    window.location.href = `/survey/visit_create.html?local=${btn.dataset.uuid}`;
                 });
             });
 
-            // Sort headers
-            container.querySelectorAll('th[data-col]').forEach(th => {
-                th.addEventListener('click', () => {
-                    let col = th.dataset.col;
-                    if (sortState.col === col) sortState.asc = !sortState.asc;
-                    else { sortState.col = col; sortState.asc = true; }
-                    renderServerVisits(rows);
+            container.querySelectorAll('.vq-upload').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+                    await syncVisit(btn.dataset.uuid);
+                    await loadAll();
+                });
+            });
+
+            container.querySelectorAll('.vq-delete').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (confirm('Delete this saved visit?')) {
+                        await deleteVisit(btn.dataset.uuid);
+                        await loadAll();
+                    }
                 });
             });
         }
 
-        function sortRows(rows, col, asc) {
-            return [...rows].sort((a, b) => {
-                let va = a[col] ?? '', vb = b[col] ?? '';
-                if (typeof va === 'string') va = va.toLowerCase();
-                if (typeof vb === 'string') vb = vb.toLowerCase();
-                if (va < vb) return asc ? -1 : 1;
-                if (va > vb) return asc ? 1 : -1;
-                return 0;
-            });
-        }
-
-        function sortIndicator(col) {
-            if (sortState.col !== col) return '';
-            return ` <span class="sort-arrow">${sortState.asc ? '\u25B2' : '\u25BC'}</span>`;
+        // =====================================================================
+        // Sort
+        // =====================================================================
+        function sortVisits(list, mode) {
+            let sorted = [...list];
+            switch (mode) {
+                case 'date-asc':
+                    sorted.sort((a, b) => (a.visitDate || '').localeCompare(b.visitDate || ''));
+                    break;
+                case 'date-desc':
+                    sorted.sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''));
+                    break;
+                case 'pool-asc':
+                    sorted.sort((a, b) => (a.visitPoolId || '').localeCompare(b.visitPoolId || ''));
+                    break;
+                case 'status':
+                    let order = { draft: 0, complete: 1, uploaded: 2, server: 3 };
+                    sorted.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+                    break;
+                default:
+                    sorted.sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''));
+            }
+            return sorted;
         }
     </script>
 </body>

@@ -132,7 +132,9 @@ COALESCE(surveyuser.handle, surveyuser.username) AS "surveyUserName",
 vpsurvey."updatedAt" AS "surveyUpdatedAt",
 (ARRAY(SELECT "visitId" FROM vpvisit WHERE "visitPoolId"="mappedPoolId")) AS visits,
 --(ARRAY(SELECT "reviewId" FROM vpreview WHERE "reviewPoolId"="mappedPoolId")) AS reviews, --adds 1 second to query. why?
-(ARRAY(SELECT "surveyId" FROM vpsurvey WHERE "surveyPoolId"="mappedPoolId")) AS surveys
+(ARRAY(SELECT "surveyId" FROM vpsurvey WHERE "surveyPoolId"="mappedPoolId")) AS surveys,
+(SELECT COUNT(*) FROM vpvisit_photos WHERE "visitPhotoVisitId" IN
+    (SELECT "visitId" FROM vpvisit WHERE "visitPoolId"="mappedPoolId"))::int AS "photoCount"
 FROM vpmapped
 LEFT JOIN vpvisit ON "visitPoolId"="mappedPoolId"
 LEFT JOIN vpreview ON "reviewVisitId"="visitId" -- Must be reviews by visitId, not by poolId
@@ -308,7 +310,9 @@ vpreview."updatedAt" AS "reviewUpdatedAt"
 ,"surveyServiceId",
 vpsurvey."createdAt" AS "surveyCreatedAt",
 vpsurvey."updatedAt" AS "surveyUpdatedAt",
-vpsurvey_photos.*
+vpsurvey_photos.*,
+(SELECT COUNT(*) FROM vpvisit_photos WHERE "visitPhotoVisitId" IN
+    (SELECT "visitId" FROM vpvisit v2 WHERE v2."visitPoolId"="mappedPoolId"))::int AS "photoCount"
 FROM vpmapped
 LEFT JOIN vpvisit ON vpvisit."visitPoolId"="mappedPoolId"
 LEFT JOIN vpvisit_photos ON "visitPhotoVisitId"="visitId"
