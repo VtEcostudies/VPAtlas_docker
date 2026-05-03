@@ -12,6 +12,7 @@ import {
 } from '/js/map_common.js';
 import { getLocal, setLocal } from '/js/storage.js';
 import { initParcelLayer, showParcels, hideParcels, parcelsEnabled, parcelMinZoom } from '/js/parcels.js';
+import { GPSMonitor } from '/survey/js/gps_monitor.js';
 
 // =============================================================================
 // CANVAS SHAPE MARKERS — extend L.CircleMarker for triangle & diamond shapes
@@ -60,6 +61,13 @@ var levelVisible = {};        // { 'potential': true, ... } — persisted
 var baseLayerControl = null;
 var statusControl = null;
 var isAdmin = false;
+
+// GPS state for the "zoom to my location" button
+var gps = null;
+var userMarker = null;
+var accuracyCircle = null;
+var gpsBtn = null;            // anchor element of the leaflet control
+var gpsHasFix = false;
 
 // Home button callback
 var homeCallback = null;
@@ -235,6 +243,61 @@ export function clearPoolMarkers() {
 function onZoomResizeMarkers() {
     let r = getMarkerRadius();
     Object.values(markers).forEach(m => m.setRadius(r));
+}
+
+// =============================================================================
+// GPS — "zoom to my location" — first click starts tracking, subsequent
+// clicks recenter on the current fix. Wired up by index.html via wireGpsButton().
+// =============================================================================
+export function wireGpsButton(btn) {
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        if (gps && gps.position && gpsHasFix) {
+            map.setView([gps.position.lat, gps.position.lng], Math.max(map.getZoom(), 14));
+            return;
+        }
+        if (!gps) {
+            gps = new GPSMonitor();
+            gps.on('position', (pos) => {
+                updateUserMarker(pos);
+                if (!gpsHasFix) {
+                    gpsHasFix = true;
+                    btn.classList.remove('gps-acquiring');
+                    btn.classList.add('gps-tracking');
+                    btn.title = 'Recenter on my location';
+                    map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 14));
+                }
+            });
+            gps.on('status', (s) => {
+                if (s.denied) {
+                    btn.classList.remove('gps-acquiring', 'gps-tracking');
+                    btn.classList.add('gps-denied');
+                    btn.title = 'GPS permission denied';
+                }
+            });
+            gps.on('error', (err) => console.warn('GPS error:', err.message));
+        }
+        btn.classList.add('gps-acquiring');
+        btn.title = 'Acquiring GPS…';
+        gps.start();
+    });
+}
+
+function updateUserMarker(pos) {
+    let ll = [pos.lat, pos.lng];
+    if (!userMarker) {
+        userMarker = L.circleMarker(ll, {
+            radius: 8, fillColor: '#4285F4', color: 'white',
+            weight: 3, fillOpacity: 1, zIndexOffset: 1000
+        }).addTo(map);
+        accuracyCircle = L.circle(ll, {
+            radius: pos.accuracy, color: '#4285F4', fillColor: '#4285F4',
+            fillOpacity: 0.1, weight: 1, interactive: false
+        }).addTo(map);
+    } else {
+        userMarker.setLatLng(ll);
+        accuracyCircle.setLatLng(ll).setRadius(pos.accuracy);
+    }
 }
 
 // Recompute which markers are on the map based on status + level visibility

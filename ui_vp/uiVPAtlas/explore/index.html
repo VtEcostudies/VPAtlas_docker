@@ -73,11 +73,14 @@
         <!-- Center pane: Map -->
         <div class="tri-pane tri-pane-center" id="pane_center" style="position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
-            <div id="map_zoom_btn" title="Zoom to filtered pools" style="position:absolute; top:10px; left:10px; z-index:1000;
-                background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
-                width:40px; height:40px; display:flex; align-items:center; justify-content:center;
-                cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
-                <i class="fa fa-crosshairs"></i>
+            <!-- Zoom toolbar — same pattern as Pool Finder -->
+            <div class="pf-zoom-bar">
+                <button class="pf-zoom-btn" id="map_zoom_btn" title="Zoom to filtered pools">
+                    <i class="fa fa-crosshairs"></i>
+                </button>
+                <button class="pf-zoom-btn" id="map_gps_btn" title="Zoom to my location">
+                    <i class="fa fa-crosshairs"></i><span>GPS</span>
+                </button>
             </div>
         </div>
 
@@ -120,7 +123,7 @@
     <!-- Main app entry point -->
     <script type="module">
         import { initPoolList, loadPools, refreshPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId } from './js/pool_list.js';
-        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible } from './js/map.js';
+        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible, wireGpsButton } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
         import { showWait, hideWait } from './js/utils.js';
@@ -173,6 +176,7 @@
 
             // Wire map zoom button
             document.getElementById('map_zoom_btn').addEventListener('click', zoomToFilteredPools);
+            wireGpsButton(document.getElementById('map_gps_btn'));
 
             // Map layer toggles → re-filter list + summary (map already updated its own markers)
             document.addEventListener('map:layer-filter', () => {

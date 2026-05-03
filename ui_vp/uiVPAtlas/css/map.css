@@ -139,11 +139,35 @@ label.pool-legend-toggle:hover {
     right: 0;
     bottom: 0;
     background: linear-gradient(
-        45deg, 
-        transparent 47%, 
-        #e74c3c 47%, 
-        #e74c3c 53%, 
+        45deg,
+        transparent 47%,
+        #e74c3c 47%,
+        #e74c3c 53%,
         transparent 53%
     );
     pointer-events: none;
+}
+
+/* Map zoom toolbar — top-left of map (used by Pool Finder and Explore) */
+.pf-zoom-bar {
+    position: absolute; top: 10px; left: 10px; z-index: 1000;
+    display: flex; gap: 6px;
+}
+.pf-zoom-btn {
+    background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
+    height: 40px; padding: 0 10px; display: flex; align-items: center; gap: 4px;
+    cursor: pointer; font-size: 14px; font-weight: 600; color: #333;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2); white-space: nowrap;
+    transition: color 0.15s;
+}
+.pf-zoom-btn i { font-size: 18px; }
+.pf-zoom-btn:hover, .pf-zoom-btn:active { background: #e8f5e9; }
+
+/* GPS button state colors */
+.pf-zoom-btn.gps-acquiring { color: #f39c12; animation: gps-pulse 1.5s infinite; }
+.pf-zoom-btn.gps-tracking { color: #27ae60; }
+.pf-zoom-btn.gps-denied { color: #e74c3c; }
+@keyframes gps-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
 }
