@@ -123,6 +123,7 @@ export async function confirmUser(searchTerm) { return fetchApiRoute('users/conf
 export async function fetchUsers(searchTerm) { return fetchApiRoute('users', searchTerm); }
 export async function fetchUserById(id) { return fetchApiRoute(`users/${id}`); }
 export async function updateUser(id, body) { return putApiRoute(`users/${id}`, body); }
+export async function deleteUser(id) { return deleteApiRoute(`users/${id}`); }
 
 // =============================================================================
 // VT INFO (towns, counties)

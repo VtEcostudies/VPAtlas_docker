@@ -9,38 +9,106 @@
     <link rel="stylesheet" href="/explore/css/common.css">
     <link rel="stylesheet" href="/explore/css/modal.css">
     <link rel="stylesheet" href="/explore/css/pool_list.css">
-    <link rel="stylesheet" href="/css/map.css">
+    <link rel="stylesheet" href="/survey/css/visit_queue.css">
+    <style>
+        .ua-container { max-width: 980px; padding: 10px 16px; overflow-x: hidden; }
+        .ua-search { display: flex; gap: 8px; align-items: center; padding: 6px 0; flex-wrap: wrap; }
+        .ua-search input { flex: 1 1 220px; min-width: 0; font-size: 16px; padding: 8px 10px; height: 40px; border: 1px solid var(--primary-color); border-radius: 6px; }
+        .ua-search select { font-size: 15px; padding: 6px 10px; height: 40px; border: 1px solid var(--primary-color); border-radius: 6px; color: var(--primary-color); background: white; }
+        .ua-search button { font-size: 15px; padding: 8px 16px; height: 40px; }
+        .ua-search label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+        .ua-empty { font-size: 14px; color: var(--text-muted, #666); padding: 12px 0; }
+        .ua-msg { padding: 8px 12px; font-size: 14px; border-radius: 6px; margin: 4px 0 12px; display: none; }
+        .ua-msg.show { display: block; }
+        .ua-msg.success { background: #e8f5e9; color: #2e7d32; }
+        .ua-msg.error   { background: #fbe9e7; color: #c62828; }
+
+        /* User card — same look as visit queue cards */
+        .ua-card {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+            padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+        }
+        .ua-avatar {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: var(--primary-color); color: white; font-weight: bold; font-size: 18px;
+            display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .ua-info { flex: 1 1 200px; min-width: 0; }
+        .ua-name { font-weight: 700; font-size: 16px; color: var(--primary-color); }
+        .ua-id { font-size: 12px; color: var(--text-muted); margin-left: 6px; font-weight: normal; }
+        .ua-email { font-size: 14px; color: var(--text-secondary); word-break: break-all; }
+        .ua-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .ua-status {
+            display: inline-block; padding: 2px 8px; border-radius: 12px;
+            font-size: 12px; font-weight: 600; border: 1.5px solid;
+        }
+        .ua-status-confirmed   { background: #e8f5e9; color: #2e7d32; border-color: #2e7d32; }
+        .ua-status-registration{ background: #fff3e0; color: #e65100; border-color: #e65100; }
+        .ua-status-reset       { background: #fff3e0; color: #e65100; border-color: #e65100; }
+        .ua-status-new_email   { background: #fff3e0; color: #e65100; border-color: #e65100; }
+        .ua-status-invalid     { background: #fbe9e7; color: #c62828; border-color: #c62828; }
+        .ua-status-auto-gen    { background: #e3f2fd; color: #1565c0; border-color: #1565c0; }
+
+        .ua-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }
+        .ua-actions select {
+            font-size: 14px; padding: 6px 8px; height: 36px;
+            border: 1px solid var(--primary-color); border-radius: 6px; color: var(--primary-color); background: white;
+        }
+        .ua-actions .btn {
+            font-size: 14px; font-weight: 600; padding: 6px 12px; height: 36px;
+            border: 1px solid var(--primary-color); border-radius: 6px; background: white;
+            color: var(--primary-color); cursor: pointer; white-space: nowrap;
+        }
+        .ua-actions .btn:hover { background: var(--primary-light); }
+        .ua-actions .btn.primary { background: var(--primary-color); color: white; }
+        .ua-actions .btn.primary:hover { background: var(--primary-hover); }
+        .ua-actions .btn.danger { border-color: var(--danger-color); color: var(--danger-color); }
+        .ua-actions .btn.danger:hover { background: var(--danger-color); color: white; }
+
+        @media (max-width: 600px) {
+            .ua-actions { width: 100%; margin-left: 0; }
+        }
+    </style>
 </head>
 <body>
     <header>
-        <div class="row controls">
-            <div class="px-1 col-xl-1 col-2">
-                <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
-            </div>
-            <div class="px-1 col-xl-2 col-3">
-                <h3 class="header-name light-foreground" id="page_title">Users</h3>
-            </div>
-            <div class="px-1 col-xl-2 col-3">
-                <span id="user_count" class="light-foreground" style="font-size:14px;"></span>
-            </div>
-            <div class="px-1 col-xl-4 col-4">
-                <input type="text" id="filter_search" class="form-control form-control-sm" placeholder="Search by username or email">
-            </div>
-            <div class="px-1 col-xl-3 col-12" style="display:flex; gap:10px; justify-content:flex-end;">
-                <button id="btn_search" class="action-button" style="font-size:14px;">Search</button>
-                <div id="profile_container" style="margin-left:auto;"></div>
-            </div>
+        <div class="detail-header">
+            <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            <h3 class="header-name light-foreground detail-title" id="page_title">User Management</h3>
+            <span id="user_count" style="font-size:14px; color:var(--text-secondary);"></span>
+            <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
     <hr class="divider-header">
 
-    <!-- Message -->
-    <div id="message" class="auth-message" style="display:none;"></div>
+    <div class="ua-container">
+        <div id="message" class="ua-msg"></div>
 
-    <!-- Users Table -->
-    <div style="padding:10px; max-height:85vh; overflow-y:auto;">
-        <div id="users_table">
-            <p style="font-size:14px;">Loading users...</p>
+        <div class="ua-search">
+            <input type="text" id="filter_search" placeholder="Search by username or email…" autocomplete="off">
+            <label for="filter_role">Role:</label>
+            <select id="filter_role">
+                <option value="">All</option>
+                <option value="admin">admin</option>
+                <option value="monitor">monitor</option>
+                <option value="user">user</option>
+            </select>
+            <label for="filter_status">Status:</label>
+            <select id="filter_status">
+                <option value="">All</option>
+                <option value="confirmed">confirmed</option>
+                <option value="registration">registration</option>
+                <option value="reset">reset</option>
+                <option value="new_email">new_email</option>
+                <option value="invalid">invalid</option>
+                <option value="auto-gen">auto-gen</option>
+            </select>
+            <button id="btn_search" class="btn primary action-button">Search</button>
+            <button id="btn_clear" class="btn">Clear</button>
+        </div>
+
+        <div id="users_list">
+            <div class="ua-empty"><i class="fa fa-spinner fa-spin"></i> Loading users…</div>
         </div>
     </div>
 
@@ -51,109 +119,183 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchUsers, updateUser } from '/js/api.js';
+        import { fetchUsers, updateUser, deleteUser, resetPassword } from '/js/api.js';
         import { getUser, requireAuth } from '/js/auth.js';
         import { formatDate } from '/explore/js/utils.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         setupProfileIcon();
 
+        const ROLES = ['user', 'monitor', 'admin'];
+        const STATUSES = ['confirmed', 'registration', 'reset', 'new_email', 'invalid', 'auto-gen'];
+
         let allUsers = [];
+        let currentUser = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Auth required
-            let authOk = await requireAuth();
-            if (!authOk) return;
-
-            // Check admin role
-            let user = await getUser();
-            if (!user || (user.role !== 'admin' && user.userrole !== 'admin')) {
-                document.getElementById('message').textContent = 'You do not have permission to access this page.';
-                document.getElementById('message').style.display = 'block';
-                document.getElementById('users_table').innerHTML = '';
+            if (!(await requireAuth())) return;
+            currentUser = await getUser();
+            if (!currentUser || (currentUser.role !== 'admin' && currentUser.userrole !== 'admin')) {
+                showMsg('You do not have permission to access this page.', 'error');
+                document.getElementById('users_list').innerHTML = '';
                 return;
             }
 
             document.getElementById('btn_search').addEventListener('click', loadUsers);
+            document.getElementById('btn_clear').addEventListener('click', () => {
+                document.getElementById('filter_search').value = '';
+                document.getElementById('filter_role').value = '';
+                document.getElementById('filter_status').value = '';
+                loadUsers();
+            });
             document.getElementById('filter_search').addEventListener('keyup', (e) => {
                 if (e.key === 'Enter') loadUsers();
             });
+            // Auto-apply on dropdown change — no need to click Search
+            document.getElementById('filter_role').addEventListener('change', loadUsers);
+            document.getElementById('filter_status').addEventListener('change', loadUsers);
 
-            // Initial load
             await loadUsers();
         });
 
         async function loadUsers() {
-            let search = document.getElementById('filter_search').value.trim();
-            let searchTerm = search ? `search=${search}` : false;
+            let search = document.getElementById('filter_search').value.trim().toLowerCase();
+            let role   = document.getElementById('filter_role').value;
+            let status = document.getElementById('filter_status').value;
+
+            // Build server query — uses real DB columns so the API filters server-side.
+            let parts = [];
+            if (role)   parts.push(`userrole=${encodeURIComponent(role)}`);
+            if (status) parts.push(`status=${encodeURIComponent(status)}`);
+            let searchTerm = parts.length ? parts.join('&') : false;
 
             try {
                 let data = await fetchUsers(searchTerm);
-                allUsers = data.rows || [];
+                allUsers = Array.isArray(data) ? data : (data.rows || []);
+                // Client-side text search across multiple fields (the API doesn't honor a
+                // free-text "search" param, so we filter locally after fetching).
+                if (search) {
+                    allUsers = allUsers.filter(u =>
+                        (u.username || '').toLowerCase().includes(search) ||
+                        (u.email || '').toLowerCase().includes(search) ||
+                        (u.handle || '').toLowerCase().includes(search) ||
+                        (u.firstname || '').toLowerCase().includes(search) ||
+                        (u.lastname || '').toLowerCase().includes(search)
+                    );
+                }
                 renderUsers(allUsers);
-                document.getElementById('user_count').textContent = `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''}`;
-                document.getElementById('message').style.display = 'none';
-            } catch(err) {
-                document.getElementById('message').textContent = `Error loading users: ${err.message || err}`;
-                document.getElementById('message').style.display = 'block';
+                document.getElementById('user_count').textContent =
+                    `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''}`;
+                document.getElementById('message').className = 'ua-msg';
+            } catch (err) {
+                showMsg(`Error loading users: ${err.message || err}`, 'error');
                 renderUsers([]);
             }
         }
 
         function renderUsers(rows) {
+            let container = document.getElementById('users_list');
             if (!rows.length) {
-                document.getElementById('users_table').innerHTML = '<p style="font-size:14px;">No users found.</p>';
-                document.getElementById('user_count').textContent = '0 users';
+                container.innerHTML = '<div class="ua-empty">No users found.</div>';
                 return;
             }
-            let html = `<table class="pool-table"><thead><tr>
-                <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th>
-            </tr></thead><tbody>`;
-            rows.forEach(u => {
-                let role = u.userrole || u.role || '';
-                let status = u.status || u.userStatus || '';
-                html += `<tr class="pool-row">
-                    <td>${u.id || ''}</td>
-                    <td>${u.username || ''}</td>
-                    <td>${u.email || ''}</td>
-                    <td>
-                        <select class="form-control form-control-sm role-select" data-user-id="${u.id}" style="width:auto; display:inline-block;">
-                            <option value="user" ${role === 'user' ? 'selected' : ''}>user</option>
-                            <option value="monitor" ${role === 'monitor' ? 'selected' : ''}>monitor</option>
-                            <option value="admin" ${role === 'admin' ? 'selected' : ''}>admin</option>
-                        </select>
-                    </td>
-                    <td>${status}</td>
-                    <td>
-                        <button class="action-button btn-update-role" data-user-id="${u.id}" style="font-size:12px; padding:2px 8px;">Update</button>
-                    </td>
-                </tr>`;
+            // Sort: pending statuses first, then alphabetical username
+            let order = { registration: 0, reset: 0, new_email: 0, invalid: 1, confirmed: 2, 'auto-gen': 3 };
+            let sorted = [...rows].sort((a, b) => {
+                let ao = order[a.status] ?? 9, bo = order[b.status] ?? 9;
+                if (ao !== bo) return ao - bo;
+                return (a.username || '').localeCompare(b.username || '');
             });
-            html += '</tbody></table>';
-            document.getElementById('users_table').innerHTML = html;
 
-            // Bind update buttons
-            document.querySelectorAll('.btn-update-role').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    let userId = e.target.dataset.userId;
-                    let select = document.querySelector(`.role-select[data-user-id="${userId}"]`);
-                    let newRole = select.value;
-                    await updateUserRole(userId, newRole);
+            let html = '';
+            sorted.forEach(u => html += renderUserCard(u));
+            container.innerHTML = html;
+            wireCardActions(container);
+        }
+
+        function renderUserCard(u) {
+            let role = u.userrole || u.role || 'user';
+            let status = u.status || 'confirmed';
+            let initial = (u.handle || u.username || u.email || 'U')[0].toUpperCase();
+            let name = [u.firstname, u.lastname].filter(Boolean).join(' ');
+            let displayName = u.handle || u.username || `(no username)`;
+            let isSelf = currentUser && Number(currentUser.id) === Number(u.id);
+
+            return `<div class="ua-card" data-user-id="${u.id}">
+                <div class="ua-avatar">${initial}</div>
+                <div class="ua-info">
+                    <div>
+                        <span class="ua-name">${displayName}</span>
+                        <span class="ua-id">#${u.id}</span>
+                        <span class="ua-status ua-status-${status}" style="margin-left:6px;">${status}</span>
+                    </div>
+                    <div class="ua-email">${u.email || ''}</div>
+                    <div class="ua-meta">${name ? name + ' • ' : ''}${role}${u.createdAt ? ' • joined ' + formatDate(u.createdAt) : ''}</div>
+                </div>
+                <div class="ua-actions">
+                    <select class="ua-role" data-id="${u.id}" title="Role">
+                        ${ROLES.map(r => `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`).join('')}
+                    </select>
+                    <select class="ua-status-select" data-id="${u.id}" title="Status">
+                        ${STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                    <button class="btn primary ua-save" data-id="${u.id}">Save</button>
+                    <button class="btn ua-reset" data-id="${u.id}" data-email="${u.email || ''}" title="Send password-reset email">Reset PW</button>
+                    <button class="btn danger ua-delete" data-id="${u.id}" data-name="${displayName}" ${isSelf ? 'disabled title="You cannot delete yourself"' : ''}>Delete</button>
+                </div>
+            </div>`;
+        }
+
+        function wireCardActions(container) {
+            container.querySelectorAll('.ua-save').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    let id = btn.dataset.id;
+                    let role = container.querySelector(`.ua-role[data-id="${id}"]`).value;
+                    let status = container.querySelector(`.ua-status-select[data-id="${id}"]`).value;
+                    try {
+                        await updateUser(id, { userrole: role, role: role, status: status });
+                        showMsg(`User #${id} saved (role=${role}, status=${status}).`, 'success');
+                        await loadUsers();
+                    } catch (err) {
+                        showMsg(`Error saving user #${id}: ${err.message || err}`, 'error');
+                    }
+                });
+            });
+
+            container.querySelectorAll('.ua-reset').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    let email = btn.dataset.email;
+                    if (!email) { showMsg('No email on file for this user.', 'error'); return; }
+                    if (!confirm(`Send a password-reset email to ${email}?`)) return;
+                    try {
+                        await resetPassword({ email });
+                        showMsg(`Password-reset email sent to ${email}.`, 'success');
+                    } catch (err) {
+                        showMsg(`Error sending reset to ${email}: ${err.message || err}`, 'error');
+                    }
+                });
+            });
+
+            container.querySelectorAll('.ua-delete').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (btn.disabled) return;
+                    let id = btn.dataset.id;
+                    let name = btn.dataset.name;
+                    if (!confirm(`Delete user "${name}" (#${id})? This cannot be undone.`)) return;
+                    try {
+                        await deleteUser(id);
+                        showMsg(`User #${id} deleted.`, 'success');
+                        await loadUsers();
+                    } catch (err) {
+                        showMsg(`Error deleting user #${id}: ${err.message || err}`, 'error');
+                    }
                 });
             });
         }
 
-        async function updateUserRole(userId, role) {
-            let msgEl = document.getElementById('message');
-            try {
-                await updateUser(userId, { userrole: role, role: role });
-                msgEl.textContent = `User ${userId} role updated to "${role}".`;
-                msgEl.style.color = 'var(--success-color, green)';
-                msgEl.style.display = 'block';
-            } catch(err) {
-                msgEl.textContent = `Error updating user ${userId}: ${err.message || err}`;
-                msgEl.style.color = 'var(--danger-color)';
-                msgEl.style.display = 'block';
-            }
+        function showMsg(text, kind) {
+            let el = document.getElementById('message');
+            el.textContent = text;
+            el.className = 'ua-msg show ' + (kind || '');
         }
     </script>
     <script>if (typeof appConfig !== "undefined") appConfig.useServiceWorker = false;</script>

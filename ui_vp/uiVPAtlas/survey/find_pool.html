@@ -214,18 +214,7 @@
                     followUser = true;
                 }
             });
-            document.getElementById('btn_zoom_both').addEventListener('click', () => {
-                if (!gps || !gps.position) { fitToSelectedPools(); return; }
-                followUser = false;
-                let layers = [...selectedPools.values()].map(e => e.marker);
-                if (userMarker) layers.push(userMarker);
-                if (!layers.length) return;
-                let group = L.featureGroup(layers);
-                setTimeout(() => {
-                    map.invalidateSize();
-                    map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 16 });
-                }, 50);
-            });
+            document.getElementById('btn_zoom_both').addEventListener('click', fitToBoth);
             map.on('dragstart', () => { followUser = false; });
 
             // Load pools from URL params
@@ -378,6 +367,21 @@
             }, 50);
         }
 
+        // Fit map to selected pools + user GPS marker.
+        // Falls back to pool-only fit if GPS isn't available.
+        function fitToBoth() {
+            if (!gps || !gps.position) { fitToSelectedPools(); return; }
+            followUser = false;
+            let layers = [...selectedPools.values()].map(e => e.marker);
+            if (userMarker) layers.push(userMarker);
+            if (!layers.length) return;
+            let group = L.featureGroup(layers);
+            setTimeout(() => {
+                map.invalidateSize();
+                map.fitBounds(group.getBounds(), { padding: [50, 50], maxZoom: 16 });
+            }, 50);
+        }
+
         // Persist selected pools to IndexedDB
         async function savePools() {
             let ids = [...selectedPools.keys()];
@@ -507,11 +511,23 @@
         // =================================================================
         function startGps() {
             gps = new GPSMonitor();
+            let firstFix = true;
 
             gps.on('position', (pos) => {
                 updateUserMarker(pos);
                 updateGpsDisplay(pos);
-                if (followUser) {
+                // On the FIRST GPS fix, default to "Both" view if pools are selected;
+                // otherwise just center on the user.
+                if (firstFix) {
+                    firstFix = false;
+                    if (selectedPools.size > 0) {
+                        fitToBoth();
+                    } else if (followUser) {
+                        let z = map.getZoom();
+                        if (z < 12) map.setView([pos.lat, pos.lng], 14);
+                        else map.panTo([pos.lat, pos.lng]);
+                    }
+                } else if (followUser) {
                     let z = map.getZoom();
                     if (z < 12) map.setView([pos.lat, pos.lng], 14);
                     else map.panTo([pos.lat, pos.lng]);

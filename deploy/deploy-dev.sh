@@ -92,6 +92,13 @@ deploy)
     echo "Pushing to origin..."
     git push origin main 2>/dev/null || echo "(push skipped or failed — continuing)"
 
+    # Ensure photo_data dir exists and is writable by the container's api user (uid 1001).
+    # Container api user differs from host ubuntu user (uid 1000), so we chown to 1001.
+    ssh_cmd "cd $REMOTE_DIR && \
+             mkdir -p photo_data && \
+             sudo chown -R 1001:1001 photo_data && \
+             sudo chmod -R u+rwX,g+rwX photo_data"
+
     # Pull on remote + rebuild
     ssh_cmd "cd $REMOTE_DIR && \
              git pull origin main && \

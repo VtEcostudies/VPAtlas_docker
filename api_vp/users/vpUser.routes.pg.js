@@ -74,7 +74,7 @@ function getRoles(req, res, next) {
 
 function getAll(req, res, next) {
     console.log(`vpUser.routes.pg.js::getAll() | req.user`, req.user);
-    if (req.user.userrole != 'admin') throw('Requesting User is not authorized to GET All Users.');
+    if (req.user.role != 'admin') throw('Requesting User is not authorized to GET All Users.');
     userService.getAll(req.query)
         .then(users => res.json(users))
         .catch(err => next(err));
@@ -82,7 +82,7 @@ function getAll(req, res, next) {
 
 function getPage(req, res, next) {
     console.log(`vpUser.routes.pg.js::getPage() | req.user`, req.user);
-    if (req.user.userrole != 'admin') throw('Requesting User is not authorized to GET All Users.');
+    if (req.user.role != 'admin') throw('Requesting User is not authorized to GET All Users.');
     console.log('getPage req.query', req.query);
     userService.getPage(req.params.page, req.query)
         .then(users => res.json(users))
