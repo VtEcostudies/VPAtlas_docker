@@ -40,6 +40,10 @@ html, body {
     padding: 0;
     font-family: Georgia, open-sans, sans-serif;
     overflow-x: hidden;
+    /* Disable double-tap-to-zoom on mobile while preserving pinch-zoom for accessibility.
+       Leaflet's own touch-action rules win for the map, so map gestures are unaffected. */
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
 }
 /* Prevent Bootstrap .row negative margins from causing horizontal overflow */
 .row {

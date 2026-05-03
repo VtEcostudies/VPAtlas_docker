@@ -331,6 +331,33 @@
             refreshUI();
         }
 
+        // True if a pool row has any obligate vernal-pool indicator species reported,
+        // either in an Atlas Visit (vpvisit columns) or in a Monitoring Survey
+        // (vpsurvey.surveyAmphibJson, keyed by observer 1/2).
+        function rowHasIndicator(r) {
+            // Visit-level columns
+            if (r.visitWoodFrogEgg > 0 || r.visitWoodFrogAdults > 0 || r.visitWoodFrogLarvae > 0 ||
+                r.visitSpsEgg > 0 || r.visitSpsAdults > 0 || r.visitSpsLarvae > 0 ||
+                r.visitJesaEgg > 0 || r.visitJesaAdults > 0 || r.visitJesaLarvae > 0 ||
+                r.visitBssaEgg > 0 || r.visitBssaAdults > 0 || r.visitBssaLarvae > 0 ||
+                r.visitFairyShrimp > 0) return true;
+            // Survey amphib JSON (observer 1 + 2, edge + interior)
+            let aj = r.surveyAmphibJson;
+            if (typeof aj === 'string') { try { aj = JSON.parse(aj); } catch(e) { aj = null; } }
+            if (aj && typeof aj === 'object') {
+                let keys = ['surveyAmphibEdgeWOFR','surveyAmphibEdgeSPSA','surveyAmphibEdgeJESA','surveyAmphibEdgeBLSA',
+                            'surveyAmphibInteriorWOFR','surveyAmphibInteriorSPSA','surveyAmphibInteriorJESA','surveyAmphibInteriorBLSA'];
+                for (let obs of ['1', '2']) {
+                    let o = aj[obs];
+                    if (!o) continue;
+                    for (let k of keys) {
+                        if (Number(o[k]) > 0) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         // Apply all client-side filters (pool ID, town, county, data type, indicator species)
         // NOTE: map layer visibility (status/level checkboxes) is NOT applied here —
         // plotPoolRows() handles marker visibility internally, and list/summary use applyMapVisibility().
@@ -364,15 +391,9 @@
                 });
             }
 
-            // Indicator species filter — check obligate vernal pool species columns
+            // Indicator species filter — check both visit columns and monitoring survey JSON
             if (filters.hasIndicator) {
-                filtered = filtered.filter(r =>
-                    r.visitWoodFrogEgg > 0 || r.visitWoodFrogAdults > 0 || r.visitWoodFrogLarvae > 0 ||
-                    r.visitSpsEgg > 0 || r.visitSpsAdults > 0 || r.visitSpsLarvae > 0 ||
-                    r.visitJesaEgg > 0 || r.visitJesaAdults > 0 || r.visitJesaLarvae > 0 ||
-                    r.visitBssaEgg > 0 || r.visitBssaAdults > 0 || r.visitBssaLarvae > 0 ||
-                    r.visitFairyShrimp > 0
-                );
+                filtered = filtered.filter(rowHasIndicator);
             }
 
             // Data type (Mine, Review)

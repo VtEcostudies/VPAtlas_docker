@@ -249,7 +249,14 @@ async function getAll(params={}) {
     var hasIndicator = params.visitHasIndicator;
     delete params.visitHasIndicator;
     var where = pgUtil.whereClause(params, staticColumns);
-    if (hasIndicator) {where.text += ' AND '; where.text += common.visitHasIndicator();}
+    // Indicator-species filter: match if EITHER an Atlas Visit OR a Monitoring
+    // Survey for this pool reports any indicator species. NULLs (when there's
+    // no visit/survey row) compare false, so the OR is safe.
+    if (hasIndicator) {
+        if (where.text) where.text += ' AND ';
+        else where.text = ' WHERE ';
+        where.text += `(${common.visitHasIndicator()} OR ${common.surveyHasIndicator()})`;
+    }
     const text = `
 SELECT
 "townId",
