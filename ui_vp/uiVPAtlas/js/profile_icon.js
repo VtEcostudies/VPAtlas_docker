@@ -39,7 +39,12 @@ export async function setupProfileIcon(containerId = 'profile_container') {
 
     let icon = document.createElement('div');
     icon.className = 'profile-icon' + (user ? ' signed-in' : '');
-    icon.textContent = user ? (user.handle || user.username || user.firstName || 'U')[0].toUpperCase() : '';
+    if (user) {
+        icon.textContent = (user.handle || user.username || user.firstName || 'U')[0].toUpperCase();
+    } else {
+        // Signed-out: show a person silhouette
+        icon.innerHTML = '<i class="fa fa-user" aria-hidden="true"></i>';
+    }
     icon.title = user ? `Signed in as ${user.handle || user.username}` : 'Sign in';
 
     icon.addEventListener('click', async () => {
@@ -54,8 +59,8 @@ export async function setupProfileIcon(containerId = 'profile_container') {
                     </div>
                     <div style="font-size:17px; font-weight:600;">${handle}</div>
                     ${name ? `<div style="font-size:14px; color:var(--text-secondary);">${name}</div>` : ''}
-                    <div style="font-size:13px; color:var(--text-muted);">${user.email || ''}</div>
-                    ${user.userrole ? `<div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${user.userrole}</div>` : ''}
+                    <div style="font-size:15px; font-weight:600; color:var(--text-secondary); margin-top:4px;">${user.email || ''}</div>
+                    ${user.userrole ? `<div style="font-size:14px; font-weight:600; color:var(--text-secondary); margin-top:4px;">${user.userrole}</div>` : ''}
                 </div>`,
                 [
                     { text: '\u{1F464} My Profile', value: 'profile' },

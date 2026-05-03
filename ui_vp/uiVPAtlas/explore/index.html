@@ -123,6 +123,7 @@
         import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
+        import { showWait, hideWait } from './js/utils.js';
         import { loadFromUrl, loadFromStorage, setPopState, filters, buildSearchTerm, filterRowsByDataType, putUserState } from './js/url_state.js';
         import { getPoolColor } from '/js/map_common.js';
         import { getUser, logout } from '/js/auth.js';
@@ -175,11 +176,13 @@
 
             // Map layer toggles → re-filter list + summary (map already updated its own markers)
             document.addEventListener('map:layer-filter', () => {
-                let poolRows = applyClientFilters(masterRows);
-                let visibleRows = applyMapVisibility(poolRows);
-                renderFilteredRows(visibleRows);
-                showScopeSummary(visibleRows);
-                renderStatusChips();
+                withWait(() => {
+                    let poolRows = applyClientFilters(masterRows);
+                    let visibleRows = applyMapVisibility(poolRows);
+                    renderFilteredRows(visibleRows);
+                    showScopeSummary(visibleRows);
+                    renderStatusChips();
+                });
             });
 
             // Mobile: clone filter bar contents into row 2
@@ -265,15 +268,55 @@
             switchToInfoIfMobile();
         }
 
-        // Render all three panes from masterRows through all filters
+        // Run heavy synchronous work with the wait overlay visible.
+        // Double-rAF guarantees the overlay paints BEFORE the work runs.
+        // A depth counter keeps the overlay solid across nested calls
+        // (e.g. chip click → setStatusVisible → map:layer-filter listener),
+        // so the user sees one continuous spinner instead of on/off/on flicker.
+        let waitDepth = 0;
+        function withWait(fn) {
+            waitDepth++;
+            showWait();
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    try { fn(); }
+                    finally {
+                        waitDepth = Math.max(0, waitDepth - 1);
+                        if (waitDepth === 0) hideWait();
+                    }
+                });
+            });
+        }
+
+        // Optimistic chip style — apply BEFORE the slow work so the user
+        // sees the chip toggle state instantly.
+        function setStatusChipActive(chip, status, active) {
+            let color = getPoolColor(status);
+            if (active) {
+                chip.style.cssText += `background:${color};color:white;border-color:${color};opacity:1;`;
+            } else {
+                chip.style.cssText += `background:transparent;color:#999;border-color:#ccc;opacity:0.5;`;
+            }
+        }
+        function setLevelChipActive(chip, active) {
+            if (active) {
+                chip.style.cssText += `background:var(--primary-light);color:var(--primary-color);border-color:var(--primary-color);opacity:1;`;
+            } else {
+                chip.style.cssText += `background:transparent;color:#999;border-color:#ccc;opacity:0.5;`;
+            }
+        }
+
+        // Render all three panes from masterRows through all filters.
         function refreshUI() {
-            let poolRows = applyClientFilters(masterRows);
-            plotPoolRows(poolRows, onMapPoolClick);       // map creates ALL markers, handles status/level visibility internally
-            let visibleRows = applyMapVisibility(poolRows);
-            renderFilteredRows(visibleRows);
-            showScopeSummary(visibleRows);
-            renderStatusChips();
-            zoomToFilteredPools();
+            withWait(() => {
+                let poolRows = applyClientFilters(masterRows);
+                plotPoolRows(poolRows, onMapPoolClick);       // map creates ALL markers, handles status/level visibility internally
+                let visibleRows = applyMapVisibility(poolRows);
+                renderFilteredRows(visibleRows);
+                showScopeSummary(visibleRows);
+                renderStatusChips();
+                zoomToFilteredPools();
+            });
         }
 
         // Called when top-bar filters change — filter cached data, no DB reload
@@ -402,7 +445,8 @@
                     let status = chip.dataset.status;
                     let mf = getMapFilters();
                     let nowVisible = !(mf.statusVisible[status] !== false);
-                    setStatusVisible(status, nowVisible);
+                    setStatusChipActive(chip, status, nowVisible);  // instant visual feedback
+                    withWait(() => setStatusVisible(status, nowVisible));
                 });
             });
 
@@ -412,7 +456,8 @@
                     let level = chip.dataset.level;
                     let mf = getMapFilters();
                     let nowVisible = !(mf.levelVisible[level] !== false);
-                    setLevelVisible(level, nowVisible);
+                    setLevelChipActive(chip, nowVisible);  // instant visual feedback
+                    withWait(() => setLevelVisible(level, nowVisible));
                 });
             });
         }

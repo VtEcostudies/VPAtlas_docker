@@ -59,14 +59,15 @@ us from returning an instructive error.
 
 */
 async function authenticate(body) {
-    if (!body.username || !body.password) {throw 'Username and password are required.';}
+    if (!body.username || !body.password) {throw 'Username or email and password are required.';}
     if (config.disableLogins) {throw 'VPAtlas logins are disabled.';}
     return new Promise(async (resolve, reject) => {
         var token = null; //authentiction token. return if successful login.
-        var select = `select * from vpuser where username=$1;`;
+        // Match either username or email (case-insensitive on email)
+        var select = `select * from vpuser where username=$1 OR LOWER(email)=LOWER($1);`;
         var args = [body.username];
         if (body.token) {
-          select = `select * from vpuser where username=$1 and token=$2;`;
+          select = `select * from vpuser where (username=$1 OR LOWER(email)=LOWER($1)) and token=$2;`;
           args = [body.username, body.token];
         }
         console.log(select, args);
@@ -79,9 +80,10 @@ async function authenticate(body) {
               var signOpts = config.token.ignoreExpiry ? {} : { expiresIn: config.token.loginExpiry };
               token = jwt.sign({ sub: user.id, role: user.userrole }, config.secret, signOpts);
               if (body.token) {
-                console.log(update, args);
-                var update = `update vpuser set token=null,status='confirmed' where username=$1 and token=$2 returning *;`;
-                query(update, args)
+                // Use the resolved user's id so the update works whether they signed in by username or email
+                var update = `update vpuser set token=null,status='confirmed' where id=$1 and token=$2 returning *;`;
+                console.log(update, [user.id, body.token]);
+                query(update, [user.id, body.token])
                   .then(res => {resolve ({"user":user, "token":token })})
                   .catch(err => {reject (err)});
               } else {
