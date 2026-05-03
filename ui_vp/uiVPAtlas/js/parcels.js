@@ -101,6 +101,55 @@ export async function initParcelLayer(leafletMap) {
             }
         }, 100);
     });
+
+    // Hover tooltip — shows owner summary when parcels are visible.
+    // Throttled so we don't run point-in-polygon on every pixel of mousemove.
+    let lastHoverFeature = null;
+    let hoverThrottle = 0;
+    map.on('mousemove', function (e) {
+        if (!enabled || map.getZoom() < MIN_ZOOM) {
+            if (lastHoverFeature) { map.closeTooltip(parcelTooltip); lastHoverFeature = null; }
+            return;
+        }
+        let now = Date.now();
+        if (now - hoverThrottle < 60) return;  // ~16 fps
+        hoverThrottle = now;
+        let hit = findParcelAt(e.latlng);
+        if (hit) {
+            if (hit.properties !== lastHoverFeature) {
+                parcelTooltip.setContent(parcelTooltipHtml(hit.properties));
+                lastHoverFeature = hit.properties;
+            }
+            parcelTooltip.setLatLng(e.latlng);
+            if (!parcelTooltip.isOpen()) parcelTooltip.openOn(map);
+        } else if (lastHoverFeature) {
+            map.closeTooltip(parcelTooltip);
+            lastHoverFeature = null;
+        }
+    });
+    map.on('mouseout', function () {
+        if (lastHoverFeature) { map.closeTooltip(parcelTooltip); lastHoverFeature = null; }
+    });
+}
+
+// Reusable hover tooltip
+const parcelTooltip = L.tooltip({
+    sticky: true,
+    direction: 'top',
+    offset: [0, -8],
+    className: 'parcel-hover-tooltip',
+    opacity: 0.95
+});
+
+function parcelTooltipHtml(p) {
+    p = p || {};
+    // Compact owner-only summary for hover. Click still opens the full popup.
+    let owner = p.OWNER1 || 'Unknown owner';
+    let extra = [];
+    if (p.OWNER2) extra.push(p.OWNER2);
+    if (p.TNAME || p.TOWN) extra.push(p.TNAME || p.TOWN);
+    if (p.ACRESGL) extra.push(`${p.ACRESGL.toFixed(1)} ac`);
+    return `<strong>${owner}</strong>${extra.length ? '<br><span style="font-size:11px;color:#555;">' + extra.join(' · ') + '</span>' : ''}`;
 }
 
 /**

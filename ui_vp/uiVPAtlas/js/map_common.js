@@ -257,6 +257,11 @@ export function addBoundaryOverlays(map, layerControl, boundaries, savedBoundary
 // =============================================================================
 export async function addLegend(map, position = 'bottomleft') {
     let settings = await loadSettings();
+    // Lazy-imported parcels module — present in the SW cache but not always
+    // pre-loaded; using dynamic import keeps the legend function decoupled.
+    let parcels = null;
+    try { parcels = await import('/js/parcels.js'); } catch(e) { /* optional */ }
+
     let ctl = L.Control.extend({
         options: { position: position },
         onAdd: function() {
@@ -288,6 +293,41 @@ export async function addLegend(map, position = 'bottomleft') {
                 <div class="pool-legend-item"><svg width="12" height="12"><polygon points="6,1 11,11 1,11" fill="#ccc" stroke="#333" stroke-width="1"/></svg> Visited</div>
                 <div class="pool-legend-item"><svg width="12" height="12"><polygon points="6,1 11,6 6,11 1,6" fill="#ccc" stroke="#333" stroke-width="1"/></svg> Monitored</div>
             `;
+
+            // Parcel toggle — only added if the parcels module loaded
+            if (parcels) {
+                let title = document.createElement('div');
+                title.className = 'pool-legend-title';
+                title.style.marginTop = '6px';
+                title.textContent = 'Overlays';
+                body.appendChild(title);
+
+                let item = document.createElement('label');
+                item.className = 'pool-legend-item pool-legend-toggle';
+                item.style.cursor = 'pointer';
+                let cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = !!settings.parcelsVisible;
+                cb.style.cssText = 'margin:0 5px 0 0; accent-color:#8B0000;';
+                let icon = document.createElement('span');
+                icon.innerHTML = '<svg width="14" height="14"><rect x="1" y="1" width="12" height="12" fill="none" stroke="#8B0000" stroke-width="1.5" opacity="0.7"/></svg>';
+                icon.style.cssText = 'display:inline-flex; align-items:center; margin-right:3px;';
+                item.appendChild(cb);
+                item.appendChild(icon);
+                item.appendChild(document.createTextNode('Parcels'));
+                body.appendChild(item);
+
+                // Init the parcel layer once and wire the checkbox
+                parcels.initParcelLayer(map).then(() => {
+                    if (cb.checked) parcels.showParcels();
+                }).catch(() => {});
+
+                cb.addEventListener('change', () => {
+                    if (cb.checked) parcels.showParcels();
+                    else parcels.hideParcels();
+                    saveSettings({ parcelsVisible: cb.checked });
+                });
+            }
             return div;
         }
     });

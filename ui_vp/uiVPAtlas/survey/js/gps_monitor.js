@@ -16,6 +16,13 @@ export class GPSMonitor {
         this.isTracking = false;
         this.listeners = {};
         this.positionHistory = [];  // last 10 positions
+
+        // Keep-alive state — Wake Lock keeps the screen on; the silent audio loop
+        // is an iOS Safari fallback that prevents the OS from suspending JS timers
+        // and the geolocation watcher when the screen turns off.
+        this._wakeLock = null;
+        this._keepAliveAudio = null;
+        this._onVisibilityChange = null;
     }
 
     // Event system
@@ -49,6 +56,9 @@ export class GPSMonitor {
             (err) => this._onError(err),
             { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
         );
+
+        // Keep the page awake while tracking
+        this._startKeepAlive();
     }
 
     // Stop watching
@@ -58,7 +68,71 @@ export class GPSMonitor {
             this.watchId = null;
         }
         this.isTracking = false;
+        this._stopKeepAlive();
         this.emit('status', { tracking: false, acquiring: false });
+    }
+
+    // ─── Keep-alive (wake lock + silent audio) ──────────────────────────
+    // Without this, the OS aggressively suspends the page when the screen
+    // turns off — the geolocation watcher stops firing and any throttled
+    // updates pause. Wake Lock covers Chrome/Android; silent audio is the
+    // iOS Safari fallback (matches the LoonWeb pattern).
+    async _startKeepAlive() {
+        // Screen Wake Lock
+        if ('wakeLock' in navigator) {
+            try {
+                this._wakeLock = await navigator.wakeLock.request('screen');
+                this._wakeLock.addEventListener('release', () => { this._wakeLock = null; });
+            } catch (err) {
+                console.warn('GPSMonitor: wakeLock request failed:', err.message);
+            }
+        }
+        // Re-acquire when the user comes back to the tab (the spec releases
+        // automatically on visibility change to hidden).
+        if (!this._onVisibilityChange) {
+            this._onVisibilityChange = async () => {
+                if (this.isTracking && document.visibilityState === 'visible' &&
+                    'wakeLock' in navigator && !this._wakeLock) {
+                    try { this._wakeLock = await navigator.wakeLock.request('screen'); }
+                    catch(e) {}
+                }
+            };
+            document.addEventListener('visibilitychange', this._onVisibilityChange);
+        }
+        // iOS Safari: silent audio loop
+        if (!this._keepAliveAudio) {
+            try {
+                let a = new Audio('/survey/silence.wav');
+                a.loop = true;
+                a.volume = 0.01;
+                a.play().catch(err => {
+                    // Browsers require a user gesture to autoplay audio. The
+                    // page that called gps.start() is responsible for ensuring
+                    // there was a recent user interaction (a button tap).
+                    console.warn('GPSMonitor: keep-alive audio play failed:', err.message);
+                    this._keepAliveAudio = null;
+                });
+                this._keepAliveAudio = a;
+            } catch(err) {
+                console.warn('GPSMonitor: keep-alive audio not supported:', err.message);
+            }
+        }
+    }
+
+    _stopKeepAlive() {
+        if (this._wakeLock) {
+            this._wakeLock.release().catch(() => {});
+            this._wakeLock = null;
+        }
+        if (this._keepAliveAudio) {
+            this._keepAliveAudio.pause();
+            this._keepAliveAudio.src = '';
+            this._keepAliveAudio = null;
+        }
+        if (this._onVisibilityChange) {
+            document.removeEventListener('visibilitychange', this._onVisibilityChange);
+            this._onVisibilityChange = null;
+        }
     }
 
     _onPosition(pos) {

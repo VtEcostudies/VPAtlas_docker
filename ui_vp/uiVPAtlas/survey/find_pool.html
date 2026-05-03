@@ -129,6 +129,47 @@
         }
         .pf-nav-actions a.near { background: var(--primary-color); color: white; }
 
+        /* Floating compass — bottom-right of map. Points toward the nearest
+           selected pool, accounting for which way the device is held. */
+        .pf-compass {
+            position: absolute; bottom: 14px; right: 64px; z-index: 1000;
+            width: 84px; height: 84px;
+            background: rgba(255,255,255,0.95);
+            border: 2px solid rgba(0,0,0,0.25);
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: none;
+            user-select: none;
+        }
+        .pf-compass.active { display: block; }
+        .pf-compass-rose {
+            position: absolute; inset: 0;
+            transition: transform 0.3s ease-out;
+            font-size: 11px; font-weight: 700; color: #888;
+        }
+        .pf-compass-n,
+        .pf-compass-s,
+        .pf-compass-e,
+        .pf-compass-w {
+            position: absolute; left: 50%; transform: translateX(-50%);
+        }
+        .pf-compass-n { top: 4px; color: #c00; }
+        .pf-compass-s { bottom: 4px; }
+        .pf-compass-e { left: auto; right: 4px; top: 50%; transform: translateY(-50%); }
+        .pf-compass-w { left: 4px; top: 50%; transform: translateY(-50%); }
+        .pf-compass-arrow {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.3s ease-out;
+        }
+        .pf-compass-arrow svg { display: block; }
+        .pf-compass-label {
+            position: absolute; left: 0; right: 0; bottom: -22px;
+            text-align: center; font-size: 12px; font-weight: 600; color: var(--primary-color);
+            text-shadow: 0 0 2px white, 0 0 2px white;
+            white-space: nowrap;
+        }
+
     </style>
 </head>
 <body>
@@ -163,6 +204,22 @@
                 <button class="pf-zoom-btn" id="btn_zoom_both" title="Zoom to pools and my GPS" style="display:none;">
                     <i class="fa fa-crosshairs"></i><span>Both</span>
                 </button>
+            </div>
+            <!-- Navigation compass — points toward nearest selected pool -->
+            <div class="pf-compass" id="pf_compass" title="Tap to enable device-orientation compass">
+                <div class="pf-compass-rose" id="pf_compass_rose">
+                    <span class="pf-compass-n">N</span>
+                    <span class="pf-compass-e">E</span>
+                    <span class="pf-compass-s">S</span>
+                    <span class="pf-compass-w">W</span>
+                </div>
+                <div class="pf-compass-arrow" id="pf_compass_arrow">
+                    <svg width="24" height="60" viewBox="0 0 24 60">
+                        <polygon points="12,4 22,28 12,22 2,28" fill="#c00" stroke="#600" stroke-width="1"/>
+                        <polygon points="12,56 22,32 12,38 2,32" fill="#888" stroke="#444" stroke-width="1"/>
+                    </svg>
+                </div>
+                <div class="pf-compass-label" id="pf_compass_label"></div>
             </div>
         </div>
 
@@ -324,6 +381,7 @@
             renderChips();
             renderNavPanel();
             updateGpsLines();
+            updateCompass();
             savePools();
 
             // Fit map to all selected pools
@@ -344,6 +402,7 @@
                 selectedPools.delete(poolId);
                 renderChips();
                 renderNavPanel();
+                updateCompass();
                 savePools();
             }
         }
@@ -535,6 +594,7 @@
                 // Update GPS-to-pool lines and nav distances
                 updateGpsLines();
                 if (selectedPools.size > 0) updateNavContent();
+                updateCompass();
             });
 
             gps.on('status', (s) => {
@@ -574,6 +634,87 @@
             document.getElementById('gps_accuracy').innerHTML =
                 `<span style="color:${q.color};">\u25cf</span> ${q.label} (${Math.round(pos.accuracy)}m)`;
         }
+
+        // \u2500\u2500\u2500 Navigation compass \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        // The arrow points toward the *nearest* selected pool. We rotate the
+        // arrow by (bearing - deviceHeading) so when the user turns the phone,
+        // the arrow keeps pointing at the pool. Without device orientation
+        // (desktop / permission denied) the arrow shows true bearing only.
+        let deviceHeading = 0;     // degrees clockwise from true north (0 = N)
+        let haveOrientation = false;
+
+        function nearestSelectedPool() {
+            if (!gps || !gps.position || selectedPools.size === 0) return null;
+            let best = null, bestDist = Infinity;
+            for (let entry of selectedPools.values()) {
+                let d = GPSMonitor.distance(gps.position.lat, gps.position.lng, entry.lat, entry.lng);
+                if (d < bestDist) { bestDist = d; best = { entry, dist: d }; }
+            }
+            return best;
+        }
+
+        function updateCompass() {
+            let compass = document.getElementById('pf_compass');
+            let arrow = document.getElementById('pf_compass_arrow');
+            let rose = document.getElementById('pf_compass_rose');
+            let label = document.getElementById('pf_compass_label');
+            if (!compass) return;
+            let target = nearestSelectedPool();
+            if (!target) {
+                compass.classList.remove('active');
+                return;
+            }
+            compass.classList.add('active');
+            let { entry, dist } = target;
+            let bearing = GPSMonitor.bearing(gps.position.lat, gps.position.lng, entry.lat, entry.lng);
+            // Arrow rotation is bearing minus device heading.
+            // (If the device is facing the pool, the arrow should point straight up.)
+            let arrowDeg = bearing - deviceHeading;
+            arrow.style.transform = `rotate(${arrowDeg}deg)`;
+            // Counter-rotate the N/E/S/W rose so N stays at true north when
+            // device orientation is available.
+            rose.style.transform = `rotate(${-deviceHeading}deg)`;
+            let pid = [...selectedPools.entries()].find(([id, e]) => e === entry)?.[0] || '';
+            label.textContent = `${pid} \u00b7 ${GPSMonitor.formatDistance(dist)} ${GPSMonitor.compassDir(bearing)}`;
+        }
+
+        // Device orientation \u2014 gives true heading on Android Chrome and iOS
+        // Safari (with permission). On desktop or denied permission, the arrow
+        // still points to true bearing (just doesn't account for device rotation).
+        function startDeviceOrientation() {
+            // iOS 13+ requires explicit permission via tap.
+            if (typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                document.getElementById('pf_compass').addEventListener('click', () => {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(state => { if (state === 'granted') attachOrientation(); })
+                        .catch(() => {});
+                }, { once: true });
+            } else {
+                attachOrientation();
+            }
+        }
+        function attachOrientation() {
+            // 'deviceorientationabsolute' = true compass heading. Fall back to
+            // 'deviceorientation' + webkitCompassHeading on iOS.
+            let handler = (e) => {
+                let h = null;
+                if (typeof e.webkitCompassHeading === 'number') {
+                    h = e.webkitCompassHeading;            // iOS \u2014 already true heading, 0=N CW
+                } else if (e.absolute && e.alpha !== null) {
+                    h = 360 - e.alpha;                     // Android \u2014 alpha is 0=N CCW
+                }
+                if (h !== null && !isNaN(h)) {
+                    deviceHeading = h;
+                    haveOrientation = true;
+                    updateCompass();
+                }
+            };
+            window.addEventListener('deviceorientationabsolute', handler);
+            window.addEventListener('deviceorientation', handler);
+        }
+        // Kick it off \u2014 safe no-op on desktop without permission flow.
+        startDeviceOrientation();
 
         // Draw a dashed line from GPS to each selected pool with a midpoint
         // tooltip showing distance + compass bearing. Removes lines when GPS

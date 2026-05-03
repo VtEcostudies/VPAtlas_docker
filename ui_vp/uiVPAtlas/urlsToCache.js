@@ -49,6 +49,9 @@ appConfig.urlsToCache = [
 // === Survey JS modules ===
 '/survey/js/gps_monitor.js',
 
+// === GPS keep-alive silent audio (iOS Safari fallback) ===
+'/survey/silence.wav',
+
 // === Shared CSS ===
 '/css/bootstrap_5.2.3.min.css',
 '/css/font-awesome_6.6.0.all.min.css',
