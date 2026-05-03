@@ -245,10 +245,13 @@
         .photo-capture-btn {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            font-size: 13px;
-            font-weight: 500;
-            padding: 4px 10px;
+            justify-content: center;
+            gap: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 0 14px;
+            height: 38px;
+            box-sizing: border-box;
             border: 1px solid var(--primary-color);
             border-radius: 6px;
             background: white;
@@ -257,7 +260,7 @@
             white-space: nowrap;
         }
         .photo-capture-btn:active { background: var(--primary-light); }
-        .photo-capture-btn i { font-size: 14px; }
+        .photo-capture-btn i { font-size: 18px; }
         .photo-thumbs {
             display: flex;
             gap: 4px;
@@ -301,15 +304,16 @@
             border: 1px solid var(--primary-color);
             border-radius: 6px;
             overflow: hidden;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             user-select: none;
-            height: 34px;
+            height: 38px;
+            box-sizing: border-box;
         }
         .presence-toggle .toggle-off,
         .presence-toggle .toggle-on {
-            padding: 4px 10px;
+            padding: 0 12px;
             display: flex;
             align-items: center;
         }
@@ -330,21 +334,22 @@
             color: white;
         }
 
-        /* Estimate/Count toggle — small pill before egg input */
+        /* Estimate/Count toggle — same height as adjacent egg input */
         .est-count-toggle {
             display: inline-flex;
             border: 1px solid #ccc;
-            border-radius: 4px;
+            border-radius: 6px;
             overflow: hidden;
-            font-size: 11px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             user-select: none;
-            height: 26px;
+            height: 38px;
+            box-sizing: border-box;
             flex-shrink: 0;
         }
         .est-count-toggle span {
-            padding: 2px 6px;
+            padding: 0 10px;
             display: flex;
             align-items: center;
         }
@@ -382,11 +387,13 @@
             pointer-events: none;
         }
 
-        /* Voice input button */
+        /* Voice input button — large enough for thumb taps on mobile */
         .voice-btn {
             background: none; border: none; cursor: pointer;
-            color: var(--text-secondary); font-size: 14px; padding: 2px 6px;
-            border-radius: 4px; vertical-align: middle;
+            color: var(--text-secondary); font-size: 28px; padding: 6px 10px;
+            min-width: 44px; min-height: 44px;
+            border-radius: 6px; vertical-align: middle;
+            display: inline-flex; align-items: center; justify-content: center;
         }
         .voice-btn:hover { color: var(--primary-color); }
         .voice-btn.recording {
@@ -399,16 +406,16 @@
             content: '';
             position: absolute;
             top: 50%; left: 50%;
-            width: 20px; height: 20px;
+            width: 36px; height: 36px;
             transform: translate(-50%, -50%);
-            border: 2px solid #dc3545;
+            border: 3px solid #dc3545;
             border-radius: 50%;
         }
         .voice-btn.unsupported::before {
             content: '';
             position: absolute;
             top: 50%; left: 50%;
-            width: 22px; height: 2px;
+            width: 40px; height: 3px;
             background: #dc3545;
             transform: translate(-50%, -50%) rotate(-45deg);
             z-index: 1;
@@ -418,21 +425,23 @@
             50% { opacity: 0.4; }
         }
 
-        /* Help trigger labels — clickable title with ? icon */
+        /* Help trigger labels — clickable title with ? icon (large for mobile taps) */
         .help-label {
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 600;
             color: var(--text-secondary);
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 4px;
+            gap: 8px;
+            padding: 4px 0;
+            min-height: 32px;
         }
         .help-label::before {
             content: '\f059';
             font-family: 'Font Awesome 6 Free';
             font-weight: 400;
-            font-size: 12px;
+            font-size: 22px;
             color: var(--primary-color);
         }
         .help-label:hover { color: var(--primary-color); }
@@ -442,15 +451,18 @@
             font-size: inherit;
             color: inherit;
         }
+        .form-section-title .help-label::before {
+            font-size: 24px;
+        }
 
         /* Species card title as help trigger */
         .species-card .help-label {
-            font-size: 14px;
+            font-size: 18px;
             font-weight: 600;
             color: var(--primary-color);
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
-        .species-card .help-label::before { font-size: 13px; }
+        .species-card .help-label::before { font-size: 24px; }
 
         /* Help overlay */
         .help-overlay {
@@ -949,7 +961,7 @@
                 </div>
 
                 <div class="species-card">
-                    <span class="help-label" onclick="showHelp('fingernailclams')" style="font-size:14px; color:var(--primary-color);">Fingernail Clams</span>
+                    <span class="help-label" onclick="showHelp('fingernailclams')">Fingernail Clams</span>
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <div class="presence-toggle" data-target="visitFingerNailClams"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
                         <input type="hidden" id="visitFingerNailClams" value="0">
@@ -961,7 +973,7 @@
                 </div>
 
                 <div class="species-card">
-                    <label style="font-size:14px; font-weight:600; color:var(--primary-color);">Other Species</label>
+                    <label style="font-size:18px; font-weight:600; color:var(--primary-color); margin-bottom:8px;">Other Species</label>
                     <div class="form-row" style="gap:8px;">
                         <div class="form-field" style="flex:2;"><label for="visitSpeciesOtherName">Species Name</label><input type="text" id="visitSpeciesOtherName"></div>
                         <div class="form-field" style="flex:1;"><label>Count</label>
