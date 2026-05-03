@@ -13,7 +13,26 @@
       "Bash(docker compose -f docker-compose-vpatlas.yml up *)",
       "Bash(docker compose -f docker-compose-vpatlas.yml restart *)",
       "Bash(docker compose -f docker-compose-vpatlas.yml ps*)",
-      "Bash(docker compose -f docker-compose-vpatlas.yml logs *)"
+      "Bash(docker compose -f docker-compose-vpatlas.yml logs *)",
+
+      "Bash(ssh -i ~/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org *)",
+      "Bash(ssh -i /home/jloomis/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org *)",
+
+      "Bash(curl -s* 'https://api.dev.vpatlas.org/*)",
+      "Bash(curl -s* https://api.dev.vpatlas.org/*)",
+      "Bash(curl -s* 'https://dev.vpatlas.org/*)",
+      "Bash(curl -s* https://dev.vpatlas.org/*)",
+      "Bash(curl -s* \"https://api.dev.vpatlas.org/*)",
+      "Bash(curl -s* \"https://dev.vpatlas.org/*)",
+      "Bash(curl -I* https://api.dev.vpatlas.org/*)",
+      "Bash(curl -I* 'https://api.dev.vpatlas.org/*)",
+      "Bash(curl -I* https://dev.vpatlas.org/*)",
+      "Bash(curl -I* 'https://dev.vpatlas.org/*)",
+
+      "Bash(docker exec db_vp psql -U postgres -d vpatlas -c *)",
+      "Bash(docker exec api_vp *)",
+      "Bash(docker exec ui_vp *)",
+      "Bash(docker logs *)"
     ]
   }
 }

@@ -1528,7 +1528,10 @@
                             serverVisitId = rows[0]?.visitId || rows[0]?.id;
                         }
 
-                        // Upload photos if any
+                        // Upload photos if any. Track success/failure so we can
+                        // tell the user instead of silently swallowing errors.
+                        let photoOk = 0, photoFail = 0;
+                        let photoErrors = [];
                         if (serverVisitId && Object.keys(speciesPhotos).length) {
                             let photoCount = 0;
                             for (let files of Object.values(speciesPhotos)) { if (files) photoCount += files.length; }
@@ -1543,30 +1546,50 @@
                                         try {
                                             let blob = (file instanceof File || file instanceof Blob) ? file
                                                 : file.data ? new Blob([file.data], { type: file.type || 'image/jpeg' }) : null;
-                                            if (!blob) continue;
+                                            if (!blob) { photoFail++; continue; }
                                             let fd = new FormData();
                                             fd.append('photos', blob, file.name || `${species}.jpg`);
                                             fd.append('photoType', species);
-                                            await fetch(`${apiUrl}/pools/visit/${serverVisitId}/photos`, {
+                                            let resp = await fetch(`${apiUrl}/pools/visit/${serverVisitId}/photos`, {
                                                 method: 'POST',
                                                 headers: { 'Authorization': `Bearer ${token}` },
                                                 body: fd
                                             });
-                                        } catch(e) { console.warn('Photo upload failed:', species, e); }
+                                            if (resp.ok) {
+                                                photoOk++;
+                                            } else {
+                                                photoFail++;
+                                                let bodyTxt = '';
+                                                try { bodyTxt = await resp.text(); } catch(_){}
+                                                let snippet = bodyTxt.replace(/<[^>]+>/g,'').trim().slice(0,80);
+                                                photoErrors.push(`${species} (${resp.status}${snippet ? ': '+snippet : ''})`);
+                                                console.warn('Photo upload HTTP error:', resp.status, species, bodyTxt.slice(0,200));
+                                            }
+                                        } catch(e) {
+                                            photoFail++;
+                                            photoErrors.push(`${species}: ${e.message || e}`);
+                                            console.warn('Photo upload failed:', species, e);
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        // Mark as uploaded in local store
+                        // Mark as uploaded in local store. Only mark
+                        // photos_uploaded=true if every photo actually succeeded.
                         if (currentVisitState) {
                             currentVisitState.status = 'uploaded';
-                            currentVisitState.photos_uploaded = true;
+                            currentVisitState.photos_uploaded = (photoFail === 0);
                             currentVisitState.uploaded_at = new Date().toISOString();
                             await saveVisit(currentVisitState);
                         }
 
-                        showMsg('Saved & uploaded!', 'success');
+                        if (photoFail > 0) {
+                            let detail = photoErrors.slice(0, 3).join('; ');
+                            showMsg(`Visit saved. ${photoOk} of ${photoOk + photoFail} photos uploaded — ${photoFail} failed: ${detail}`, 'error');
+                        } else {
+                            showMsg('Saved & uploaded!', 'success');
+                        }
                         setTimeout(() => {
                             if (poolId || body.visitPoolId)
                                 window.location.href = `/explore/pool_view.html?poolId=${poolId || body.visitPoolId}`;
