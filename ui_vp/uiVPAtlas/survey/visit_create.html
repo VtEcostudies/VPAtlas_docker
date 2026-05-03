@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VPAtlas - Pool Visit</title>
+    <title>VPAtlas - Atlas Visit</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2c5530">
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
@@ -643,7 +643,7 @@
         <!-- Header -->
         <div class="visit-header">
             <button class="exit-button" onclick="history.back()">&times;</button>
-            <h3 class="header-name light-foreground" id="page_title">Pool Visit</h3>
+            <h3 class="header-name light-foreground" id="page_title">Atlas Visit</h3>
             <div class="detail-actions" style="position:relative;">
                 <button id="btn_save_draft" class="action-button" style="font-size:13px; padding:4px 10px;" title="Save locally"><i class="fa fa-download"></i> Draft</button>
                 <button id="btn_save_upload" class="action-button" style="font-size:13px; padding:4px 10px; background:var(--primary-color); color:white;" title="Upload to VPAtlas"><i class="fa fa-cloud-arrow-up"></i> Upload</button>
@@ -791,14 +791,14 @@
                     <div class="form-row">
                         <div class="form-field" style="min-width:140px;"><label for="visitMaxWidth">Width (ft)</label>
                             <div class="stepper-group">
-                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitMaxWidth" data-step="-5">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitMaxWidth" data-step="-1">&minus;</button>
                                 <input type="text" id="visitMaxWidth" inputmode="numeric" placeholder="0">
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitMaxWidth" data-step="5">+</button>
                             </div>
                         </div>
                         <div class="form-field" style="min-width:140px;"><label for="visitMaxLength">Length (ft)</label>
                             <div class="stepper-group">
-                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitMaxLength" data-step="-5">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitMaxLength" data-step="-1">&minus;</button>
                                 <input type="text" id="visitMaxLength" inputmode="numeric" placeholder="0">
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitMaxLength" data-step="5">+</button>
                             </div>
@@ -899,7 +899,7 @@
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label>
                             <div class="stepper-group">
-                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitWoodFrogAdults" data-step="-5">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitWoodFrogAdults" data-step="-1">&minus;</button>
                                 <input type="text" id="visitWoodFrogAdults" inputmode="numeric" placeholder="0">
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitWoodFrogAdults" data-step="5">+</button>
                             </div>
@@ -908,7 +908,7 @@
                             <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
                             <div class="egg-mass-row">
                                 <div class="stepper-group">
-                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitWoodFrogEgg" data-step="-5">&minus;</button>
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitWoodFrogEgg" data-step="-1">&minus;</button>
                                     <input type="text" id="visitWoodFrogEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitWoodFrogEgg" data-step="5">+</button>
                                 </div>
@@ -939,7 +939,7 @@
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label>
                             <div class="stepper-group">
-                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpsAdults" data-step="-5">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpsAdults" data-step="-1">&minus;</button>
                                 <input type="text" id="visitSpsAdults" inputmode="numeric" placeholder="0">
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpsAdults" data-step="5">+</button>
                             </div>
@@ -948,7 +948,7 @@
                             <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
                             <div class="egg-mass-row">
                                 <div class="stepper-group">
-                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpsEgg" data-step="-5">&minus;</button>
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpsEgg" data-step="-1">&minus;</button>
                                     <input type="text" id="visitSpsEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpsEgg" data-step="5">+</button>
                                 </div>
@@ -979,7 +979,7 @@
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label>
                             <div class="stepper-group">
-                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitJesaAdults" data-step="-5">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitJesaAdults" data-step="-1">&minus;</button>
                                 <input type="text" id="visitJesaAdults" inputmode="numeric" placeholder="0">
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitJesaAdults" data-step="5">+</button>
                             </div>
@@ -988,7 +988,7 @@
                             <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
                             <div class="egg-mass-row">
                                 <div class="stepper-group">
-                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitJesaEgg" data-step="-5">&minus;</button>
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitJesaEgg" data-step="-1">&minus;</button>
                                     <input type="text" id="visitJesaEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitJesaEgg" data-step="5">+</button>
                                 </div>
@@ -1019,7 +1019,7 @@
                     <div class="species-counts">
                         <div class="form-field"><label>Adults</label>
                             <div class="stepper-group">
-                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitBssaAdults" data-step="-5">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitBssaAdults" data-step="-1">&minus;</button>
                                 <input type="text" id="visitBssaAdults" inputmode="numeric" placeholder="0">
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitBssaAdults" data-step="5">+</button>
                             </div>
@@ -1028,7 +1028,7 @@
                             <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
                             <div class="egg-mass-row">
                                 <div class="stepper-group">
-                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitBssaEgg" data-step="-5">&minus;</button>
+                                    <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitBssaEgg" data-step="-1">&minus;</button>
                                     <input type="text" id="visitBssaEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitBssaEgg" data-step="5">+</button>
                                 </div>
@@ -1094,11 +1094,11 @@
 
                 <div class="species-card">
                     <label style="font-size:18px; font-weight:600; color:var(--primary-color); margin-bottom:8px;">Other Species</label>
-                    <div class="form-row" style="gap:8px;">
-                        <div class="form-field" style="flex:2;"><label for="visitSpeciesOtherName">Species Name</label><input type="text" id="visitSpeciesOtherName"></div>
-                        <div class="form-field" style="flex:1;"><label>Count</label>
+                    <div class="species-counts">
+                        <div class="form-field" style="max-width:none;"><label for="visitSpeciesOtherName">Species Name</label><input type="text" id="visitSpeciesOtherName"></div>
+                        <div class="form-field"><label>Count</label>
                             <div class="stepper-group">
-                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpeciesOtherCount" data-step="-5">&minus;</button>
+                                <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpeciesOtherCount" data-step="-1">&minus;</button>
                                 <input type="text" id="visitSpeciesOtherCount" inputmode="numeric" placeholder="0">
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpeciesOtherCount" data-step="5">+</button>
                             </div>
@@ -1350,7 +1350,7 @@
                     populateVisitForm(v);
                 } catch(err) { showMsg('Error: ' + err.message, 'error'); }
             } else {
-                let newTitle = poolId ? `New Pool Visit to ${poolId}` : 'New Pool Visit to New Pool';
+                let newTitle = poolId ? `New Atlas Visit to Pool ${poolId}` : 'New Atlas Visit to New Pool';
                 document.getElementById('page_title').textContent = newTitle;
                 document.title = `VPAtlas - ${newTitle}`;
                 if (poolId) document.getElementById('visitPoolId').value = poolId;
@@ -1405,7 +1405,7 @@
                 // If draft has a poolId that wasn't in the URL, load that pool's data
                 if (currentVisitState && !poolId) {
                     let draftPoolId = currentVisitState.visitPoolId || currentVisitState.formData?.visitPoolId;
-                    let draftTitle = draftPoolId ? `New Pool Visit to ${draftPoolId}` : 'New Pool Visit to New Pool';
+                    let draftTitle = draftPoolId ? `New Atlas Visit to Pool ${draftPoolId}` : 'New Atlas Visit to New Pool';
                     document.getElementById('page_title').textContent = draftTitle;
                     document.title = `VPAtlas - ${draftTitle}`;
 
