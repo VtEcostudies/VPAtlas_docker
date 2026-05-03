@@ -5,7 +5,15 @@
       "Bash(curl -s \"http://localhost:4010/survey/field/5976\")",
       "Bash(curl -s \"http://localhost:4010/survey/pool/LDR3174\")",
       "Bash(curl -s \"http://localhost:4010/survey/field/5977\")",
-      "Bash(curl -s \"http://localhost:4010/pools?visitHasIndicator=true&limit=5\" -w \"\\\\n%{http_code}\")"
+      "Bash(curl -s \"http://localhost:4010/pools?visitHasIndicator=true&limit=5\" -w \"\\\\n%{http_code}\")",
+
+      "Bash(node ui_vp/uiVPAtlas/sw-build.js patch)",
+      "Bash(node ui_vp/uiVPAtlas/sw-build.js patch && *)",
+      "Bash(docker compose -f docker-compose-vpatlas.yml build *)",
+      "Bash(docker compose -f docker-compose-vpatlas.yml up *)",
+      "Bash(docker compose -f docker-compose-vpatlas.yml restart *)",
+      "Bash(docker compose -f docker-compose-vpatlas.yml ps*)",
+      "Bash(docker compose -f docker-compose-vpatlas.yml logs *)"
     ]
   }
 }

@@ -220,19 +220,73 @@
             color: var(--primary-color);
             margin-bottom: 6px;
         }
+        /* Stack count inputs vertically; cap input width so all rows align */
         .species-counts {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 6px;
-            align-items: start;
         }
         .species-counts .form-field input { padding: 6px; font-size: 16px; }
-        .species-counts .form-field { min-width: 0; }
-        .species-counts .stepper-group { min-width: 130px; }
-        @media (max-width: 500px) {
-            .species-counts {
-                grid-template-columns: 1fr;
+        .species-counts .form-field { min-width: 0; max-width: 320px; }
+        .species-counts .stepper-group { max-width: 170px; }
+        /* Egg-mass row: stepper on the left, est/count toggle on the right */
+        .egg-mass-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .egg-mass-row .stepper-group { flex: 0 0 auto; max-width: 170px; }
+
+        /* Species cards grid — 2 columns on wide screens, 1 column on narrow */
+        .species-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 8px;
+            align-items: start;
+        }
+        .species-grid .species-card { margin-bottom: 0; }
+
+        /* Narrow screens (<420px): make content fill the page edge-to-edge so
+           360px viewports don't overflow. Mirrors LoonWeb's small-screen treatment. */
+        @media (max-width: 419px) {
+            .visit-tab { padding: 4px 0; }
+            .form-section {
+                border-left: none;
+                border-right: none;
+                border-radius: 0;
+                margin-left: -4px;
+                margin-right: -4px;
+                padding: 8px 8px;
             }
+            .species-card {
+                border-left: none;
+                border-right: none;
+                border-radius: 0;
+                margin-left: -4px;
+                margin-right: -4px;
+                padding: 8px 8px;
+            }
+            .species-grid {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+            .species-grid .species-card { border-bottom: 1px solid #ddd; }
+            .species-grid .species-card:last-child { border-bottom: none; }
+        }
+
+        /* Notes textareas — expandable; the card grows with them */
+        .notes-textarea {
+            width: 100%;
+            min-height: 38px;
+            font-size: 16px;
+            padding: 8px;
+            border: 1px solid var(--primary-color);
+            border-radius: 6px;
+            font-family: inherit;
+            font-weight: normal;
+            line-height: 1.4;
+            resize: vertical;
+            box-sizing: border-box;
         }
 
         /* Species photo capture */
@@ -450,9 +504,13 @@
         .form-section-title .help-label {
             font-size: inherit;
             color: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
         .form-section-title .help-label::before {
-            font-size: 24px;
+            font-size: 22px;
+            color: var(--primary-color);
         }
 
         /* Species card title as help trigger */
@@ -463,6 +521,25 @@
             margin-bottom: 8px;
         }
         .species-card .help-label::before { font-size: 24px; }
+        /* Inline labels that double as help triggers — used inside form-fields like
+           "Egg Masses" and "Notes". Smaller than the species-card title. */
+        .help-label-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .help-label-inline::before {
+            content: '\f059';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 400;
+            font-size: 22px;
+            color: var(--primary-color);
+        }
+        .help-label-inline:hover { color: var(--primary-color); }
 
         /* Help overlay */
         .help-overlay {
@@ -567,8 +644,12 @@
         <div class="visit-header">
             <button class="exit-button" onclick="history.back()">&times;</button>
             <h3 class="header-name light-foreground" id="page_title">Pool Visit</h3>
-            <button id="btn_save_draft" class="action-button" style="font-size:13px; padding:4px 10px;" title="Save locally"><i class="fa fa-download"></i> Draft</button>
-            <button id="btn_save_upload" class="action-button" style="font-size:13px; padding:4px 10px; background:var(--primary-color); color:white;" title="Save &amp; upload"><i class="fa fa-cloud-arrow-up"></i> Save</button>
+            <div class="detail-actions" style="position:relative;">
+                <button id="btn_save_draft" class="action-button" style="font-size:13px; padding:4px 10px;" title="Save locally"><i class="fa fa-download"></i> Draft</button>
+                <button id="btn_save_upload" class="action-button" style="font-size:13px; padding:4px 10px; background:var(--primary-color); color:white;" title="Upload to VPAtlas"><i class="fa fa-cloud-arrow-up"></i> Upload</button>
+                <button class="action-overflow-btn" id="action_menu_btn"><i class="fa fa-ellipsis-v"></i></button>
+                <div class="action-overflow-panel" id="action_menu_panel"></div>
+            </div>
             <div id="profile_container" style="margin-left:auto;"></div>
         </div>
 
@@ -786,7 +867,7 @@
                     </div>
                 </div>
                 <div class="form-section">
-                    <div class="form-section-title">Photos</div>
+                    <div class="form-section-title"><span class="help-label" onclick="showHelp('photos')">Photos</span></div>
                     <div style="display:flex; flex-direction:column; gap:8px;">
                         <div>
                             <label style="font-size:13px; font-weight:600;">Pool</label>
@@ -810,8 +891,9 @@
 
             <!-- SPECIES TAB -->
             <div class="visit-tab" id="tab_species">
-                <p style="font-size:12px; margin:0 0 8px; color:var(--text-secondary);"><i class="fa fa-circle-question" style="color:var(--primary-color);"></i> Tap a species name for ID photos and descriptions. <a href="https://val.vtecostudies.org/wp-content/uploads/2026/01/Indicator-Species-ID-Sheet-1.pdf" target="_blank">Full ID sheet (PDF)</a></p>
+                <p class="help-label-inline" style="margin:0 0 8px; cursor:default;"><span>Tap a species name for ID photos and descriptions. <a href="https://val.vtecostudies.org/wp-content/uploads/2026/01/Indicator-Species-ID-Sheet-1.pdf" target="_blank">Full ID sheet (PDF)</a></span></p>
 
+                <div class="species-grid">
                 <div class="species-card">
                     <span class="help-label" onclick="showHelp('woodfrog')">Wood Frog</span>
                     <div class="species-counts">
@@ -822,14 +904,15 @@
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitWoodFrogAdults" data-step="5">+</button>
                             </div>
                         </div>
-                        <div class="form-field"><label>Egg Masses</label>
-                            <div style="display:flex; align-items:center; gap:4px;">
-                                <div class="est-count-toggle" data-target="visitWoodFrogEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
-                                <div class="stepper-group" style="flex:1;">
+                        <div class="form-field">
+                            <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
+                            <div class="egg-mass-row">
+                                <div class="stepper-group">
                                     <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitWoodFrogEgg" data-step="-5">&minus;</button>
                                     <input type="text" id="visitWoodFrogEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitWoodFrogEgg" data-step="5">+</button>
                                 </div>
+                                <div class="est-count-toggle" data-target="visitWoodFrogEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
                             </div>
                             <input type="hidden" id="visitWoodFrogEggHow" value="Estimate">
                         </div>
@@ -838,12 +921,17 @@
                             <input type="hidden" id="visitWoodFrogLarvae" value="0">
                         </div>
                     </div>
+                    <span class="help-label-inline" onclick="showHelp('photos')" style="margin-top:6px;">Add Photos</span>
                     <div class="species-photo-row">
                         <button type="button" class="photo-capture-btn" data-species="woodfrog"><i class="fa fa-camera"></i> Photo</button>
                         <input type="file" class="species-photo-input" data-species="woodfrog" accept="image/*" capture="environment" multiple style="display:none;">
                         <div class="photo-thumbs" id="thumbs_woodfrog"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitWoodFrogNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitWoodFrogNotes"></div>
+                    <div class="form-field" style="margin-top:4px;">
+                        <span class="help-label-inline" onclick="showHelp('voice')">Notes</span>
+                        <button type="button" class="voice-btn" data-target="visitWoodFrogNotes" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitWoodFrogNotes" rows="2" class="notes-textarea"></textarea>
+                    </div>
                 </div>
 
                 <div class="species-card">
@@ -856,14 +944,15 @@
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpsAdults" data-step="5">+</button>
                             </div>
                         </div>
-                        <div class="form-field"><label>Egg Masses</label>
-                            <div style="display:flex; align-items:center; gap:4px;">
-                                <div class="est-count-toggle" data-target="visitSpsEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
-                                <div class="stepper-group" style="flex:1;">
+                        <div class="form-field">
+                            <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
+                            <div class="egg-mass-row">
+                                <div class="stepper-group">
                                     <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitSpsEgg" data-step="-5">&minus;</button>
                                     <input type="text" id="visitSpsEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitSpsEgg" data-step="5">+</button>
                                 </div>
+                                <div class="est-count-toggle" data-target="visitSpsEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
                             </div>
                             <input type="hidden" id="visitSpsEggHow" value="Estimate">
                         </div>
@@ -872,12 +961,17 @@
                             <input type="hidden" id="visitSpsLarvae" value="0">
                         </div>
                     </div>
+                    <span class="help-label-inline" onclick="showHelp('photos')" style="margin-top:6px;">Add Photos</span>
                     <div class="species-photo-row">
                         <button type="button" class="photo-capture-btn" data-species="sps"><i class="fa fa-camera"></i> Photo</button>
                         <input type="file" class="species-photo-input" data-species="sps" accept="image/*" capture="environment" multiple style="display:none;">
                         <div class="photo-thumbs" id="thumbs_sps"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitSpsNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitSpsNotes"></div>
+                    <div class="form-field" style="margin-top:4px;">
+                        <span class="help-label-inline" onclick="showHelp('voice')">Notes</span>
+                        <button type="button" class="voice-btn" data-target="visitSpsNotes" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitSpsNotes" rows="2" class="notes-textarea"></textarea>
+                    </div>
                 </div>
 
                 <div class="species-card">
@@ -890,14 +984,15 @@
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitJesaAdults" data-step="5">+</button>
                             </div>
                         </div>
-                        <div class="form-field"><label>Egg Masses</label>
-                            <div style="display:flex; align-items:center; gap:4px;">
-                                <div class="est-count-toggle" data-target="visitJesaEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
-                                <div class="stepper-group" style="flex:1;">
+                        <div class="form-field">
+                            <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
+                            <div class="egg-mass-row">
+                                <div class="stepper-group">
                                     <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitJesaEgg" data-step="-5">&minus;</button>
                                     <input type="text" id="visitJesaEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitJesaEgg" data-step="5">+</button>
                                 </div>
+                                <div class="est-count-toggle" data-target="visitJesaEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
                             </div>
                             <input type="hidden" id="visitJesaEggHow" value="Estimate">
                         </div>
@@ -906,12 +1001,17 @@
                             <input type="hidden" id="visitJesaLarvae" value="0">
                         </div>
                     </div>
+                    <span class="help-label-inline" onclick="showHelp('photos')" style="margin-top:6px;">Add Photos</span>
                     <div class="species-photo-row">
                         <button type="button" class="photo-capture-btn" data-species="jesa"><i class="fa fa-camera"></i> Photo</button>
                         <input type="file" class="species-photo-input" data-species="jesa" accept="image/*" capture="environment" multiple style="display:none;">
                         <div class="photo-thumbs" id="thumbs_jesa"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitJesaNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitJesaNotes"></div>
+                    <div class="form-field" style="margin-top:4px;">
+                        <span class="help-label-inline" onclick="showHelp('voice')">Notes</span>
+                        <button type="button" class="voice-btn" data-target="visitJesaNotes" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitJesaNotes" rows="2" class="notes-textarea"></textarea>
+                    </div>
                 </div>
 
                 <div class="species-card">
@@ -924,14 +1024,15 @@
                                 <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitBssaAdults" data-step="5">+</button>
                             </div>
                         </div>
-                        <div class="form-field"><label>Egg Masses</label>
-                            <div style="display:flex; align-items:center; gap:4px;">
-                                <div class="est-count-toggle" data-target="visitBssaEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
-                                <div class="stepper-group" style="flex:1;">
+                        <div class="form-field">
+                            <span class="help-label-inline" onclick="showHelp('eggmasses')">Egg Masses</span>
+                            <div class="egg-mass-row">
+                                <div class="stepper-group">
                                     <button type="button" class="stepper-btn stepper-btn-minus" data-target="visitBssaEgg" data-step="-5">&minus;</button>
                                     <input type="text" id="visitBssaEgg" inputmode="numeric" placeholder="0">
                                     <button type="button" class="stepper-btn stepper-btn-plus" data-target="visitBssaEgg" data-step="5">+</button>
                                 </div>
+                                <div class="est-count-toggle" data-target="visitBssaEggHow"><span class="est-label">Est</span><span class="count-label">Count</span></div>
                             </div>
                             <input type="hidden" id="visitBssaEggHow" value="Estimate">
                         </div>
@@ -940,12 +1041,17 @@
                             <input type="hidden" id="visitBssaLarvae" value="0">
                         </div>
                     </div>
+                    <span class="help-label-inline" onclick="showHelp('photos')" style="margin-top:6px;">Add Photos</span>
                     <div class="species-photo-row">
                         <button type="button" class="photo-capture-btn" data-species="bssa"><i class="fa fa-camera"></i> Photo</button>
                         <input type="file" class="species-photo-input" data-species="bssa" accept="image/*" capture="environment" multiple style="display:none;">
                         <div class="photo-thumbs" id="thumbs_bssa"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitBssaNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitBssaNotes"></div>
+                    <div class="form-field" style="margin-top:4px;">
+                        <span class="help-label-inline" onclick="showHelp('voice')">Notes</span>
+                        <button type="button" class="voice-btn" data-target="visitBssaNotes" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitBssaNotes" rows="2" class="notes-textarea"></textarea>
+                    </div>
                 </div>
 
                 <div class="species-card">
@@ -953,11 +1059,18 @@
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <div class="presence-toggle" data-target="visitFairyShrimp"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
                         <input type="hidden" id="visitFairyShrimp" value="0">
+                    </div>
+                    <span class="help-label-inline" onclick="showHelp('photos')" style="margin-top:6px;">Add Photos</span>
+                    <div class="species-photo-row">
                         <button type="button" class="photo-capture-btn" data-species="fairyshrimp"><i class="fa fa-camera"></i> Photo</button>
                         <input type="file" class="species-photo-input" data-species="fairyshrimp" accept="image/*" capture="environment" multiple style="display:none;">
                         <div class="photo-thumbs" id="thumbs_fairyshrimp"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitFairyShrimpNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitFairyShrimpNotes"></div>
+                    <div class="form-field" style="margin-top:4px;">
+                        <span class="help-label-inline" onclick="showHelp('voice')">Notes</span>
+                        <button type="button" class="voice-btn" data-target="visitFairyShrimpNotes" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitFairyShrimpNotes" rows="2" class="notes-textarea"></textarea>
+                    </div>
                 </div>
 
                 <div class="species-card">
@@ -965,11 +1078,18 @@
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <div class="presence-toggle" data-target="visitFingerNailClams"><span class="toggle-off">Not Present</span><span class="toggle-on">Present</span></div>
                         <input type="hidden" id="visitFingerNailClams" value="0">
+                    </div>
+                    <span class="help-label-inline" onclick="showHelp('photos')" style="margin-top:6px;">Add Photos</span>
+                    <div class="species-photo-row">
                         <button type="button" class="photo-capture-btn" data-species="clams"><i class="fa fa-camera"></i> Photo</button>
                         <input type="file" class="species-photo-input" data-species="clams" accept="image/*" capture="environment" multiple style="display:none;">
                         <div class="photo-thumbs" id="thumbs_clams"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitFingerNailClamsNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitFingerNailClamsNotes"></div>
+                    <div class="form-field" style="margin-top:4px;">
+                        <span class="help-label-inline" onclick="showHelp('voice')">Notes</span>
+                        <button type="button" class="voice-btn" data-target="visitFingerNailClamsNotes" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitFingerNailClamsNotes" rows="2" class="notes-textarea"></textarea>
+                    </div>
                 </div>
 
                 <div class="species-card">
@@ -984,13 +1104,19 @@
                             </div>
                         </div>
                     </div>
+                    <span class="help-label-inline" onclick="showHelp('photos')" style="margin-top:6px;">Add Photos</span>
                     <div class="species-photo-row">
                         <button type="button" class="photo-capture-btn" data-species="other"><i class="fa fa-camera"></i> Photo</button>
                         <input type="file" class="species-photo-input" data-species="other" accept="image/*" capture="environment" multiple style="display:none;">
                         <div class="photo-thumbs" id="thumbs_other"></div>
                     </div>
-                    <div class="form-field" style="margin-top:4px;"><label>Notes <button type="button" class="voice-btn" data-target="visitSpeciesOtherNotes" title="Voice input"><i class="fa fa-microphone"></i></button></label><input type="text" id="visitSpeciesOtherNotes"></div>
+                    <div class="form-field" style="margin-top:4px;">
+                        <span class="help-label-inline" onclick="showHelp('voice')">Notes</span>
+                        <button type="button" class="voice-btn" data-target="visitSpeciesOtherNotes" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitSpeciesOtherNotes" rows="2" class="notes-textarea"></textarea>
+                    </div>
                 </div>
+                </div><!-- /.species-grid -->
 
                 <div class="form-section" style="margin-top:8px;">
                     <div class="choice-group">
@@ -1343,11 +1469,46 @@
                 showMsg('Draft saved locally', 'success');
             });
 
+            // Mobile overflow menu — mirrors the Draft/Upload buttons.
+            // common.css hides .detail-actions > .action-button below 900px and shows
+            // .action-overflow-btn instead, so we only need to wire the menu items
+            // to call the underlying buttons' click handlers.
+            (function initActionOverflow() {
+                let menuBtn = document.getElementById('action_menu_btn');
+                let menuPanel = document.getElementById('action_menu_panel');
+                if (!menuBtn || !menuPanel) return;
+                let mkItem = (icon, label, targetId) => {
+                    let el = document.createElement('button');
+                    el.className = 'action-button';
+                    el.innerHTML = `<i class="fa ${icon}" style="width:20px;"></i> ${label}`;
+                    el.addEventListener('click', () => {
+                        menuPanel.classList.remove('show');
+                        document.getElementById(targetId).click();
+                    });
+                    return el;
+                };
+                menuPanel.appendChild(mkItem('fa-download', 'Save Draft', 'btn_save_draft'));
+                menuPanel.appendChild(mkItem('fa-cloud-arrow-up', 'Upload', 'btn_save_upload'));
+                menuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menuPanel.classList.toggle('show');
+                });
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#action_menu_panel') && !e.target.closest('#action_menu_btn')) {
+                        menuPanel.classList.remove('show');
+                    }
+                });
+            })();
+
             // Save & Upload — local + server
             document.getElementById('btn_save_upload').addEventListener('click', async () => {
                 let body = getVisitFormData();
                 if (!body.visitPoolId) { showMsg('Pool ID is required', 'error'); return; }
                 if (!body.visitDate) { showMsg('Date is required', 'error'); return; }
+
+                // Confirm before uploading — visits get queued for VPAtlas review
+                let confirmed = await confirmUpload();
+                if (!confirmed) return;
 
                 // Save locally first as 'complete'
                 await saveLocal('complete');
@@ -1645,6 +1806,46 @@
 
         // Help overlay system
         const helpContent = {
+            'photos': {
+                title: 'Taking Photos for Your Visit',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">What to photograph</div>
+                        <p><strong>Pool</strong> — a wide shot showing the whole pool from the edge so reviewers can see size, shape, and surroundings. A second shot from a different angle helps if the pool is irregular.</p>
+                        <p><strong>Vegetation</strong> — close-ups of dominant emergent / floating / shrub / tree species in and around the pool. Capture distinctive leaves, flowers, or stems that aid ID.</p>
+                        <p><strong>Species</strong> — when you tap "Photo" inside a species card, the photo is filed under that species (Wood Frog, Spotted Salamander, etc.). Egg masses and adults are both useful.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">How many to take</div>
+                        <p>Photos are unnecessary for VPAtlas data purposes but good to have when there are questions or unusual situations. If you do include photos, aim for <strong>1 good photo per category</strong>.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">How they're uploaded</div>
+                        <p>Photos save with the visit on your device immediately. When you tap <strong>Upload</strong>, the visit data uploads first; photos follow as a second step.</p>
+                        <p>If your phone is on cellular and you haven't allowed cellular photo uploads, photos stay queued on your device until you're on Wi-Fi. The visit itself uploads either way.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Tips</div>
+                        <p>Shoot in <strong>landscape</strong> for pool shots and <strong>portrait</strong> for narrow vegetation. Hold steady, focus on the subject (tap on phone screen), and avoid harsh backlight when possible.</p>
+                        <p>You can review thumbnails next to each photo button and tap the × on a thumbnail to remove a bad shot before uploading.</p>
+                    </div>`
+            },
+            'eggmasses': {
+                title: 'Egg Masses — Estimate vs Count',
+                html: `
+                    <div class="help-section">
+                        <div class="help-section-title">When to use <em>Est</em> (estimate)</div>
+                        <p>Choose <strong>Est</strong> when you scanned the pool and arrived at an approximate number — for example, you saw a cluster of egg masses and judged it to be "about 20" without touching each one. Round to a sensible value (e.g. 5, 10, 20, 50).</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">When to use <em>Count</em> (exact)</div>
+                        <p>Choose <strong>Count</strong> when you actually counted each egg mass individually — by walking the pool edge, marking each, or pulling them aside while counting. The number should reflect a real count, not a guess.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Why it matters</div>
+                        <p>VPAtlas reviewers use the <em>Est / Count</em> flag to weigh data quality when summarizing pool reproduction. Estimates are still useful — just be honest about how the number was obtained.</p>
+                    </div>`
+            },
             'voice': {
                 title: 'Voice Input Commands',
                 html: `
@@ -2055,6 +2256,31 @@
                     </div>`
             }
         };
+
+        // Confirmation overlay before uploading. Resolves to true if the user confirms.
+        function confirmUpload() {
+            return new Promise(resolve => {
+                let overlay = document.createElement('div');
+                overlay.className = 'help-overlay';
+                overlay.innerHTML = `
+                    <div class="help-overlay-content" style="max-width:480px;">
+                        <h3 style="margin-bottom:10px;">Upload Atlas Visit?</h3>
+                        <p style="font-size:15px; line-height:1.5;">Are you sure the information is complete?</p>
+                        <p style="font-size:14px; color:var(--text-secondary); line-height:1.5;">Uploaded Atlas Visits are queued for VPAtlas review.</p>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+                            <button type="button" class="action-button" id="cu_cancel" style="font-size:15px; padding:8px 18px;">Cancel</button>
+                            <button type="button" class="action-button" id="cu_ok" style="font-size:15px; padding:8px 18px; background:var(--primary-color); color:white;"><i class="fa fa-cloud-arrow-up"></i> Upload</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                let done = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+                let onKey = (e) => { if (e.key === 'Escape') done(false); };
+                overlay.querySelector('#cu_cancel').addEventListener('click', () => done(false));
+                overlay.querySelector('#cu_ok').addEventListener('click', () => done(true));
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+                document.addEventListener('keydown', onKey);
+            });
+        }
 
         window.showHelp = function(key) {
             let content = helpContent[key];
