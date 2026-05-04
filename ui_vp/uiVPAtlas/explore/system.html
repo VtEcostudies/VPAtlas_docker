@@ -123,16 +123,16 @@
     <div class="si-container">
         <!-- Tab bar -->
         <div class="si-tabs" role="tablist">
-            <button class="si-tab active" data-tab="app"><i class="fa fa-tag"></i> App</button>
-            <button class="si-tab" data-tab="sw"><i class="fa fa-cogs"></i> Service Worker</button>
+            <button class="si-tab active" data-tab="gps"><i class="fa fa-location-crosshairs"></i> GPS</button>
             <button class="si-tab" data-tab="net"><i class="fa fa-wifi"></i> Network</button>
-            <button class="si-tab" data-tab="gps"><i class="fa fa-location-crosshairs"></i> GPS</button>
             <button class="si-tab" data-tab="storage"><i class="fa fa-database"></i> Storage</button>
+            <button class="si-tab" data-tab="sw"><i class="fa fa-cogs"></i> Service Worker</button>
+            <button class="si-tab" data-tab="app"><i class="fa fa-tag"></i> App</button>
             <button class="si-tab" data-tab="device"><i class="fa fa-display"></i> Device</button>
         </div>
 
         <!-- Tab panes -->
-        <div class="si-pane active" data-pane="app">
+        <div class="si-pane" data-pane="app">
             <div class="si-section">
                 <h5>App</h5>
                 <div id="si_app"></div>
@@ -164,7 +164,7 @@
             </div>
         </div>
 
-        <div class="si-pane" data-pane="gps">
+        <div class="si-pane active" data-pane="gps">
             <div class="gps-signal-bar">
                 <span id="gps_dot" class="gps-dot unknown"></span>
                 <span id="gps_signal_label" class="gps-signal-label">UNKNOWN</span>
@@ -187,6 +187,9 @@
                     <button id="btn_gps_start">Start tracking</button>
                     <button id="btn_gps_stop" disabled>Stop tracking</button>
                     <button id="btn_gps_clear">Clear history</button>
+                </div>
+                <div class="si-msg" style="font-size:11px; color:#777;">
+                    Tracking is shared across pages: if another VPAtlas tab is the primary, this page receives positions passively without re-prompting for permission.
                 </div>
             </div>
 
@@ -234,6 +237,7 @@
 
     <script type="module">
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { GPSMonitor } from '/survey/js/gps_monitor.js';
         setupProfileIcon('profile_container');
 
         // ---------------- Tab switching ----------------
@@ -260,6 +264,19 @@
             let el = document.getElementById(id);
             el.textContent = text || '';
             el.className = 'si-msg ' + (cls || '');
+        }
+        // Human-readable byte formatting (binary units, with comma separators).
+        // Returns e.g. "12,345 bytes" / "12.3 KB" / "1.45 MB" / "2.1 GB".
+        function fmtBytes(n) {
+            if (n == null || isNaN(n)) return '—';
+            n = Number(n);
+            if (n < 1024)            return `${n.toLocaleString()} bytes`;
+            if (n < 1024*1024)       return `${(n/1024).toLocaleString(undefined,{maximumFractionDigits:1})} KB (${n.toLocaleString()} bytes)`;
+            if (n < 1024*1024*1024)  return `${(n/1048576).toLocaleString(undefined,{maximumFractionDigits:2})} MB (${n.toLocaleString()} bytes)`;
+            return `${(n/1073741824).toLocaleString(undefined,{maximumFractionDigits:2})} GB (${n.toLocaleString()} bytes)`;
+        }
+        function fmtCount(n) {
+            return (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString();
         }
 
         // ---------------- App ----------------
@@ -314,7 +331,7 @@
                         for (let name of names) {
                             let c = await caches.open(name);
                             let keys = await c.keys();
-                            html += row(name, `${keys.length} entries`);
+                            html += row(name, `${fmtCount(keys.length)} entries`);
                         }
                     }
                 }
@@ -335,9 +352,9 @@
                 html += row('Effective type', conn.effectiveType || '—');
                 let dl = conn.downlink;
                 let dlCls = dl ? (dl >= 1.5 ? 'good' : 'warn') : 'warn';
-                html += row('Downlink (Mbps)', dl != null ? `${dl} (≈ ${Math.round((dl||0)*1000)} kbps)` : '—', dlCls);
-                html += row('Downlink max', conn.downlinkMax != null ? `${conn.downlinkMax}` : '—');
-                html += row('RTT (ms)', conn.rtt != null ? conn.rtt : '—');
+                html += row('Downlink (Mbps)', dl != null ? `${dl.toLocaleString(undefined,{maximumFractionDigits:2})} Mbps (≈ ${fmtCount(Math.round((dl||0)*1000))} kbps)` : '—', dlCls);
+                html += row('Downlink max', conn.downlinkMax != null ? `${conn.downlinkMax.toLocaleString(undefined,{maximumFractionDigits:2})} Mbps` : '—');
+                html += row('RTT (ms)', conn.rtt != null ? fmtCount(conn.rtt) + ' ms' : '—');
                 html += row('Type', conn.type || '—');
                 html += row('Save-Data', conn.saveData ? 'Yes' : 'No');
             }
@@ -354,19 +371,23 @@
             let elapsed = (performance.now() - started) / 1000;
             if (kbps == null) { setMsg('net_msg', 'Bandwidth test failed (see console).', 'err'); return; }
             let mbps = kbps / 1000;
-            setMsg('net_msg', `Downloaded ${label} in ${elapsed.toFixed(2)}s → ${mbps.toFixed(2)} Mbps (~${Math.round(kbps)} kbps). ${mbps >= 1.5 ? 'Above the 1.5 Mbps update gate.' : 'Below the 1.5 Mbps update gate.'}`, mbps >= 1.5 ? 'ok' : 'err');
+            setMsg('net_msg', `Downloaded ${label} in ${elapsed.toFixed(2)}s → ${mbps.toLocaleString(undefined,{maximumFractionDigits:2})} Mbps (~${fmtCount(Math.round(kbps))} kbps). ${mbps >= 1.5 ? 'Above the 1.5 Mbps update gate.' : 'Below the 1.5 Mbps update gate.'}`, mbps >= 1.5 ? 'ok' : 'err');
         }
 
-        // ---------------- GPS (LoonWeb-style live monitor) ----------------
+        // ---------------- GPS (driven by shared GPSMonitor) ----------------
+        // Uses the cross-page GPSMonitor library. If another VPAtlas tab is
+        // already the primary, this page joins as a passive observer and
+        // receives broadcast positions without prompting for permission.
+        const gps = new GPSMonitor({ channelName: 'vpatlas-gps' });
+
         const gpsState = {
             permission: 'unknown',
             capability: 'unknown',
             isTracking: false,
             isAcquiring: true,
-            watchId: null,
-            position: null,
+            position: null,    // GPSMonitor shape: {lat, lng, accuracy, ...}
             timestamp: null,
-            history: [],   // last 10 positions
+            history: [],       // last 10 positions
             pointCount: 0,
             tickInterval: null
         };
@@ -379,22 +400,14 @@
             return { status: 'POOR', cls: 'poor' };
         }
 
-        function haversine(lat1, lon1, lat2, lon2) {
-            const R = 6371000;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
         function calcDrift() {
             if (gpsState.history.length < 2) return null;
             let recent = gpsState.history.slice(-3);
             let dists = [];
             for (let i = 1; i < recent.length; i++) {
-                dists.push(haversine(
-                    recent[i-1].latitude, recent[i-1].longitude,
-                    recent[i].latitude, recent[i].longitude
+                dists.push(GPSMonitor.distance(
+                    recent[i-1].lat, recent[i-1].lng,
+                    recent[i].lat,   recent[i].lng
                 ));
             }
             return dists.length ? (dists.reduce((a,b)=>a+b,0) / dists.length) : null;
@@ -419,6 +432,17 @@
             if (gpsState.capability === 'available') return 'Device GPS';
             if (gpsState.capability === 'acquiring') return 'Acquiring…';
             return 'Checking…';
+        }
+
+        function modeLabel(m) {
+            if (m === 'primary') return 'PRIMARY (this tab is watching)';
+            if (m === 'passive') return 'PASSIVE (linked to another tab)';
+            return 'IDLE';
+        }
+        function modeCls(m) {
+            if (m === 'primary') return 'good';
+            if (m === 'passive') return 'good';
+            return 'warn';
         }
 
         function renderGps() {
@@ -449,8 +473,9 @@
             let trackCls = gpsState.isTracking ? (gpsState.isAcquiring ? 'warn' : 'good') : 'bad';
             let trk = '';
             trk += row('Status', trackStatus, trackCls);
+            trk += row('Mode', modeLabel(gps.mode), modeCls(gps.mode));
+            trk += row('Tab ID', gps.tabId.slice(0, 8) + '…');
             trk += row('Points recorded', gpsState.pointCount);
-            trk += row('Watch ID', gpsState.watchId != null ? gpsState.watchId : '(none)');
             document.getElementById('gps_tracking').innerHTML = trk;
 
             // Motion
@@ -464,8 +489,8 @@
             // Position
             let p = '';
             if (gpsState.position) {
-                p += row('Latitude', gpsState.position.latitude.toFixed(6) + '°');
-                p += row('Longitude', gpsState.position.longitude.toFixed(6) + '°');
+                p += row('Latitude', gpsState.position.lat.toFixed(6) + '°');
+                p += row('Longitude', gpsState.position.lng.toFixed(6) + '°');
                 p += row('Altitude', gpsState.position.altitude != null ? `${gpsState.position.altitude.toFixed(1)} m` : '—');
             } else {
                 p += row('Latitude', '—');
@@ -478,82 +503,73 @@
             let a = '';
             a += row('Horizontal', acc != null ? `±${acc.toFixed(1)} m` : '—',
                 acc != null ? (acc <= 10 ? 'good' : (acc <= 30 ? 'warn' : 'bad')) : '');
-            a += row('Vertical', gpsState.position?.altitudeAccuracy != null ? `±${gpsState.position.altitudeAccuracy.toFixed(1)} m` : '—');
             let drift = calcDrift();
             a += row('Drift (avg of last 3)', drift != null ? `${drift.toFixed(1)} m` : '—');
             document.getElementById('gps_accuracy').innerHTML = a;
 
             // History
             let hist = gpsState.history.slice(-10).reverse();
-            let hh = hist.map(p => `<div class="gps-history-item">${new Date(p.timestamp).toLocaleTimeString()}: ${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)} (±${p.accuracy.toFixed(1)} m)</div>`).join('');
+            let hh = hist.map(pt => `<div class="gps-history-item">${new Date(pt.timestamp).toLocaleTimeString()}: ${pt.lat.toFixed(6)}, ${pt.lng.toFixed(6)} (±${pt.accuracy.toFixed(1)} m)</div>`).join('');
             document.getElementById('gps_history').innerHTML = hh || '<div style="font-size:12px; color:#888;">No positions yet.</div>';
         }
 
-        function applyPositionSuccess(pos) {
-            let coords = pos.coords;
-            let p = {
-                latitude: coords.latitude,
-                longitude: coords.longitude,
-                accuracy: coords.accuracy,
-                altitude: coords.altitude,
-                altitudeAccuracy: coords.altitudeAccuracy,
-                heading: coords.heading,
-                speed: coords.speed,
-                timestamp: pos.timestamp
-            };
+        // GPSMonitor event wiring
+        gps.on('position', (p) => {
             gpsState.position = p;
-            gpsState.timestamp = pos.timestamp;
+            gpsState.timestamp = p.timestamp;
             gpsState.history.push(p);
             if (gpsState.history.length > 10) gpsState.history.shift();
             gpsState.pointCount++;
-            // Auto-classify capability on first fix
             if (gpsState.capability === 'unknown' || gpsState.capability === 'checking' || gpsState.capability === 'acquiring') {
-                gpsState.capability = (coords.accuracy > 500) ? 'ip-only' : 'available';
+                gpsState.capability = (p.accuracy > 500) ? 'ip-only' : 'available';
             }
-            // Acquisition complete when accuracy <= 50m
-            if (gpsState.isAcquiring && coords.accuracy != null && coords.accuracy <= 50) {
+            if (gpsState.isAcquiring && p.accuracy != null && p.accuracy <= 50) {
                 gpsState.isAcquiring = false;
             }
-            // Permission must be granted if positions arrive
             if (gpsState.permission !== 'granted') gpsState.permission = 'granted';
             renderGps();
-        }
-        function applyPositionError(err) {
+        });
+        gps.on('status', (s) => {
+            gpsState.isTracking = !!s.tracking;
+            gpsState.isAcquiring = !!s.acquiring;
+            if (s.denied) {
+                gpsState.permission = 'denied';
+                gpsState.capability = 'denied';
+            }
+            renderGps();
+        });
+        gps.on('mode', () => renderGps());
+        gps.on('error', (err) => {
             let map = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
             if (err.code === 1) {
                 gpsState.permission = 'denied';
                 gpsState.capability = 'denied';
-                stopTracking();
             }
             setMsg('gps_msg', `Error ${err.code}: ${map[err.code] || ''} ${err.message || ''}`, 'err');
             renderGps();
-        }
+        });
 
         function startTracking() {
-            if (!('geolocation' in navigator) || gpsState.isTracking) return;
-            gpsState.isTracking = true;
-            gpsState.isAcquiring = true;
-            setMsg('gps_msg', 'Tracking started.', 'ok');
-            gpsState.watchId = navigator.geolocation.watchPosition(
-                applyPositionSuccess, applyPositionError,
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-            );
+            if (!('geolocation' in navigator)) {
+                setMsg('gps_msg', 'Geolocation not supported.', 'err');
+                return;
+            }
+            setMsg('gps_msg', 'Joining shared GPS coordination…', 'ok');
+            gps.start();
             // Tick the "time since last" row every 500ms
-            gpsState.tickInterval = setInterval(renderGps, 500);
+            if (!gpsState.tickInterval) {
+                gpsState.tickInterval = setInterval(renderGps, 500);
+            }
             document.getElementById('btn_gps_start').disabled = true;
             document.getElementById('btn_gps_stop').disabled = false;
             renderGps();
         }
         function stopTracking() {
-            if (gpsState.watchId != null) {
-                navigator.geolocation.clearWatch(gpsState.watchId);
-                gpsState.watchId = null;
-            }
+            gps.stop();
             if (gpsState.tickInterval) {
                 clearInterval(gpsState.tickInterval);
                 gpsState.tickInterval = null;
             }
-            gpsState.isTracking = false;
             document.getElementById('btn_gps_start').disabled = false;
             document.getElementById('btn_gps_stop').disabled = true;
             renderGps();
@@ -570,7 +586,31 @@
             }
             setMsg('gps_msg', 'Requesting position…');
             navigator.geolocation.getCurrentPosition(
-                applyPositionSuccess, applyPositionError,
+                (pos) => {
+                    let p = {
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                        accuracy: pos.coords.accuracy,
+                        altitude: pos.coords.altitude,
+                        heading: pos.coords.heading,
+                        speed: pos.coords.speed,
+                        timestamp: pos.timestamp
+                    };
+                    gpsState.position = p;
+                    gpsState.timestamp = pos.timestamp;
+                    gpsState.history.push(p);
+                    if (gpsState.history.length > 10) gpsState.history.shift();
+                    gpsState.pointCount++;
+                    if (gpsState.permission !== 'granted') gpsState.permission = 'granted';
+                    setMsg('gps_msg', 'Position received.', 'ok');
+                    renderGps();
+                },
+                (err) => {
+                    let map = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
+                    if (err.code === 1) gpsState.permission = 'denied';
+                    setMsg('gps_msg', `Error ${err.code}: ${map[err.code] || ''} ${err.message || ''}`, 'err');
+                    renderGps();
+                },
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
         }
@@ -580,22 +620,51 @@
         document.getElementById('btn_gps_clear').addEventListener('click', clearHistory);
         document.getElementById('btn_gps_request').addEventListener('click', requestSingleFix);
 
-        // Stop tracking when leaving the page
-        window.addEventListener('beforeunload', stopTracking);
+        // Auto-join coordination if permission is already granted, so this
+        // diagnostic page reflects whatever the rest of the app is doing.
+        // We avoid triggering a fresh permission prompt — users who haven't
+        // granted yet must click "Start tracking" explicitly.
+        async function maybeAutoStart() {
+            if (!navigator.permissions || !navigator.permissions.query) return;
+            try {
+                let p = await navigator.permissions.query({ name: 'geolocation' });
+                if (p.state === 'granted') startTracking();
+            } catch(_) {}
+        }
+        maybeAutoStart();
 
         // ---------------- Storage ----------------
+        // Measure a Storage (localStorage/sessionStorage). Bytes is approximate:
+        // each JS string char counts as 2 bytes (UTF-16 in-memory representation).
+        function measureWebStorage(store) {
+            let bytes = 0, keys = 0;
+            try {
+                for (let i = 0; i < store.length; i++) {
+                    let k = store.key(i);
+                    let v = store.getItem(k) || '';
+                    bytes += (k.length + v.length) * 2;
+                    keys++;
+                }
+            } catch(_) {}
+            return { bytes, keys };
+        }
+
         async function renderStorage() {
             let html = '';
+
+            // -- Quota / overall --
             try {
                 if (navigator.storage && navigator.storage.estimate) {
                     let est = await navigator.storage.estimate();
-                    let usedMB = (est.usage || 0) / 1_048_576;
-                    let quotaMB = (est.quota || 0) / 1_048_576;
-                    html += row('Used', `${usedMB.toFixed(1)} MB`);
-                    html += row('Quota', `${quotaMB.toFixed(0)} MB`);
-                    if (est.usageDetails) {
+                    let used = est.usage || 0;
+                    let quota = est.quota || 0;
+                    let pct = quota ? (used / quota * 100) : null;
+                    html += row('Total used', fmtBytes(used) + (pct != null ? ` (${pct.toFixed(1)}% of quota)` : ''));
+                    html += row('Quota', fmtBytes(quota));
+                    if (est.usageDetails && Object.keys(est.usageDetails).length) {
+                        html += `<div class="si-row" style="grid-template-columns:1fr;"><span class="si-key" style="font-weight:600; padding-top:6px;">Per-bucket usage</span></div>`;
                         for (let [k, v] of Object.entries(est.usageDetails)) {
-                            html += row('  ' + k, `${(v / 1_048_576).toFixed(2)} MB`);
+                            html += row('  ' + k, fmtBytes(v));
                         }
                     }
                 } else {
@@ -608,15 +677,56 @@
                 let persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null;
                 html += row('Persistent storage', persisted == null ? '—' : (persisted ? 'Yes' : 'No'), persisted ? 'good' : 'warn');
             } catch(_) {}
+
+            // -- localStorage --
+            html += `<div class="si-row" style="grid-template-columns:1fr;"><span class="si-key" style="font-weight:600; padding-top:8px;">localStorage</span></div>`;
             try {
-                let lsBytes = 0;
-                for (let i = 0; i < localStorage.length; i++) {
-                    let k = localStorage.key(i);
-                    let v = localStorage.getItem(k) || '';
-                    lsBytes += k.length + v.length;
+                let m = measureWebStorage(window.localStorage);
+                html += row('Keys', fmtCount(m.keys));
+                html += row('Approx size', fmtBytes(m.bytes));
+                if (m.keys > 0) {
+                    let names = [];
+                    for (let i = 0; i < window.localStorage.length; i++) names.push(window.localStorage.key(i));
+                    html += row('Key names', names.slice(0, 20).join(', ') + (names.length > 20 ? `, … (+${fmtCount(names.length - 20)} more)` : ''));
                 }
-                html += row('localStorage', `${(lsBytes/1024).toFixed(1)} KB across ${localStorage.length} keys`);
-            } catch(_) {}
+            } catch(e) {
+                html += row('Error', e.message, 'bad');
+            }
+
+            // -- sessionStorage --
+            html += `<div class="si-row" style="grid-template-columns:1fr;"><span class="si-key" style="font-weight:600; padding-top:8px;">sessionStorage</span></div>`;
+            try {
+                let m = measureWebStorage(window.sessionStorage);
+                html += row('Keys', fmtCount(m.keys));
+                html += row('Approx size', fmtBytes(m.bytes));
+                if (m.keys > 0) {
+                    let names = [];
+                    for (let i = 0; i < window.sessionStorage.length; i++) names.push(window.sessionStorage.key(i));
+                    html += row('Key names', names.slice(0, 20).join(', ') + (names.length > 20 ? `, … (+${fmtCount(names.length - 20)} more)` : ''));
+                }
+            } catch(e) {
+                html += row('Error', e.message, 'bad');
+            }
+
+            // -- IndexedDB --
+            html += `<div class="si-row" style="grid-template-columns:1fr;"><span class="si-key" style="font-weight:600; padding-top:8px;">IndexedDB</span></div>`;
+            try {
+                if (indexedDB && indexedDB.databases) {
+                    let dbs = await indexedDB.databases();
+                    html += row('Databases', fmtCount(dbs.length));
+                    if (dbs.length) {
+                        for (let db of dbs) {
+                            html += row(`  ${db.name || '(unnamed)'}`, db.version != null ? `version ${db.version}` : '—');
+                        }
+                    }
+                    html += row('Total IndexedDB bytes', '(see Per-bucket usage above)');
+                } else {
+                    html += row('indexedDB.databases()', 'Not supported by this browser', 'warn');
+                }
+            } catch(e) {
+                html += row('Error', e.message, 'bad');
+            }
+
             document.getElementById('si_storage').innerHTML = html;
         }
 
@@ -626,10 +736,10 @@
             html += row('User agent', navigator.userAgent);
             html += row('Platform', navigator.platform || navigator.userAgentData?.platform || '—');
             html += row('Language', navigator.language);
-            html += row('CPU cores', navigator.hardwareConcurrency || '—');
-            html += row('Device memory (GB)', navigator.deviceMemory || '—');
-            html += row('Display', `${window.screen.width}×${window.screen.height} @ ${window.devicePixelRatio}× (viewport ${window.innerWidth}×${window.innerHeight})`);
-            html += row('Touch points', navigator.maxTouchPoints || 0);
+            html += row('CPU cores', fmtCount(navigator.hardwareConcurrency));
+            html += row('Device memory (GB)', navigator.deviceMemory != null ? fmtCount(navigator.deviceMemory) : '—');
+            html += row('Display', `${fmtCount(window.screen.width)}×${fmtCount(window.screen.height)} @ ${window.devicePixelRatio}× (viewport ${fmtCount(window.innerWidth)}×${fmtCount(window.innerHeight)})`);
+            html += row('Touch points', fmtCount(navigator.maxTouchPoints || 0));
             html += row('Standalone (PWA)', (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone ? 'Yes' : 'No');
             document.getElementById('si_device').innerHTML = html;
         }
