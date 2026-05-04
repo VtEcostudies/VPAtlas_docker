@@ -54,6 +54,44 @@
         .visit-message.success { background: #d4edda; color: #155724; }
         .visit-message.error { background: #f8d7da; color: #721c24; }
 
+        /* Upload progress overlay */
+        body.uploading { cursor: wait !important; }
+        body.uploading button:not(.upload-overlay-cancel),
+        body.uploading input,
+        body.uploading select,
+        body.uploading textarea { pointer-events: none; }
+        .upload-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            z-index: 10000; display: none;
+            align-items: center; justify-content: center;
+        }
+        .upload-overlay.show { display: flex; }
+        .upload-overlay-box {
+            background: white; padding: 24px 28px; border-radius: 8px;
+            text-align: center; min-width: 260px; max-width: 90vw;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .upload-spinner {
+            width: 36px; height: 36px; border: 3px solid #e0e0e0;
+            border-top-color: var(--primary-color);
+            border-radius: 50%; animation: upload-spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes upload-spin { to { transform: rotate(360deg); } }
+        .upload-overlay-text { font-size: 15px; color: #222; font-weight: 500; }
+        .upload-overlay-progress { font-size: 12px; color: #666; margin-top: 6px; min-height: 16px; }
+
+        /* Photo thumbnail save-to-device button (placed inside the thumb to avoid overflow clipping) */
+        .photo-thumb-save {
+            position: absolute; bottom: 1px; right: 1px;
+            width: 14px; height: 14px; border-radius: 50%;
+            background: rgba(255,255,255,0.9); border: 1px solid #888;
+            color: #333; font-size: 8px; line-height: 1;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; padding: 0;
+        }
+        .photo-thumb-save:hover { background: white; }
+
         /* Tab content area */
         .visit-content {
             flex: 1;
@@ -440,6 +478,10 @@
             z-index: 1000;
             pointer-events: none;
         }
+        /* On narrow screens, drop below the "Use GPS" button so it's visible */
+        @media (max-width: 700px) {
+            .map-instruction { top: 90px; }
+        }
 
         /* Voice input button — large enough for thumb taps on mobile */
         .voice-btn {
@@ -655,6 +697,15 @@
 
         <!-- Message -->
         <div id="message" class="visit-message"></div>
+
+        <!-- Upload progress overlay -->
+        <div id="upload_overlay" class="upload-overlay" role="alert" aria-live="assertive">
+            <div class="upload-overlay-box">
+                <div class="upload-spinner"></div>
+                <div class="upload-overlay-text" id="upload_overlay_text">Uploading...</div>
+                <div class="upload-overlay-progress" id="upload_overlay_progress"></div>
+            </div>
+        </div>
 
         <!-- Content tabs -->
         <div class="visit-content">
@@ -1245,9 +1296,11 @@
                 let files = speciesPhotos[species] || [];
                 container.innerHTML = files.map((file, i) => {
                     let url = URL.createObjectURL(file);
+                    let name = file.name || `${species}.jpg`;
                     return `<div class="photo-thumb">
-                        <img src="${url}" alt="${file.name}">
-                        <button type="button" class="photo-thumb-remove" data-species="${species}" data-index="${i}">&times;</button>
+                        <img src="${url}" alt="${name}">
+                        <button type="button" class="photo-thumb-remove" data-species="${species}" data-index="${i}" title="Remove">&times;</button>
+                        <button type="button" class="photo-thumb-save" data-species="${species}" data-index="${i}" title="Save to device"><i class="fa fa-download"></i></button>
                     </div>`;
                 }).join('');
                 container.querySelectorAll('.photo-thumb-remove').forEach(btn => {
@@ -1256,6 +1309,32 @@
                         let idx = parseInt(this.dataset.index);
                         speciesPhotos[sp].splice(idx, 1);
                         renderPhotoThumbs(sp);
+                    });
+                });
+                container.querySelectorAll('.photo-thumb-save').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        let sp = this.dataset.species;
+                        let idx = parseInt(this.dataset.index);
+                        let f = speciesPhotos[sp][idx];
+                        if (!f) return;
+                        let blob = (f instanceof File || f instanceof Blob) ? f
+                            : f.data ? new Blob([f.data], { type: f.type || 'image/jpeg' }) : null;
+                        if (!blob) return;
+                        let name = f.name || `${sp}.jpg`;
+                        // Try Web Share API on mobile (lets user pick "Save to Photos" on iOS)
+                        let shareFile;
+                        try { shareFile = new File([blob], name, { type: blob.type || 'image/jpeg' }); } catch(_) {}
+                        if (shareFile && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+                            try { await navigator.share({ files: [shareFile], title: name }); return; } catch(e) {
+                                if (e.name === 'AbortError') return;
+                            }
+                        }
+                        // Fallback: trigger a download
+                        let url = URL.createObjectURL(blob);
+                        let a = document.createElement('a');
+                        a.href = url; a.download = name;
+                        document.body.appendChild(a); a.click(); a.remove();
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
                     });
                 });
             }
@@ -1519,6 +1598,7 @@
 
                 if (navigator.onLine) {
                     showMsg('Uploading...', 'info');
+                    showUploadOverlay('Uploading visit data...', '');
                     try {
                         // Direct API upload (immediate, same as before)
                         let result;
@@ -1551,9 +1631,12 @@
                                 let apiUrl = appConfig?.api?.fqdn || '';
                                 let token = '';
                                 try { let { getLocal } = await import('/js/storage.js'); token = await getLocal('auth_token'); } catch(e) {}
+                                let done = 0;
                                 for (let [species, files] of Object.entries(speciesPhotos)) {
                                     if (!files || !files.length) continue;
                                     for (let file of files) {
+                                        done++;
+                                        showUploadOverlay(`Uploading photos (${done} of ${photoCount})`, `${species}: ${(file.name || '').slice(0, 40)}`);
                                         try {
                                             let blob = (file instanceof File || file instanceof Blob) ? file
                                                 : file.data ? new Blob([file.data], { type: file.type || 'image/jpeg' }) : null;
@@ -1597,17 +1680,21 @@
 
                         if (photoFail > 0) {
                             let detail = photoErrors.slice(0, 3).join('; ');
+                            showUploadOverlay(`${photoFail} photo${photoFail===1?'':'s'} failed`, detail);
                             showMsg(`Visit saved. ${photoOk} of ${photoOk + photoFail} photos uploaded — ${photoFail} failed: ${detail}`, 'error');
                         } else {
+                            showUploadOverlay('Saved & uploaded!', 'Redirecting...');
                             showMsg('Saved & uploaded!', 'success');
                         }
                         setTimeout(() => {
+                            hideUploadOverlay();
                             if (poolId || body.visitPoolId)
                                 window.location.href = `/explore/pool_view.html?poolId=${poolId || body.visitPoolId}`;
                             else
                                 window.location.href = '/explore/';
                         }, 1000);
                     } catch(err) {
+                        hideUploadOverlay();
                         showMsg('Saved locally — upload failed: ' + (err.message || 'will retry later'), 'error');
                     }
                 } else {
@@ -1838,6 +1925,21 @@
             }
         }
 
+        function showUploadOverlay(text, progress) {
+            let overlay = document.getElementById('upload_overlay');
+            let textEl = document.getElementById('upload_overlay_text');
+            let progEl = document.getElementById('upload_overlay_progress');
+            if (textEl) textEl.textContent = text || 'Uploading...';
+            if (progEl) progEl.textContent = progress || '';
+            if (overlay) overlay.classList.add('show');
+            document.body.classList.add('uploading');
+        }
+        function hideUploadOverlay() {
+            let overlay = document.getElementById('upload_overlay');
+            if (overlay) overlay.classList.remove('show');
+            document.body.classList.remove('uploading');
+        }
+
         // Help overlay system
         const helpContent = {
             'photos': {
@@ -1862,6 +1964,11 @@
                         <div class="help-section-title">Tips</div>
                         <p>Shoot in <strong>landscape</strong> for pool shots and <strong>portrait</strong> for narrow vegetation. Hold steady, focus on the subject (tap on phone screen), and avoid harsh backlight when possible.</p>
                         <p>You can review thumbnails next to each photo button and tap the × on a thumbnail to remove a bad shot before uploading.</p>
+                    </div>
+                    <div class="help-section">
+                        <div class="help-section-title">Saving photos to your device</div>
+                        <p>Photos taken inside the app's camera button are <strong>not automatically saved</strong> to your phone's Photos app — browsers can't write there. Tap the small <i class="fa fa-download"></i> badge on a thumbnail to save that photo to your device (on iOS this opens the share sheet so you can pick "Save to Photos"; on Android/desktop it downloads the file).</p>
+                        <p>If you want every photo in your camera roll automatically, take photos with your phone's regular Camera app first, then tap the in-app Photo button and choose the photo from your gallery instead of taking a new one.</p>
                     </div>`
             },
             'eggmasses': {

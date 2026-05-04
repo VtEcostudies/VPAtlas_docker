@@ -169,6 +169,46 @@
             text-shadow: 0 0 2px white, 0 0 2px white;
             white-space: nowrap;
         }
+        /* Pulsing ring drawn around the compass when motion detection isn't yet enabled */
+        .pf-compass.needs-tap {
+            animation: pf-compass-pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes pf-compass-pulse {
+            0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 0 0 rgba(196, 65, 0, 0.5); }
+            50%      { box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 0 12px rgba(196, 65, 0, 0); }
+        }
+        /* Speech-bubble prompt pointing at the compass */
+        .pf-compass-prompt {
+            position: absolute;
+            bottom: 110px; right: 14px;
+            z-index: 1001;
+            max-width: 240px;
+            background: var(--selected-color, #c44100);
+            color: white;
+            padding: 10px 36px 10px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.35;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            display: none;
+        }
+        .pf-compass-prompt.show { display: block; }
+        .pf-compass-prompt::after {
+            content: '';
+            position: absolute;
+            right: 36px; bottom: -8px;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 8px solid var(--selected-color, #c44100);
+        }
+        .pf-compass-prompt-close {
+            position: absolute; top: 4px; right: 4px;
+            width: 28px; height: 28px;
+            border: none; background: none; color: white;
+            font-size: 20px; line-height: 1; cursor: pointer; opacity: 0.85;
+        }
+        .pf-compass-prompt-close:hover { opacity: 1; }
 
     </style>
 </head>
@@ -220,6 +260,11 @@
                     </svg>
                 </div>
                 <div class="pf-compass-label" id="pf_compass_label"></div>
+            </div>
+            <!-- Prompt asking the user to tap the compass to enable motion detection -->
+            <div class="pf-compass-prompt" id="pf_compass_prompt">
+                <button class="pf-compass-prompt-close" id="pf_compass_prompt_close" title="Dismiss">&times;</button>
+                Tap the compass to enable motion-based navigation.
             </div>
         </div>
 
@@ -682,13 +727,34 @@
         // Safari (with permission). On desktop or denied permission, the arrow
         // still points to true bearing (just doesn't account for device rotation).
         function startDeviceOrientation() {
-            // iOS 13+ requires explicit permission via tap.
-            if (typeof DeviceOrientationEvent !== 'undefined' &&
-                typeof DeviceOrientationEvent.requestPermission === 'function') {
-                document.getElementById('pf_compass').addEventListener('click', () => {
+            // iOS 13+ requires explicit permission via tap. Show a prompt + a
+            // pulsing ring on the compass so the user knows they need to tap it.
+            // On Android Chrome (and desktop) permission isn't gated on a tap,
+            // so the events attach immediately and no prompt is shown.
+            let needsTap = (typeof DeviceOrientationEvent !== 'undefined' &&
+                            typeof DeviceOrientationEvent.requestPermission === 'function');
+            let compass = document.getElementById('pf_compass');
+            let prompt = document.getElementById('pf_compass_prompt');
+            let closeBtn = document.getElementById('pf_compass_prompt_close');
+
+            function dismissPrompt() {
+                if (prompt) prompt.classList.remove('show');
+                if (compass) compass.classList.remove('needs-tap');
+            }
+
+            if (needsTap) {
+                if (compass) compass.classList.add('needs-tap');
+                if (prompt) prompt.classList.add('show');
+                if (closeBtn) closeBtn.addEventListener('click', dismissPrompt);
+
+                compass.addEventListener('click', () => {
                     DeviceOrientationEvent.requestPermission()
-                        .then(state => { if (state === 'granted') attachOrientation(); })
-                        .catch(() => {});
+                        .then(state => {
+                            if (state === 'granted') attachOrientation();
+                            // Clear the prompt either way so we don't keep nagging.
+                            dismissPrompt();
+                        })
+                        .catch(() => dismissPrompt());
                 }, { once: true });
             } else {
                 attachOrientation();
