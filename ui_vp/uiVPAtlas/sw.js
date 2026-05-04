@@ -1,7 +1,7 @@
 // sw.js - Service Worker for VPAtlas (unified app)
 // Generated from sw_template.js by sw-build.js — do not edit directly
-const APP_VERSION = '3.5.111';
-const BUILD_TIMESTAMP = '1777861894885';
+const APP_VERSION = '3.5.116';
+const BUILD_TIMESTAMP = '1777893079284';
 const ME = 'sw.js';
 
 const SW_BASE = self.location.pathname.replace(/\/[^\/]*$/, '');
@@ -80,6 +80,13 @@ const DATA_NO_CACHE_PATTERNS = [
   /\/review$/,
 ];
 
+// Static path patterns that must NEVER be cached. The speed-test images must
+// always go to the network so bandwidth measurements are real.
+const STATIC_NO_CACHE_PATTERNS = [
+  /\/images\/speed-test\.jpg$/,
+  /\/images\/speed-test-small\.jpg$/,
+];
+
 // Tile patterns
 const TILE_PATTERNS = [
   /^https:\/\/[abc]\.tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png/,
@@ -138,7 +145,9 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  if (isNoCacheRequest(url)) {
+  if (isStaticNoCache(url)) {
+    event.respondWith(fetchNetwork(event.request, APP_FETCH_TIMEOUT));
+  } else if (isNoCacheRequest(url)) {
     event.respondWith(fetchNetwork(event.request, DATA_FETCH_TIMEOUT));
   } else if (USE_DATA_CACHE && isDataRequest(url)) {
     event.respondWith(handleDataRequest(event.request, url));
@@ -155,6 +164,12 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetchNetwork(event.request));
   }
 });
+
+function isStaticNoCache(url) {
+  // Same-origin only; we don't want to claim foreign URLs.
+  if (url.origin !== self.location.origin) return false;
+  return STATIC_NO_CACHE_PATTERNS.some(p => p.test(url.pathname));
+}
 
 function isNoCacheRequest(url) {
   if (!swConfig) return false;

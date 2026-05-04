@@ -700,6 +700,7 @@
             .visit-tab-btn i { font-size: 16px; }
         }
     </style>
+    <script src="/js/home_button.js" defer></script>
 </head>
 <body>
     <div class="visit-app">
@@ -2530,6 +2531,38 @@
             }
             let recognition = null;
             let activeBtn = null;
+            let stopWatchdog = null;
+
+            // Force-stop recognition. iOS Safari's stop() can hang silently on
+            // continuous mode, so we watchdog and fall back to abort() + manual cleanup.
+            function stopRecognition() {
+                if (stopWatchdog) { clearTimeout(stopWatchdog); stopWatchdog = null; }
+                if (!recognition) {
+                    if (activeBtn) activeBtn.classList.remove('recording');
+                    activeBtn = null;
+                    return;
+                }
+                let r = recognition;
+                let btn = activeBtn;
+                let cleaned = false;
+                let cleanup = () => {
+                    if (cleaned) return;
+                    cleaned = true;
+                    if (btn) btn.classList.remove('recording');
+                    if (activeBtn === btn) activeBtn = null;
+                    if (recognition === r) recognition = null;
+                };
+                r.onend = cleanup;
+                try { r.stop(); } catch(e) {}
+                // If onend doesn't fire in 1500ms, force-abort and clean up.
+                stopWatchdog = setTimeout(() => {
+                    stopWatchdog = null;
+                    if (!cleaned) {
+                        try { r.abort(); } catch(e) {}
+                        cleanup();
+                    }
+                }, 1500);
+            }
 
             document.querySelectorAll('.voice-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -2537,13 +2570,13 @@
                     let textarea = document.getElementById(targetId);
                     if (!textarea) return;
 
-                    // Toggle off if already recording this target
-                    if (activeBtn === btn && recognition) {
-                        recognition.stop();
+                    // Toggle off if already recording this target (or stuck)
+                    if (activeBtn === btn) {
+                        stopRecognition();
                         return;
                     }
-                    // Stop any existing session
-                    if (recognition) recognition.stop();
+                    // Switching targets — stop existing session first
+                    if (recognition) stopRecognition();
 
                     recognition = new SR();
                     recognition.continuous = true;
@@ -2555,6 +2588,7 @@
                     recognition.onend = () => {
                         btn.classList.remove('recording');
                         if (activeBtn === btn) activeBtn = null;
+                        if (stopWatchdog) { clearTimeout(stopWatchdog); stopWatchdog = null; }
                         recognition = null;
                     };
                     recognition.onresult = (e) => {
@@ -2563,7 +2597,7 @@
                                 let text = e.results[i][0].transcript.trim();
                                 // Voice command: say "stop listening" to end recording
                                 if (/^stop\s*(listening|recording)?$/i.test(text)) {
-                                    recognition.stop();
+                                    stopRecognition();
                                     return;
                                 }
                                 // Punctuation commands
@@ -2591,6 +2625,7 @@
             });
         })();
     </script>
+    <script src="/js/bandwidth_monitor.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>

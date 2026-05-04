@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - System Info</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2c5530">
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <style>
+        .si-container { max-width: 760px; padding: 10px 14px; }
+        .si-section {
+            border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;
+            background: white;
+        }
+        .si-section h5 {
+            margin: 0 0 6px; font-size: 14px; font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .si-row {
+            display: grid; grid-template-columns: 180px 1fr; gap: 6px;
+            font-size: 13px; padding: 3px 0; border-bottom: 1px dashed #f0f0f0;
+        }
+        .si-row:last-child { border-bottom: none; }
+        .si-key { color: #555; }
+        .si-val { font-family: ui-monospace, "Courier New", monospace; word-break: break-all; }
+        .si-val.good { color: #1b6e2c; }
+        .si-val.warn { color: #b07a00; }
+        .si-val.bad  { color: #b21f2d; }
+        .si-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+        .si-actions button {
+            padding: 6px 12px; border-radius: 5px; border: 1px solid var(--primary-color);
+            background: white; color: var(--primary-color); cursor: pointer; font-size: 13px;
+        }
+        .si-actions button:hover { background: var(--primary-light); }
+        .si-actions button.danger { border-color: #b21f2d; color: #b21f2d; }
+        .si-actions button.danger:hover { background: #f8e3e5; }
+        .si-msg { font-size: 12px; color: #555; margin-top: 4px; min-height: 16px; }
+        .si-msg.ok { color: #1b6e2c; }
+        .si-msg.err { color: #b21f2d; }
+        @media (max-width: 500px) {
+            .si-row { grid-template-columns: 130px 1fr; font-size: 12px; }
+        }
+    </style>
+    <script src="/js/home_button.js" defer></script>
+</head>
+<body>
+    <header>
+        <div class="detail-header">
+            <a class="home-button" href="/explore/" title="Home"><i class="fa fa-house"></i></a>
+            <button class="exit-button" onclick="history.back()" title="Back">&times;</button>
+            <h3 class="header-name light-foreground detail-title">System Info</h3>
+            <div id="profile_container" style="margin-left:auto;"></div>
+        </div>
+    </header>
+    <hr class="divider-header">
+
+    <div class="si-container">
+        <div class="si-section">
+            <h5><i class="fa fa-tag"></i> App</h5>
+            <div id="si_app"></div>
+        </div>
+
+        <div class="si-section">
+            <h5><i class="fa fa-cogs"></i> Service Worker</h5>
+            <div id="si_sw"></div>
+            <div class="si-actions">
+                <button id="btn_sw_update">Check for update</button>
+                <button id="btn_sw_skip">Activate waiting SW</button>
+                <button id="btn_clear_caches" class="danger">Clear all caches</button>
+            </div>
+            <div id="sw_msg" class="si-msg"></div>
+        </div>
+
+        <div class="si-section">
+            <h5><i class="fa fa-wifi"></i> Network</h5>
+            <div id="si_net"></div>
+            <div class="si-actions">
+                <button id="btn_speed_small">Field probe (~35 KB)</button>
+                <button id="btn_speed_large">Accurate test (~210 KB)</button>
+            </div>
+            <div id="net_msg" class="si-msg"></div>
+        </div>
+
+        <div class="si-section">
+            <h5><i class="fa fa-location-crosshairs"></i> Location (GPS)</h5>
+            <div id="si_gps"></div>
+            <div class="si-actions">
+                <button id="btn_gps">Get current position</button>
+            </div>
+            <div id="gps_msg" class="si-msg"></div>
+        </div>
+
+        <div class="si-section">
+            <h5><i class="fa fa-database"></i> Storage</h5>
+            <div id="si_storage"></div>
+        </div>
+
+        <div class="si-section">
+            <h5><i class="fa fa-display"></i> Device / Browser</h5>
+            <div id="si_device"></div>
+        </div>
+    </div>
+
+    <script src="/js/console_manager.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/app_messaging.js"></script>
+    <script src="/js/bandwidth_monitor.js"></script>
+
+    <script type="module">
+        import { setupProfileIcon } from '/js/profile_icon.js';
+        setupProfileIcon('profile_container');
+
+        // ---------------- Render helpers ----------------
+        function row(label, value, cls) {
+            let safe = (value === undefined || value === null || value === '') ? '—' : value;
+            return `<div class="si-row"><span class="si-key">${label}</span><span class="si-val ${cls || ''}">${safe}</span></div>`;
+        }
+        function setMsg(id, text, cls) {
+            let el = document.getElementById(id);
+            el.textContent = text || '';
+            el.className = 'si-msg ' + (cls || '');
+        }
+
+        // ---------------- App ----------------
+        async function renderApp() {
+            let html = '';
+            try {
+                let res = await fetch('/manifest.json', { cache: 'no-cache' });
+                let m = await res.json();
+                html += row('Name', m.name);
+                html += row('Version (manifest)', m.version, 'good');
+            } catch(e) {
+                html += row('Manifest', 'Failed to load: ' + e.message, 'bad');
+            }
+            try {
+                let api = (window.appConfig && window.appConfig.api && window.appConfig.api.fqdn) || '';
+                html += row('API endpoint', api || '(unset)');
+            } catch(_) {}
+            html += row('Page URL', window.location.href);
+            html += row('Referrer', document.referrer || '(none)');
+            document.getElementById('si_app').innerHTML = html;
+        }
+
+        // ---------------- Service Worker ----------------
+        async function renderSW() {
+            let html = '';
+            if (!('serviceWorker' in navigator)) {
+                html += row('Supported', 'No', 'bad');
+                document.getElementById('si_sw').innerHTML = html;
+                return;
+            }
+            html += row('Supported', 'Yes', 'good');
+            try {
+                let reg = await navigator.serviceWorker.getRegistration();
+                if (!reg) {
+                    html += row('Registration', 'None', 'warn');
+                } else {
+                    html += row('Scope', reg.scope);
+                    html += row('Active', reg.active ? `${reg.active.state} (${reg.active.scriptURL.split('/').pop()})` : '(none)');
+                    html += row('Waiting', reg.waiting ? reg.waiting.state : '(none)');
+                    html += row('Installing', reg.installing ? reg.installing.state : '(none)');
+                    html += row('Controller', navigator.serviceWorker.controller ? navigator.serviceWorker.controller.scriptURL.split('/').pop() : '(none)', navigator.serviceWorker.controller ? 'good' : 'warn');
+                }
+            } catch(e) {
+                html += row('Registration error', e.message, 'bad');
+            }
+            // Cache status
+            try {
+                if ('caches' in window) {
+                    let names = await caches.keys();
+                    if (!names.length) {
+                        html += row('Caches', '(none)');
+                    } else {
+                        for (let name of names) {
+                            let c = await caches.open(name);
+                            let keys = await c.keys();
+                            html += row(name, `${keys.length} entries`);
+                        }
+                    }
+                }
+            } catch(e) {
+                html += row('Caches error', e.message, 'bad');
+            }
+            document.getElementById('si_sw').innerHTML = html;
+        }
+
+        // ---------------- Network ----------------
+        function renderNetwork() {
+            let html = '';
+            html += row('Online', navigator.onLine ? 'Yes' : 'No', navigator.onLine ? 'good' : 'bad');
+            let conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (!conn) {
+                html += row('NetworkInformation API', 'Not supported (Firefox / Safari)', 'warn');
+            } else {
+                html += row('Effective type', conn.effectiveType || '—');
+                let dl = conn.downlink;
+                let dlCls = dl ? (dl >= 1.5 ? 'good' : 'warn') : 'warn';
+                html += row('Downlink (Mbps)', dl != null ? `${dl} (≈ ${Math.round((dl||0)*1000)} kbps)` : '—', dlCls);
+                html += row('Downlink max', conn.downlinkMax != null ? `${conn.downlinkMax}` : '—');
+                html += row('RTT (ms)', conn.rtt != null ? conn.rtt : '—');
+                html += row('Type', conn.type || '—');
+                html += row('Save-Data', conn.saveData ? 'Yes' : 'No');
+            }
+            // Note about the SW update gate
+            html += row('Update gate', 'Skips registration.update() if downlink&lt;1.5 Mbps OR unknown (see app.js)', 'warn');
+            document.getElementById('si_net').innerHTML = html;
+        }
+
+        async function runBandwidthTest(size) {
+            let label = size === 'large' ? '~210 KB' : '~35 KB';
+            setMsg('net_msg', `Measuring (downloading speed-test ${label})…`);
+            if (!window.bandwidthMonitor) {
+                setMsg('net_msg', 'bandwidthMonitor not loaded.', 'err');
+                return;
+            }
+            let started = performance.now();
+            let kbps = await window.bandwidthMonitor.measureBandwidth({ size });
+            let elapsed = (performance.now() - started) / 1000;
+            if (kbps == null) {
+                setMsg('net_msg', 'Bandwidth test failed (see console).', 'err');
+                return;
+            }
+            let mbps = kbps / 1000;
+            setMsg('net_msg', `Downloaded ${label} in ${elapsed.toFixed(2)}s → ${mbps.toFixed(2)} Mbps (~${Math.round(kbps)} kbps). ${mbps >= 1.5 ? 'Above the 1.5 Mbps update gate.' : 'Below the 1.5 Mbps update gate.'}`, mbps >= 1.5 ? 'ok' : 'err');
+        }
+
+        // ---------------- GPS ----------------
+        async function renderGps(initial) {
+            let html = '';
+            if (!('geolocation' in navigator)) {
+                html += row('Supported', 'No', 'bad');
+                document.getElementById('si_gps').innerHTML = html;
+                return;
+            }
+            html += row('Supported', 'Yes', 'good');
+            // Permission state (Permissions API)
+            try {
+                if (navigator.permissions && navigator.permissions.query) {
+                    let p = await navigator.permissions.query({ name: 'geolocation' });
+                    html += row('Permission', p.state, p.state === 'granted' ? 'good' : (p.state === 'denied' ? 'bad' : 'warn'));
+                }
+            } catch(_) {}
+            document.getElementById('si_gps').innerHTML = html;
+            if (initial && navigator.geolocation) {
+                getGps(false);
+            }
+        }
+        function getGps(showLoadingMsg) {
+            if (showLoadingMsg) setMsg('gps_msg', 'Requesting position…');
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    let { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed } = pos.coords;
+                    let extra = '';
+                    extra += row('Latitude', latitude.toFixed(6));
+                    extra += row('Longitude', longitude.toFixed(6));
+                    extra += row('Accuracy (m)', Math.round(accuracy), accuracy <= 30 ? 'good' : (accuracy <= 100 ? 'warn' : 'bad'));
+                    extra += row('Altitude (m)', altitude != null ? altitude.toFixed(1) : '—');
+                    extra += row('Altitude accuracy', altitudeAccuracy != null ? altitudeAccuracy.toFixed(1) : '—');
+                    extra += row('Heading', heading != null ? heading.toFixed(1) : '—');
+                    extra += row('Speed (m/s)', speed != null ? speed.toFixed(2) : '—');
+                    extra += row('Timestamp', new Date(pos.timestamp).toLocaleString());
+                    document.getElementById('si_gps').insertAdjacentHTML('beforeend', extra);
+                    setMsg('gps_msg', 'Position acquired.', 'ok');
+                },
+                (err) => {
+                    let map = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
+                    setMsg('gps_msg', `Error ${err.code}: ${map[err.code] || ''} ${err.message || ''}`, 'err');
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
+        // ---------------- Storage ----------------
+        async function renderStorage() {
+            let html = '';
+            try {
+                if (navigator.storage && navigator.storage.estimate) {
+                    let est = await navigator.storage.estimate();
+                    let usedMB = (est.usage || 0) / 1_048_576;
+                    let quotaMB = (est.quota || 0) / 1_048_576;
+                    html += row('Used', `${usedMB.toFixed(1)} MB`);
+                    html += row('Quota', `${quotaMB.toFixed(0)} MB`);
+                    if (est.usageDetails) {
+                        for (let [k, v] of Object.entries(est.usageDetails)) {
+                            html += row('  ' + k, `${(v / 1_048_576).toFixed(2)} MB`);
+                        }
+                    }
+                } else {
+                    html += row('storage.estimate', 'Not supported', 'warn');
+                }
+            } catch(e) {
+                html += row('Estimate error', e.message, 'bad');
+            }
+            try {
+                let persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null;
+                html += row('Persistent storage', persisted == null ? '—' : (persisted ? 'Yes' : 'No'), persisted ? 'good' : 'warn');
+            } catch(_) {}
+            try {
+                let lsBytes = 0;
+                for (let i = 0; i < localStorage.length; i++) {
+                    let k = localStorage.key(i);
+                    let v = localStorage.getItem(k) || '';
+                    lsBytes += k.length + v.length;
+                }
+                html += row('localStorage', `${(lsBytes/1024).toFixed(1)} KB across ${localStorage.length} keys`);
+            } catch(_) {}
+            document.getElementById('si_storage').innerHTML = html;
+        }
+
+        // ---------------- Device ----------------
+        function renderDevice() {
+            let html = '';
+            html += row('User agent', navigator.userAgent);
+            html += row('Platform', navigator.platform || navigator.userAgentData?.platform || '—');
+            html += row('Language', navigator.language);
+            html += row('CPU cores', navigator.hardwareConcurrency || '—');
+            html += row('Device memory (GB)', navigator.deviceMemory || '—');
+            html += row('Display', `${window.screen.width}×${window.screen.height} @ ${window.devicePixelRatio}× (viewport ${window.innerWidth}×${window.innerHeight})`);
+            html += row('Touch points', navigator.maxTouchPoints || 0);
+            html += row('Standalone (PWA)', (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone ? 'Yes' : 'No');
+            document.getElementById('si_device').innerHTML = html;
+        }
+
+        // ---------------- Wire up ----------------
+        document.getElementById('btn_sw_update').addEventListener('click', async () => {
+            setMsg('sw_msg', 'Checking for updates…');
+            try {
+                let reg = await navigator.serviceWorker.getRegistration();
+                if (!reg) { setMsg('sw_msg', 'No registration', 'err'); return; }
+                await reg.update();
+                setMsg('sw_msg', 'Update check sent. Re-rendering…', 'ok');
+                await renderSW();
+            } catch(e) {
+                setMsg('sw_msg', 'Update failed: ' + e.message, 'err');
+            }
+        });
+        document.getElementById('btn_sw_skip').addEventListener('click', async () => {
+            try {
+                let reg = await navigator.serviceWorker.getRegistration();
+                if (!reg || !reg.waiting) { setMsg('sw_msg', 'No waiting SW', 'err'); return; }
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                setMsg('sw_msg', 'SKIP_WAITING sent. Page will reload when new SW activates.', 'ok');
+            } catch(e) {
+                setMsg('sw_msg', 'Skip failed: ' + e.message, 'err');
+            }
+        });
+        document.getElementById('btn_clear_caches').addEventListener('click', async () => {
+            if (!confirm('Clear all caches? You will need to reload to refetch.')) return;
+            try {
+                let names = await caches.keys();
+                for (let n of names) await caches.delete(n);
+                setMsg('sw_msg', `Cleared ${names.length} caches.`, 'ok');
+                await renderSW();
+            } catch(e) {
+                setMsg('sw_msg', 'Clear failed: ' + e.message, 'err');
+            }
+        });
+        document.getElementById('btn_speed_small').addEventListener('click', () => runBandwidthTest('small'));
+        document.getElementById('btn_speed_large').addEventListener('click', () => runBandwidthTest('large'));
+        document.getElementById('btn_gps').addEventListener('click', () => {
+            // Refresh permission row before requesting
+            renderGps(false).then(() => getGps(true));
+        });
+
+        // Init
+        await Promise.all([renderApp(), renderSW(), renderStorage()]);
+        renderNetwork();
+        renderGps(false);
+        renderDevice();
+    </script>
+</body>
+</html>

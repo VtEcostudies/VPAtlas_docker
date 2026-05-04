@@ -590,6 +590,7 @@
             items.push({ divider: true });
             items.push(
                 { label: 'Changelog', href: '/docs/', icon: 'fa-clipboard-list' },
+                { label: 'System Info', href: '/explore/system.html', icon: 'fa-circle-info' },
                 { label: 'About VPAtlas', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/', icon: 'fa-info-circle', external: true },
                 { label: 'Volunteer How To', href: 'https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/help-us-find-and-map-vernal-pools/', icon: 'fa-book', external: true },
             );
@@ -749,6 +750,7 @@
     </script>
 
     <!-- Service worker handler (non-module, calls initApp) -->
+    <script src="/js/bandwidth_monitor.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>

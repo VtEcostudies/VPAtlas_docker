@@ -106,6 +106,11 @@ appConfig.urlsToCache = [
 '/images/vegetation/shrub-buttonbush.jpg',
 '/images/vegetation/shrub-winterberry.jpg',
 
+// === Boundary GeoJSON (loaded synchronously by createMap — must be cached or maps freeze offline) ===
+'/geojson/Polygon_VT_State_Boundary.geo.json',
+'/geojson/Polygon_VT_County_Boundaries.geo.json',
+'/geojson/Polygon_VT_Town_Boundaries.geo.json',
+
 // === Webfonts ===
 '/webfonts/fa-solid-900.woff2',
 '/webfonts/fa-regular-400.woff2',
