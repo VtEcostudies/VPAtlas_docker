@@ -57,17 +57,21 @@ async function createPoolAndVisit(body, user) {
     const poolId = `NEW${nextId}`;
 
     // --- Step 2: Build mapped pool record ---
+    const observer = body.visitObserverUserName || body.visitUserName || user?.username || '';
     const mappedBody = {
       mappedPoolId:               poolId,
-      mappedByUser:               body.visitUserName || user?.username || '',
+      mappedByUser:               observer,
       mappedDateText:             body.visitDate || new Date().toLocaleDateString('sv-SE'),
       mappedLatitude:             body.visitLatitude,
       mappedLongitude:            body.visitLongitude,
       mappedMethod:               'Visit',
       mappedLocationUncertainty:  body.visitLocationUncertainty || body.mappedLocationUncertainty || null,
-      mappedObserverUserName:     body.visitObserverUserName || '',
+      mappedObserverUserName:     observer,
       mappedPoolStatus:           body.mappedPoolStatus || 'Potential',
     };
+    if (!mappedBody.mappedByUser) {
+      throw Object.assign(new Error('Cannot create new pool: observer/user name is required'), { code: 'MISSING_USER' });
+    }
 
     // Allow explicit mapped overrides from body
     for (const key of Object.keys(body)) {

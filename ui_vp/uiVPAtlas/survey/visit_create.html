@@ -1503,8 +1503,12 @@
             // Save & Upload — local + server
             document.getElementById('btn_save_upload').addEventListener('click', async () => {
                 let body = getVisitFormData();
-                if (!body.visitPoolId) { showMsg('Pool ID is required', 'error'); return; }
+                let isNewPool = !isEdit && !poolId;
+                if (!isNewPool && !body.visitPoolId) { showMsg('Pool ID is required', 'error'); return; }
                 if (!body.visitDate) { showMsg('Date is required', 'error'); return; }
+                if (isNewPool && (!body.visitLatitude || !body.visitLongitude)) {
+                    showMsg('Location is required for a new pool — tap the map or use GPS', 'error'); return;
+                }
 
                 // Confirm before uploading — visits get queued for VPAtlas review
                 let confirmed = await confirmUpload();
@@ -1519,13 +1523,20 @@
                         // Direct API upload (immediate, same as before)
                         let result;
                         if (isEdit) { result = await updateVisit(visitId, body); }
+                        else if (isNewPool) { result = await createPoolAndVisit(body); }
                         else { result = await createVisit(body); }
 
                         // Determine the server-side visitId for photo upload
                         let serverVisitId = visitId; // for edits
                         if (!isEdit) {
                             let rows = result.rows || [result];
-                            serverVisitId = rows[0]?.visitId || rows[0]?.id;
+                            serverVisitId = rows[0]?.visitId || rows[0]?.id || result.visitId;
+                        }
+                        // Capture the new pool ID so the redirect lands on the new pool's view
+                        if (isNewPool) {
+                            let rows = result.rows || [result];
+                            let newPoolId = rows[0]?.mappedPoolId || result.mappedPoolId;
+                            if (newPoolId) body.visitPoolId = newPoolId;
                         }
 
                         // Upload photos if any. Track success/failure so we can

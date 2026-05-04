@@ -110,10 +110,18 @@ async function uploadVisitData(visit, token) {
     body.visit_uuid = visit.visit_uuid;
 
     let apiUrl = appConfig?.api?.fqdn || '';
+    // New-pool case: no server_visit_id yet AND no pool ID — server generates both atomically
+    let isNewPool = !visit.server_visit_id && !body.visitPoolId;
     let res;
     if (visit.server_visit_id) {
         res = await fetch(`${apiUrl}/pools/visit/${visit.server_visit_id}`, {
             method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+    } else if (isNewPool) {
+        res = await fetch(`${apiUrl}/pools/visit/new`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(body)
         });
@@ -133,6 +141,11 @@ async function uploadVisitData(visit, token) {
 
     let result = await res.json();
     let rows = result.rows || [result];
+    // Capture generated pool ID back into the local visit record
+    let generatedPoolId = rows[0]?.mappedPoolId || result.mappedPoolId;
+    if (isNewPool && generatedPoolId) {
+        visit.visitPoolId = generatedPoolId;
+    }
     return rows[0]?.visitId || rows[0]?.id || visit.server_visit_id;
 }
 
