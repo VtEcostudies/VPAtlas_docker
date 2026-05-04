@@ -13,6 +13,7 @@ appConfig.urlsToCache = [
 '/explore/visit_view.html',
 '/explore/visit_list.html',
 '/explore/survey_view.html',
+'/explore/system.html',
 '/explore/login.html',
 '/explore/register.html',
 
@@ -36,6 +37,9 @@ appConfig.urlsToCache = [
 '/js/storage.js',
 '/js/map_common.js',
 '/js/pool_data_cache.js',
+'/js/photo_lightbox.js',
+'/js/home_button.js',
+'/js/bandwidth_monitor.js',
 
 // === Explore JS modules ===
 '/explore/js/utils.js',
