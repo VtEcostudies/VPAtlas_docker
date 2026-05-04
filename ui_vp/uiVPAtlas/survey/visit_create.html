@@ -757,12 +757,10 @@
                     cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
                     <i class="fa fa-crosshairs"></i>
                 </div>
-                <button id="btn_use_gps" style="display:none; position:absolute; top:10px; left:56px; z-index:1000;
-                    padding:6px 12px; border:2px solid rgba(0,0,0,0.2); border-radius:6px;
-                    background:white; color:#333; cursor:pointer; font-size:13px; font-weight:600;
-                    box-shadow:0 1px 4px rgba(0,0,0,0.2);" title="Set visit location to GPS">
-                    <i class="fa fa-location-crosshairs" style="color:#4285f4;"></i> Use GPS</button>
-                <div class="map-instruction" id="map_instruction">Tap map to set pool location</div>
+                <button id="btn_use_gps" class="pf-zoom-btn" style="display:none; position:absolute; top:10px; left:56px; z-index:1000;" title="Set visit location to my GPS position">
+                    <i class="fa fa-crosshairs"></i><span>Use GPS</span>
+                </button>
+                <div class="map-instruction" id="map_instruction">Tap the map to set pool location, or click the "Use GPS" button.</div>
             </div>
 
             <!-- LOCATION TAB -->
@@ -1455,7 +1453,7 @@
                         let gpsBtn = document.getElementById('btn_use_gps');
                         if (gpsBtn) gpsBtn.style.display = 'flex';
 
-                        if (instr) { instr.textContent = 'Tap map or pool marker to set location'; instr.style.display = 'block'; }
+                        if (instr) { instr.textContent = 'Tap the map or pool marker to set location, or click the "Use GPS" button.'; instr.style.display = 'block'; }
                     },
                     function() {
                         if (instr) instr.textContent = 'Tap the map to set location';

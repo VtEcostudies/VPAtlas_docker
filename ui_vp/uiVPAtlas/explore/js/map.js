@@ -392,7 +392,40 @@ async function initStatusControl() {
                 });
             });
 
-            // ── Parcel overlay toggle ──
+            // ── Survey level checkboxes with shape swatches ──
+            let title2 = L.DomUtil.create('div', 'pool-legend-title', body);
+            title2.style.marginTop = '6px';
+            title2.textContent = 'Survey Level';
+
+            LEVEL_ORDER.forEach(level => {
+                let item = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', body);
+
+                let cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = levelVisible[level] !== false;
+                cb.style.cssText = 'margin:0 4px 0 0;';
+                item.appendChild(cb);
+
+                let swatch = document.createElement('span');
+                swatch.innerHTML = shapeSwatch[level];
+                swatch.style.cssText = 'display:inline-flex; align-items:center; margin-right:3px;';
+                item.appendChild(swatch);
+
+                item.appendChild(document.createTextNode(LEVEL_LABELS[level]));
+
+                let count = document.createElement('span');
+                count.className = 'pool-legend-count';
+                count.id = `level_count_${level}`;
+                item.appendChild(count);
+
+                cb.addEventListener('change', () => {
+                    levelVisible[level] = cb.checked;
+                    applyFilters();
+                    saveSettings({ levelVisible: Object.assign({}, levelVisible) });
+                });
+            });
+
+            // ── Parcel overlay toggle (placed last to match the simple legend) ──
             let parcelSection = L.DomUtil.create('div', 'pool-legend-title', body);
             parcelSection.style.marginTop = '6px';
             parcelSection.textContent = 'Overlays';
@@ -438,39 +471,6 @@ async function initStatusControl() {
                 else if (state === 'error') parcelStatus.textContent = count ? ` (${count} cached)` : ' (error)';
                 else if (count) parcelStatus.textContent = ` (${count.toLocaleString()})`;
                 else parcelStatus.textContent = '';
-            });
-
-            // ── Survey level checkboxes with shape swatches ──
-            let title2 = L.DomUtil.create('div', 'pool-legend-title', body);
-            title2.style.marginTop = '6px';
-            title2.textContent = 'Survey Level';
-
-            LEVEL_ORDER.forEach(level => {
-                let item = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', body);
-
-                let cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.checked = levelVisible[level] !== false;
-                cb.style.cssText = 'margin:0 4px 0 0;';
-                item.appendChild(cb);
-
-                let swatch = document.createElement('span');
-                swatch.innerHTML = shapeSwatch[level];
-                swatch.style.cssText = 'display:inline-flex; align-items:center; margin-right:3px;';
-                item.appendChild(swatch);
-
-                item.appendChild(document.createTextNode(LEVEL_LABELS[level]));
-
-                let count = document.createElement('span');
-                count.className = 'pool-legend-count';
-                count.id = `level_count_${level}`;
-                item.appendChild(count);
-
-                cb.addEventListener('change', () => {
-                    levelVisible[level] = cb.checked;
-                    applyFilters();
-                    saveSettings({ levelVisible: Object.assign({}, levelVisible) });
-                });
             });
 
             return div;
