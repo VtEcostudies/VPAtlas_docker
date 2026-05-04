@@ -81,16 +81,6 @@
         .upload-overlay-text { font-size: 15px; color: #222; font-weight: 500; }
         .upload-overlay-progress { font-size: 12px; color: #666; margin-top: 6px; min-height: 16px; }
 
-        /* Photo thumbnail save-to-device button (placed inside the thumb to avoid overflow clipping) */
-        .photo-thumb-save {
-            position: absolute; bottom: 1px; right: 1px;
-            width: 14px; height: 14px; border-radius: 50%;
-            background: rgba(255,255,255,0.9); border: 1px solid #888;
-            color: #333; font-size: 8px; line-height: 1;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; padding: 0;
-        }
-        .photo-thumb-save:hover { background: white; }
 
         /* Tab content area */
         .visit-content {
@@ -362,33 +352,64 @@
         }
         .photo-thumb {
             position: relative;
-            width: 40px;
-            height: 40px;
+            width: 60px;
+            height: 60px;
             border-radius: 4px;
             overflow: hidden;
             border: 1px solid #ddd;
+            cursor: pointer;
         }
         .photo-thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
         }
-        .photo-thumb-remove {
-            position: absolute;
-            top: -2px;
-            right: -2px;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--danger-color);
-            color: white;
-            font-size: 10px;
-            line-height: 16px;
-            text-align: center;
-            cursor: pointer;
-            border: none;
-            padding: 0;
+        .photo-thumb-count {
+            position: absolute; bottom: 2px; right: 2px;
+            background: rgba(0,0,0,0.6); color: white;
+            font-size: 10px; line-height: 1; padding: 2px 5px;
+            border-radius: 8px; pointer-events: none;
         }
+
+        /* Photo action modal */
+        .photo-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            z-index: 10001; display: none;
+            align-items: center; justify-content: center; padding: 16px;
+        }
+        .photo-modal.show { display: flex; }
+        .photo-modal-box {
+            background: white; border-radius: 8px; max-width: 95vw; max-height: 95vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .photo-modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; border-bottom: 1px solid #eee;
+            font-size: 14px; font-weight: 500;
+        }
+        .photo-modal-close {
+            background: none; border: none; font-size: 24px; line-height: 1;
+            cursor: pointer; color: #666; padding: 0 6px;
+        }
+        .photo-modal-img {
+            max-width: 90vw; max-height: 65vh; object-fit: contain;
+            background: #000; display: block;
+        }
+        .photo-modal-actions {
+            display: flex; gap: 8px; padding: 12px;
+            border-top: 1px solid #eee; flex-wrap: wrap; justify-content: center;
+        }
+        .photo-modal-actions button {
+            flex: 1 1 120px; min-height: 44px; padding: 10px 14px;
+            border-radius: 6px; border: 1px solid #ccc; background: white;
+            font-size: 14px; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .photo-modal-actions .btn-save { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .photo-modal-actions .btn-delete { background: #dc3545; color: white; border-color: #dc3545; }
+        .photo-modal-actions button:active { transform: scale(0.98); }
 
         /* Presence toggle — Not Present / Present */
         .presence-toggle {
@@ -684,7 +705,8 @@
     <div class="visit-app">
         <!-- Header -->
         <div class="visit-header">
-            <button class="exit-button" onclick="history.back()">&times;</button>
+            <a class="home-button" href="/explore/" title="Home"><i class="fa fa-house"></i></a>
+            <button class="exit-button" onclick="history.back()" title="Back">&times;</button>
             <h3 class="header-name light-foreground" id="page_title">Atlas Visit</h3>
             <div class="detail-actions" style="position:relative;">
                 <button id="btn_save_draft" class="action-button" style="font-size:13px; padding:4px 10px;" title="Save locally"><i class="fa fa-download"></i> Draft</button>
@@ -704,6 +726,22 @@
                 <div class="upload-spinner"></div>
                 <div class="upload-overlay-text" id="upload_overlay_text">Uploading...</div>
                 <div class="upload-overlay-progress" id="upload_overlay_progress"></div>
+            </div>
+        </div>
+
+        <!-- Photo action modal -->
+        <div id="photo_modal" class="photo-modal" role="dialog" aria-modal="true">
+            <div class="photo-modal-box">
+                <div class="photo-modal-header">
+                    <span id="photo_modal_title">Photo</span>
+                    <button type="button" class="photo-modal-close" id="photo_modal_close" aria-label="Close">&times;</button>
+                </div>
+                <img id="photo_modal_img" class="photo-modal-img" alt="">
+                <div class="photo-modal-actions">
+                    <button type="button" class="btn-save" id="photo_modal_save"><i class="fa fa-download"></i> Save to device</button>
+                    <button type="button" class="btn-delete" id="photo_modal_delete"><i class="fa fa-trash"></i> Delete</button>
+                    <button type="button" id="photo_modal_cancel">Cancel</button>
+                </div>
             </div>
         </div>
 
@@ -1297,47 +1335,78 @@
                 container.innerHTML = files.map((file, i) => {
                     let url = URL.createObjectURL(file);
                     let name = file.name || `${species}.jpg`;
-                    return `<div class="photo-thumb">
+                    return `<div class="photo-thumb" data-species="${species}" data-index="${i}" title="Tap to view, save, or delete">
                         <img src="${url}" alt="${name}">
-                        <button type="button" class="photo-thumb-remove" data-species="${species}" data-index="${i}" title="Remove">&times;</button>
-                        <button type="button" class="photo-thumb-save" data-species="${species}" data-index="${i}" title="Save to device"><i class="fa fa-download"></i></button>
                     </div>`;
                 }).join('');
-                container.querySelectorAll('.photo-thumb-remove').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        let sp = this.dataset.species;
-                        let idx = parseInt(this.dataset.index);
-                        speciesPhotos[sp].splice(idx, 1);
-                        renderPhotoThumbs(sp);
-                    });
-                });
-                container.querySelectorAll('.photo-thumb-save').forEach(btn => {
-                    btn.addEventListener('click', async function() {
-                        let sp = this.dataset.species;
-                        let idx = parseInt(this.dataset.index);
-                        let f = speciesPhotos[sp][idx];
-                        if (!f) return;
-                        let blob = (f instanceof File || f instanceof Blob) ? f
-                            : f.data ? new Blob([f.data], { type: f.type || 'image/jpeg' }) : null;
-                        if (!blob) return;
-                        let name = f.name || `${sp}.jpg`;
-                        // Try Web Share API on mobile (lets user pick "Save to Photos" on iOS)
-                        let shareFile;
-                        try { shareFile = new File([blob], name, { type: blob.type || 'image/jpeg' }); } catch(_) {}
-                        if (shareFile && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
-                            try { await navigator.share({ files: [shareFile], title: name }); return; } catch(e) {
-                                if (e.name === 'AbortError') return;
-                            }
-                        }
-                        // Fallback: trigger a download
-                        let url = URL.createObjectURL(blob);
-                        let a = document.createElement('a');
-                        a.href = url; a.download = name;
-                        document.body.appendChild(a); a.click(); a.remove();
-                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                container.querySelectorAll('.photo-thumb').forEach(thumb => {
+                    thumb.addEventListener('click', function() {
+                        openPhotoModal(this.dataset.species, parseInt(this.dataset.index));
                     });
                 });
             }
+
+            // ---- Photo action modal ----
+            let _photoModalUrl = null;
+            function openPhotoModal(species, index) {
+                let f = (speciesPhotos[species] || [])[index];
+                if (!f) return;
+                let blob = (f instanceof File || f instanceof Blob) ? f
+                    : f.data ? new Blob([f.data], { type: f.type || 'image/jpeg' }) : null;
+                if (!blob) return;
+                let name = f.name || `${species}.jpg`;
+                if (_photoModalUrl) URL.revokeObjectURL(_photoModalUrl);
+                _photoModalUrl = URL.createObjectURL(blob);
+                document.getElementById('photo_modal_img').src = _photoModalUrl;
+                document.getElementById('photo_modal_title').textContent = `${species} — ${name}`;
+                let modal = document.getElementById('photo_modal');
+                modal.dataset.species = species;
+                modal.dataset.index = String(index);
+                modal.classList.add('show');
+            }
+            function closePhotoModal() {
+                let modal = document.getElementById('photo_modal');
+                modal.classList.remove('show');
+                if (_photoModalUrl) { URL.revokeObjectURL(_photoModalUrl); _photoModalUrl = null; }
+            }
+            document.getElementById('photo_modal_close').addEventListener('click', closePhotoModal);
+            document.getElementById('photo_modal_cancel').addEventListener('click', closePhotoModal);
+            document.getElementById('photo_modal').addEventListener('click', (e) => {
+                if (e.target.id === 'photo_modal') closePhotoModal();
+            });
+            document.getElementById('photo_modal_delete').addEventListener('click', () => {
+                let modal = document.getElementById('photo_modal');
+                let sp = modal.dataset.species;
+                let idx = parseInt(modal.dataset.index);
+                if (speciesPhotos[sp]) {
+                    speciesPhotos[sp].splice(idx, 1);
+                    renderPhotoThumbs(sp);
+                }
+                closePhotoModal();
+            });
+            document.getElementById('photo_modal_save').addEventListener('click', async () => {
+                let modal = document.getElementById('photo_modal');
+                let sp = modal.dataset.species;
+                let idx = parseInt(modal.dataset.index);
+                let f = (speciesPhotos[sp] || [])[idx];
+                if (!f) return;
+                let blob = (f instanceof File || f instanceof Blob) ? f
+                    : f.data ? new Blob([f.data], { type: f.type || 'image/jpeg' }) : null;
+                if (!blob) return;
+                let name = f.name || `${sp}.jpg`;
+                let shareFile;
+                try { shareFile = new File([blob], name, { type: blob.type || 'image/jpeg' }); } catch(_) {}
+                if (shareFile && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+                    try { await navigator.share({ files: [shareFile], title: name }); return; } catch(e) {
+                        if (e.name === 'AbortError') return;
+                    }
+                }
+                let url = URL.createObjectURL(blob);
+                let a = document.createElement('a');
+                a.href = url; a.download = name;
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            });
 
             // Init map
             map = await createMap('map', { center: [43.858297, -72.446594], zoom: 8 });
@@ -1963,11 +2032,11 @@
                     <div class="help-section">
                         <div class="help-section-title">Tips</div>
                         <p>Shoot in <strong>landscape</strong> for pool shots and <strong>portrait</strong> for narrow vegetation. Hold steady, focus on the subject (tap on phone screen), and avoid harsh backlight when possible.</p>
-                        <p>You can review thumbnails next to each photo button and tap the × on a thumbnail to remove a bad shot before uploading.</p>
+                        <p>Tap any thumbnail to open it full-size — from there you can <strong>Save to device</strong>, <strong>Delete</strong>, or close.</p>
                     </div>
                     <div class="help-section">
                         <div class="help-section-title">Saving photos to your device</div>
-                        <p>Photos taken inside the app's camera button are <strong>not automatically saved</strong> to your phone's Photos app — browsers can't write there. Tap the small <i class="fa fa-download"></i> badge on a thumbnail to save that photo to your device (on iOS this opens the share sheet so you can pick "Save to Photos"; on Android/desktop it downloads the file).</p>
+                        <p>Photos taken inside the app's camera button are <strong>not automatically saved</strong> to your phone's Photos app — browsers can't write there. Open a thumbnail and tap <strong>Save to device</strong> (on iOS this opens the share sheet so you can pick "Save to Photos"; on Android/desktop it downloads the file).</p>
                         <p>If you want every photo in your camera roll automatically, take photos with your phone's regular Camera app first, then tap the in-app Photo button and choose the photo from your gallery instead of taking a new one.</p>
                     </div>`
             },

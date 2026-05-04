@@ -71,7 +71,8 @@
 <body>
     <header>
         <div class="detail-header">
-            <button class="exit-button" onclick="history.back()">&times;</button>
+            <a class="home-button" href="/explore/" title="Home"><i class="fa fa-house"></i></a>
+            <button class="exit-button" onclick="history.back()" title="Back">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Pool Detail</h3>
             <div class="detail-actions">
                 <button id="btn_edit" class="action-button" style="display:none;">Edit Pool</button>
@@ -167,6 +168,7 @@
         import { createMap, addPoolMarker, getPoolColor, getSurveyLevel } from '/js/map_common.js';
         import { renderVisitQueue } from '/survey/js/visit_queue_ui.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { openPhotoLightbox } from '/js/photo_lightbox.js';
         setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
@@ -538,12 +540,17 @@
                     <div style="display:flex; flex-wrap:wrap; gap:6px;">`;
                 poolPhotos.forEach(p => {
                     let url = p.visitPhotoUrl.startsWith('http') ? p.visitPhotoUrl : apiBase + p.visitPhotoUrl;
-                    html += `<a href="${url}" target="_blank" title="${p.visitPhotoSpecies}">
-                        <img src="${url}" alt="${p.visitPhotoSpecies}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">
-                    </a>`;
+                    html += `<button type="button" class="pv-photo-thumb" data-src="${url}" data-label="${p.visitPhotoSpecies}" title="${p.visitPhotoSpecies}" style="padding:0; border:1px solid #ddd; border-radius:4px; background:none; cursor:pointer; line-height:0;">
+                        <img src="${url}" alt="${p.visitPhotoSpecies}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; display:block;">
+                    </button>`;
                 });
                 html += `</div></div>`;
                 container.innerHTML = html;
+                container.querySelectorAll('.pv-photo-thumb').forEach(el => {
+                    el.addEventListener('click', () => {
+                        openPhotoLightbox({ src: el.dataset.src, label: el.dataset.label });
+                    });
+                });
             } catch(err) {}
         }
 

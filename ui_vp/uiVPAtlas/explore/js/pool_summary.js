@@ -16,6 +16,7 @@ import { formatDate } from './utils.js';
 import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
 import { filters, getCurrentScope } from './url_state.js';
 import { prefetchParcelsNear, getParcelBySPAN, getCachedParcels } from '/js/parcels.js';
+import { openPhotoLightbox } from '/js/photo_lightbox.js';
 
 var summaryContainer = null;
 var summaryTitle = null;
@@ -317,9 +318,9 @@ export async function showPoolSummary(poolId, onBack = null) {
                     html += `<div style="display:flex; flex-wrap:wrap; gap:6px;">`;
                     poolPhotos.forEach(p => {
                         let url = p.visitPhotoUrl.startsWith('http') ? p.visitPhotoUrl : apiBase + p.visitPhotoUrl;
-                        html += `<a href="${url}" target="_blank" title="${p.visitPhotoSpecies}">
-                            <img src="${url}" alt="${p.visitPhotoSpecies}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">
-                        </a>`;
+                        html += `<button type="button" class="ps-photo-thumb" data-src="${url}" data-label="${p.visitPhotoSpecies}" title="${p.visitPhotoSpecies}" style="padding:0; border:1px solid #ddd; border-radius:4px; background:none; cursor:pointer; line-height:0;">
+                            <img src="${url}" alt="${p.visitPhotoSpecies}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; display:block;">
+                        </button>`;
                     });
                     html += `</div></div>`;
                 }
@@ -361,6 +362,13 @@ export async function showPoolSummary(poolId, onBack = null) {
         } catch(err) {}
 
         summaryContainer.innerHTML = html;
+
+        // Wire photo thumbnail clicks → lightbox
+        summaryContainer.querySelectorAll('.ps-photo-thumb').forEach(el => {
+            el.addEventListener('click', () => {
+                openPhotoLightbox({ src: el.dataset.src, label: el.dataset.label });
+            });
+        });
 
         // Render local visit queue into its container (after innerHTML is set)
         let localContainer = document.getElementById(`local_visits_${poolId}`);

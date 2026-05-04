@@ -263,7 +263,8 @@
     <div class="survey-app">
         <!-- Header -->
         <div class="survey-header">
-            <button class="exit-button" onclick="history.back()">&times;</button>
+            <a class="home-button" href="/explore/" title="Home"><i class="fa fa-house"></i></a>
+            <button class="exit-button" onclick="history.back()" title="Back">&times;</button>
             <h3 class="header-name light-foreground" id="page_title">Monitoring Survey</h3>
             <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
             <div id="profile_container" style="margin-left:auto;"></div>
@@ -624,6 +625,7 @@
         import { fetchFieldSurveyById, createFieldSurvey, updateFieldSurvey, fetchSurveyTypes } from '/js/api.js';
         import { requireAuth, getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { openPhotoLightbox } from '/js/photo_lightbox.js';
         setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
@@ -682,6 +684,11 @@
                     let img = document.createElement('img');
                     img.className = 'photo-thumb';
                     img.src = URL.createObjectURL(file);
+                    img.alt = file.name || 'Photo';
+                    img.style.cursor = 'pointer';
+                    img.addEventListener('click', () => {
+                        openPhotoLightbox({ blob: file, label: file.name || 'Photo', downloadName: file.name });
+                    });
                     thumbs.appendChild(img);
                 }
             });

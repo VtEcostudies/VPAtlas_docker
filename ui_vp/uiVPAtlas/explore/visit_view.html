@@ -36,7 +36,8 @@
 <body>
     <header>
         <div class="detail-header">
-            <button class="exit-button" onclick="history.back()">&times;</button>
+            <a class="home-button" href="/explore/" title="Home"><i class="fa fa-house"></i></a>
+            <button class="exit-button" onclick="history.back()" title="Back">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">Visit Detail</h3>
             <div class="detail-actions">
                 <button id="btn_add_review" class="action-button" style="display:none;">+ Review</button>
@@ -112,6 +113,7 @@
         import { getUser } from '/js/auth.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { openPhotoLightbox } from '/js/photo_lightbox.js';
         setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
@@ -437,14 +439,19 @@
                 arr.forEach(p => {
                     let type = p.visitPhotoSpecies || 'Other';
                     let url = p.visitPhotoUrl.startsWith('http') ? p.visitPhotoUrl : apiBase + p.visitPhotoUrl;
-                    html += `<a href="${url}" target="_blank" title="${type}" style="position:relative; display:block; aspect-ratio:1/1; border-radius:6px; overflow:hidden; border:1px solid #ddd;">
+                    html += `<button type="button" class="visit-photo-thumb" data-src="${url}" data-label="${type}" title="${type}" style="position:relative; display:block; aspect-ratio:1/1; border-radius:6px; overflow:hidden; border:1px solid #ddd; padding:0; background:none; cursor:pointer;">
                         <img src="${url}" alt="${type}" style="width:100%; height:100%; object-fit:cover; display:block;">
                         <span style="position:absolute; left:0; right:0; bottom:0; padding:2px 6px; font-size:11px; font-weight:600;
                             background:rgba(0,0,0,0.55); color:white; text-align:center;">${type}</span>
-                    </a>`;
+                    </button>`;
                 });
                 html += `</div>`;
                 container.innerHTML = html;
+                container.querySelectorAll('.visit-photo-thumb').forEach(el => {
+                    el.addEventListener('click', () => {
+                        openPhotoLightbox({ src: el.dataset.src, label: el.dataset.label });
+                    });
+                });
             } catch(err) { console.warn('photos load failed', err); }
         }
 
