@@ -73,10 +73,15 @@ services:
       API_HOST: localhost
       API_PORT: 4010
 
-      # UI host config (external to Docker)
-      UI_PROT: https
-      UI_HOST: vpatlas.org
-      UI_PORT: 80
+      # UI host config (used to build confirmation email URLs).
+      # Override these in .env when developing locally (e.g. UI_HOST=localhost UI_PORT=8090).
+      UI_PROT: ${UI_PROT:-https}
+      UI_HOST: ${UI_HOST:-vpatlas.org}
+      UI_PORT: ${UI_PORT:-80}
+
+      # Email credentials (sourced from .env at compose project root)
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      APP_EMAIL: ${APP_EMAIL:-vpatlas@vtecostudies.org}
     ports:
       - 4010:4010
     depends_on:

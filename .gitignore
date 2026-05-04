@@ -1,6 +1,9 @@
 db_data_vt/
 db_backup/
 
+# Environment file with secrets (use .env.example as template)
+.env
+
 # Local photo uploads (mounted to api_vp:/opt/api/photos)
 photo_data/
 

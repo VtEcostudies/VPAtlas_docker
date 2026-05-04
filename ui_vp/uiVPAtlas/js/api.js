@@ -114,8 +114,8 @@ export async function deleteApiRoute(route) {
 export async function authenticate(body) { return postApiRoute('users/authenticate', body); }
 export async function register(body) { return postApiRoute('users/register', body); }
 export async function resetPassword(body) { return postApiRoute('users/reset', body); }
-export async function verifyUser(searchTerm) { return fetchApiRoute('users/verify', searchTerm); }
-export async function confirmUser(searchTerm) { return fetchApiRoute('users/confirm', searchTerm); }
+export async function verifyUser(body) { return postApiRoute('users/verify', body); }
+export async function confirmUser(body) { return postApiRoute('users/confirm', body); }
 
 // =============================================================================
 // USERS
@@ -188,6 +188,7 @@ export async function updateSurvey(id, body) { return putApiRoute(`survey/${id}`
 export async function fetchFieldSurveyById(id) { return fetchApiRoute(`survey/field/${id}`); }
 export async function createFieldSurvey(body) { return postApiRoute('survey/field', body); }
 export async function updateFieldSurvey(id, body) { return putApiRoute(`survey/field/${id}`, body); }
+export async function fetchSurveyPhotos(surveyId) { return fetchApiRoute(`survey/${surveyId}/photos`); }
 
 // =============================================================================
 // PARCELS (VCGI)

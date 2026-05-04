@@ -28,14 +28,14 @@ function reset(userMail, token, type='registration') {
     from: config.vceEmail
   });
 
-  var htm = `<a href=${uiFqdn}/explore/confirm/registration?token=${token}>Confirm VPAtlas Registration</a>`;
+  var htm = `<a href=${uiFqdn}/explore/login.html?token=${token}>Confirm VPAtlas Registration</a>`;
   var sub = 'VPAtlas Registration';
   if (type == 'reset') {
-    htm = `<a href=${uiFqdn}/explore/confirm/reset?token=${token}>Confirm VPAtlas Password Change</a>`;
+    htm = `<a href=${uiFqdn}/explore/confirm_reset.html?token=${token}>Confirm VPAtlas Password Change</a>`;
     sub = 'VPAtlas Password Reset';
   }
   if (type == 'email') {
-    htm = `<a href=${uiFqdn}/explore/confirm/email?token=${token}>Confirm VPAtlas Email Change</a>`;
+    htm = `<a href=${uiFqdn}/explore/login.html?token=${token}&type=email>Confirm VPAtlas Email Change</a>`;
     sub = 'VPAtlas Email Change';
   }
   if (type == 'test') { //use 'token' to pass 'interval'

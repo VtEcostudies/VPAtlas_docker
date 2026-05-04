@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Confirm Password Reset</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/auth.css">
+</head>
+<body>
+    <div class="container-fluid" style="height: 100%; min-height: 100vh;">
+        <div class="row">
+            <div class="col-lg-6 offset-lg-3 col-12">
+                <header>
+                    <div class="row controls">
+                        <div class="col-12 header-title-info">
+                            <h2 class="header-title light-foreground">Set New VPAtlas Password</h2>
+                        </div>
+                    </div>
+                </header>
+                <hr class="divider-header">
+
+                <div id="message" class="auth-message"></div>
+
+                <form id="confirm_form" onsubmit="return false;">
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <label for="password">New Password</label>
+                            <input type="password" id="password" name="password" required minlength="6" style="width:100%">
+                        </div>
+                    </div>
+                    <div class="row" style="margin-top:10px;">
+                        <div class="col-lg-12">
+                            <label for="confirmPassword">Confirm New Password</label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" required minlength="6" style="width:100%">
+                        </div>
+                    </div>
+
+                    <div class="button-container">
+                        <button type="button" onclick="window.location.href='/explore/login.html'">Cancel</button>
+                        <button type="submit" class="default-button">Confirm Password Change</button>
+                    </div>
+                </form>
+
+                <hr>
+                <div class="auth-links">
+                    <a href="./login.html">Back to Sign In</a>
+                    <a href="./reset.html">Request New Reset Link</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/config.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script type="module">
+        import { verifyUser, confirmUser } from '/js/api.js';
+
+        const form = document.getElementById('confirm_form');
+        const message = document.getElementById('message');
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        if (!token) {
+            form.style.display = 'none';
+            message.textContent = 'Missing reset token. Please use the link from your reset email or request a new one.';
+            message.className = 'auth-message error';
+        } else {
+            // Pre-validate token so an expired/invalid link fails before the user types a password.
+            try {
+                await verifyUser({ token });
+                message.textContent = 'Enter and confirm your new password.';
+                message.className = 'auth-message info';
+            } catch(err) {
+                form.style.display = 'none';
+                message.textContent = 'This reset link is invalid or has expired. Please request a new one.';
+                message.className = 'auth-message error';
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (password !== confirmPassword) {
+                message.textContent = 'Passwords do not match.';
+                message.className = 'auth-message error';
+                return;
+            }
+
+            message.textContent = 'Updating password...';
+            message.className = 'auth-message info';
+
+            try {
+                await confirmUser({ token, password });
+                message.textContent = 'Password updated. Redirecting to sign in...';
+                message.className = 'auth-message success';
+                setTimeout(() => window.location.href = '/explore/login.html', 1000);
+            } catch(err) {
+                message.textContent = err.message || 'Could not update password.';
+                message.className = 'auth-message error';
+            }
+        });
+    </script>
+</body>
+</html>

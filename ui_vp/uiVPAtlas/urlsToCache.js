@@ -16,6 +16,8 @@ appConfig.urlsToCache = [
 '/explore/system.html',
 '/explore/login.html',
 '/explore/register.html',
+'/explore/reset.html',
+'/explore/confirm_reset.html',
 
 // === Survey pages ===
 '/survey/find_pool.html',
@@ -70,6 +72,11 @@ appConfig.urlsToCache = [
 '/explore/css/filter_bar.css',
 
 // === Images ===
+'/favicon.ico',
+'/favicon-32.png',
+'/apple-touch-icon.png',
+'/icons/icon-192.png',
+'/icons/icon-512.png',
 '/css/images/vce_favicon.png',
 '/css/images/marker-icon.png',
 '/css/images/marker-icon-2x.png',

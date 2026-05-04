@@ -129,6 +129,10 @@ export function addPoolMarker(map, latlng, opts = {}) {
 export function createBaseLayers() {
     let layers = {};
 
+    layers['Google Satellite +'] = L.tileLayer(
+        'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        { maxZoom: 21, subdomains: ['0','1','2','3'], attribution: '&copy; Google' }
+    );
     layers['Esri Topo'] = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
         { maxZoom: 19, attribution: '&copy; Esri' }

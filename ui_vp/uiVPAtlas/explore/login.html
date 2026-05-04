@@ -61,6 +61,16 @@
 
         const form = document.getElementById('login_form');
         const message = document.getElementById('message');
+        const params = new URLSearchParams(window.location.search);
+        const confirmToken = params.get('token');
+        const confirmType = params.get('type'); // 'email' for email-change confirmation
+
+        if (confirmToken) {
+            message.textContent = confirmType === 'email'
+                ? 'Sign in with your new email to complete the change.'
+                : 'Welcome — sign in to complete your VPAtlas registration.';
+            message.className = 'auth-message info';
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -70,13 +80,11 @@
             try {
                 let username = document.getElementById('username').value;
                 let password = document.getElementById('password').value;
-                let res = await login(username, password);
+                let res = await login(username, password, confirmToken);
 
                 message.textContent = 'Success! Redirecting...';
                 message.className = 'auth-message success';
 
-                // Redirect to returnUrl or home
-                let params = new URLSearchParams(window.location.search);
                 let returnUrl = params.get('returnUrl') || '/explore/';
                 setTimeout(() => window.location.href = decodeURIComponent(returnUrl), 500);
             } catch(err) {

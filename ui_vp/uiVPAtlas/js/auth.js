@@ -22,9 +22,13 @@ export async function isLoggedIn() {
     return !!token;
 }
 
-// Login - authenticate and store token + user
-export async function login(username, password) {
-    let res = await authenticate({ username, password });
+// Login - authenticate and store token + user.
+// confirmToken (optional): registration/reset/new_email token from a confirmation
+// email link. Backend uses it to flip status from 'registration' to 'confirmed'.
+export async function login(username, password, confirmToken=null) {
+    let body = { username, password };
+    if (confirmToken) body.token = confirmToken;
+    let res = await authenticate(body);
     if (res.token) {
         await setLocal('auth_token', res.token);
         await setLocal('auth_user', res.user || res);

@@ -101,8 +101,8 @@ export async function initMap(opts = {}) {
 
     // Base layers — restore saved selection
     let baseLayers = createBaseLayers();
-    let savedBase = settings.baseLayer || 'Esri Topo';
-    (baseLayers[savedBase] || baseLayers['Esri Topo']).addTo(map);
+    let savedBase = settings.baseLayer || 'Google Satellite +';
+    (baseLayers[savedBase] || baseLayers['Google Satellite +']).addTo(map);
 
     // Persist base layer changes
     map.on('baselayerchange', function(e) { saveSettings({ baseLayer: e.name }); });

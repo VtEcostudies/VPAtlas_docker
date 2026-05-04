@@ -460,10 +460,12 @@
                 let objLink = e.dataUrl
                     ? `<a href="${e.dataUrl}" target="_blank">${e.objectId}</a>`
                     : (e.objectId || '');
+                let detail = e.detail == null ? '' : (typeof e.detail === 'object' ? JSON.stringify(e.detail) : String(e.detail));
+                let where = e.where == null ? '' : (typeof e.where === 'object' ? JSON.stringify(e.where) : String(e.where));
                 return `<tr>
                     <td>${objLink}</td>
                     <td class="error-link" onclick="alert('Detail: ' + this.dataset.detail + '\\nWhere: ' + this.dataset.where)"
-                        data-detail="${(e.detail||'').replace(/"/g,'&quot;')}" data-where="${(e.where||'').replace(/"/g,'&quot;')}">${e.name || ''}</td>
+                        data-detail="${detail.replace(/"/g,'&quot;')}" data-where="${where.replace(/"/g,'&quot;')}">${e.name || ''}</td>
                     <td>${e.hint || e.message || ''}</td>
                     <td>${e.table || ''}</td>
                     <td>${e.column || ''}</td>

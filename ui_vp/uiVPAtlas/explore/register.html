@@ -27,12 +27,12 @@
                 <form id="register_form" onsubmit="return false;">
                     <div class="row">
                         <div class="col-lg-6">
-                            <label for="firstName">First Name</label>
-                            <input type="text" id="firstName" name="firstName" required style="width:100%">
+                            <label for="firstname">First Name</label>
+                            <input type="text" id="firstname" name="firstname" required style="width:100%">
                         </div>
                         <div class="col-lg-6">
-                            <label for="lastName">Last Name</label>
-                            <input type="text" id="lastName" name="lastName" required style="width:100%">
+                            <label for="lastname">Last Name</label>
+                            <input type="text" id="lastname" name="lastname" required style="width:100%">
                         </div>
                     </div>
                     <div class="row" style="margin-top:10px;">
@@ -96,8 +96,8 @@
 
             try {
                 let body = {
-                    firstName: document.getElementById('firstName').value,
-                    lastName: document.getElementById('lastName').value,
+                    firstname: document.getElementById('firstname').value,
+                    lastname: document.getElementById('lastname').value,
                     username: document.getElementById('username').value,
                     email: document.getElementById('email').value,
                     password: password

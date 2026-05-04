@@ -120,11 +120,12 @@
     <script src="/js/esri-leaflet_3.0.12.js"></script>
 
     <script type="module">
-        import { fetchFieldSurveyById } from '/js/api.js';
+        import { fetchFieldSurveyById, fetchSurveyPhotos } from '/js/api.js';
         import { formatDate } from './js/utils.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
         import { getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { openPhotoLightbox } from '/js/photo_lightbox.js';
         setupProfileIcon();
 
         const ICE_COVER = { 0:'0%', 1:'1-10%', 2:'11-25%', 3:'26-50%', 4:'51-75%', 5:'76-95%', 6:'>95%' };
@@ -263,26 +264,11 @@
                     </div>`;
                 }
 
-                // ---- Photos (grid, at the bottom) ----
-                let photos = Array.isArray(s.surveyPhotos) ? s.surveyPhotos : [];
-                if (photos.length) {
-                    let apiBase = (typeof appConfig !== 'undefined' && appConfig.api && appConfig.api.fqdn) || '';
-                    html += `<div class="detail-section">
-                        <div class="detail-section-title"><i class="fa fa-camera" style="margin-right:4px;"></i>Photos (${photos.length})</div>
-                        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; margin-top:8px;">`;
-                    photos.forEach(p => {
-                        let type = p.surveyPhotoSpecies || 'Other';
-                        let url = (p.surveyPhotoUrl || '').startsWith('http') ? p.surveyPhotoUrl : apiBase + p.surveyPhotoUrl;
-                        html += `<a href="${url}" target="_blank" title="${type}" style="position:relative; display:block; aspect-ratio:1/1; border-radius:6px; overflow:hidden; border:1px solid #ddd;">
-                            <img src="${url}" alt="${type}" style="width:100%; height:100%; object-fit:cover; display:block;">
-                            <span style="position:absolute; left:0; right:0; bottom:0; padding:2px 6px; font-size:11px; font-weight:600;
-                                background:rgba(0,0,0,0.55); color:white; text-align:center;">${type}</span>
-                        </a>`;
-                    });
-                    html += `</div></div>`;
-                }
+                // ---- Photos (grid, at the bottom) — loaded async ----
+                html += `<div id="photos_section"></div>`;
 
                 document.getElementById('survey_content').innerHTML = html;
+                loadSurveyPhotos(surveyId);
 
                 // Map
                 let lat = parseFloat(s.surveyPoolLatitude || s.latitude);
@@ -318,6 +304,38 @@
                     `<p style="color:var(--danger-color);">Error: ${err.message || JSON.stringify(err)}</p>`;
             }
         });
+
+        // Load all photos for this survey, displayed as a responsive grid that opens in a lightbox
+        async function loadSurveyPhotos(sid) {
+            let container = document.getElementById('photos_section');
+            if (!container) return;
+            try {
+                let photos = await fetchSurveyPhotos(sid);
+                let arr = Array.isArray(photos) ? photos : [];
+                if (!arr.length) return;
+
+                let apiBase = (typeof appConfig !== 'undefined' && appConfig.api && appConfig.api.fqdn) || '';
+                let html = `<div class="detail-section">
+                    <div class="detail-section-title"><i class="fa fa-camera" style="margin-right:4px;"></i>Photos (${arr.length})</div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; margin-top:8px;">`;
+                arr.forEach(p => {
+                    let type = p.surveyPhotoSpecies || 'Other';
+                    let url = (p.surveyPhotoUrl || '').startsWith('http') ? p.surveyPhotoUrl : apiBase + p.surveyPhotoUrl;
+                    html += `<button type="button" class="survey-photo-thumb" data-src="${url}" data-label="${type}" title="${type}" style="position:relative; display:block; aspect-ratio:1/1; border-radius:6px; overflow:hidden; border:1px solid #ddd; padding:0; background:none; cursor:pointer;">
+                        <img src="${url}" alt="${type}" style="width:100%; height:100%; object-fit:cover; display:block;">
+                        <span style="position:absolute; left:0; right:0; bottom:0; padding:2px 6px; font-size:11px; font-weight:600;
+                            background:rgba(0,0,0,0.55); color:white; text-align:center;">${type}</span>
+                    </button>`;
+                });
+                html += `</div></div>`;
+                container.innerHTML = html;
+                container.querySelectorAll('.survey-photo-thumb').forEach(el => {
+                    el.addEventListener('click', () => {
+                        openPhotoLightbox({ src: el.dataset.src, label: el.dataset.label });
+                    });
+                });
+            } catch(err) { console.warn('survey photos load failed', err); }
+        }
 
         function renderAmphibSection(amphib, survey) {
             let html = `<div class="detail-section">

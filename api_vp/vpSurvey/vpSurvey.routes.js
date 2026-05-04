@@ -4,6 +4,7 @@ const routes = require('../_helpers/routes');
 const convert = require('json-2-csv');
 const service = require('./vpSurvey.service');
 const s123svc = require('./vpSurvey.s123.service');
+const photoSvc = require('./vpSurveyPhoto.service');
 const multer = require('multer');
 const upFile = multer({ dest: 'vpsurvey/uploads/' });
 const fs = require('fs');
@@ -27,6 +28,7 @@ router.get('/s123/attachments', getS123attachments);
 router.get('/s123/services', getS123Services);
 router.get('/s123/uploads', getS123Uploads);
 router.get('/:id', getById);
+router.get('/:id/photos', getPhotos);
 router.get('/pool/:poolId', getByPoolId);
 //router.get('/upload/history', getUploadHistory);
 router.post('/s123', postS123);
@@ -289,5 +291,11 @@ function upload(req, res, next) {
 function getUploadHistory(req, res, next) {
     uploads.history(req.query)
         .then(items => res.json(items))
+        .catch(err => next(err));
+}
+
+function getPhotos(req, res, next) {
+    photoSvc.getBySurveyId(req.params.id)
+        .then(result => res.json(result.rows || []))
         .catch(err => next(err));
 }

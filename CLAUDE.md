@@ -143,6 +143,24 @@ Each needs its own SurveyState class, GPS tracking, and offline-first PWA suppor
 - Pool status colors: Potential=goldenrod, Probable=cyan, Confirmed=dark blue
 - Pool shapes by survey level: potential=circle, visited=triangle, monitored=diamond
 
+## Offline / Service Worker — REQUIRED workflow
+This is a public PWA used by volunteers in the field, often without connectivity. Every static asset the app needs offline must be precached.
+
+**When you create a new client-side file under `ui_vp/uiVPAtlas/`** — `.html`, `.js`, `.css`, font, image, GeoJSON, audio, etc. — **add it to [`ui_vp/uiVPAtlas/urlsToCache.js`](ui_vp/uiVPAtlas/urlsToCache.js) in the same change.** Do not skip this step; the file will silently work in dev (network present) and break in the field.
+
+Exceptions (do NOT precache):
+- Files matching `STATIC_NO_CACHE_PATTERNS` in `sw_template.js` (e.g. `/images/speed-test*.jpg` — bandwidth probes must always hit the network).
+- API endpoints — those are handled by `DATA_CACHE_PATTERNS` / network-first logic in the SW, not by `urlsToCache`.
+- One-off admin tools you don't expect users to need offline (rare — when in doubt, cache it).
+
+After editing `urlsToCache.js`, rebuild the SW so the version bumps and clients pick up the new precache list:
+```bash
+node ui_vp/uiVPAtlas/sw-build.js
+docker compose -f docker-compose-vpatlas.yml up -d --build ui_vp
+```
+
+When you delete or rename a file under `ui_vp/uiVPAtlas/`, also remove/rename its entry in `urlsToCache.js` — a stale entry causes precache install to fail with a 404 and the SW won't update.
+
 ## Reference Projects
 - **VPAtlas_orig**: `/home/jloomis/VPAtlas/VPAtlas_orig/` — Angular 14 source (being replaced)
 - **LoonWeb**: `/home/jloomis/LoonWeb/` or `/home/jloomis/Docker/VCE_db_docker/ui_csup/uiLoonWeb/` — reference implementation for PWA, survey GPS, ES6 module patterns
