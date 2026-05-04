@@ -298,6 +298,16 @@
         let followUser = true;
         let currentUser = null;
 
+        // Nearby-pools "range bubble" around the user's GPS position so volunteers
+        // can see existing mapped pools and avoid creating duplicates. We pre-filter
+        // server-side with a bounding box, then post-filter to a true radius client-side.
+        let nearbyEnabled = true;
+        let nearbyMarkers = new Map();   // poolId → Leaflet marker
+        let nearbyCircle = null;         // the radius bubble (Leaflet circle)
+        let lastNearbyQuery = null;      // { lat, lng } of last successful fetch
+        const NEARBY_RADIUS_M = 500;     // meters
+        const NEARBY_REFETCH_M = 100;    // refetch when user moves > this distance
+
         // =================================================================
         // INIT
         // =================================================================
@@ -381,6 +391,18 @@
                 });
                 menuPanel.appendChild(newPoolItem);
 
+                let nearbyItem = document.createElement('button');
+                nearbyItem.className = 'action-button';
+                nearbyItem.id = 'pf_nearby_toggle';
+                let nearbyLabel = () => `<i class="fa ${nearbyEnabled ? 'fa-eye' : 'fa-eye-slash'}" style="width:20px;"></i> Nearby Pools: ${nearbyEnabled ? 'On' : 'Off'}`;
+                nearbyItem.innerHTML = nearbyLabel();
+                nearbyItem.addEventListener('click', () => {
+                    setNearbyEnabled(!nearbyEnabled);
+                    nearbyItem.innerHTML = nearbyLabel();
+                    menuPanel.classList.remove('show');
+                });
+                menuPanel.appendChild(nearbyItem);
+
                 let sysInfoItem = document.createElement('button');
                 sysInfoItem.className = 'action-button';
                 sysInfoItem.innerHTML = '<i class="fa fa-circle-info" style="width:20px;"></i> System Info';
@@ -422,6 +444,14 @@
             let lat = parseFloat(row.latitude || row.mappedLatitude);
             let lng = parseFloat(row.longitude || row.mappedLongitude);
             if (isNaN(lat) || isNaN(lng)) return;
+
+            // If this pool was being shown as a faded "nearby" marker, drop it —
+            // the selected marker that follows is brighter and has nav extras.
+            let nearby = nearbyMarkers.get(pid);
+            if (nearby) {
+                map.removeLayer(nearby);
+                nearbyMarkers.delete(pid);
+            }
 
             let status = row.poolStatus || row.mappedPoolStatus || 'Potential';
             let level = getSurveyLevel(row);
@@ -649,6 +679,8 @@
                 updateGpsLines();
                 if (selectedPools.size > 0) updateNavContent();
                 updateCompass();
+                // Refresh the nearby-pools "range bubble" (no-op if disabled or recent)
+                updateNearbyPools(pos);
             });
 
             gps.on('status', (s) => {
@@ -687,6 +719,102 @@
             let q = GPSMonitor.accuracyLabel(pos.accuracy);
             document.getElementById('gps_accuracy').innerHTML =
                 `<span style="color:${q.color};">\u25cf</span> ${q.label} (${Math.round(pos.accuracy)}m)`;
+        }
+
+        // \u2500\u2500 Nearby pools \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        async function updateNearbyPools(pos) {
+            if (!nearbyEnabled) { clearNearby(); return; }
+            // Always reposition the bubble to the user's current spot
+            if (!nearbyCircle) {
+                nearbyCircle = L.circle([pos.lat, pos.lng], {
+                    radius: NEARBY_RADIUS_M,
+                    color: '#2c5530', weight: 1,
+                    fillColor: '#2c5530', fillOpacity: 0.05,
+                    dashArray: '4,6', interactive: false
+                }).addTo(map);
+            } else {
+                nearbyCircle.setLatLng([pos.lat, pos.lng]);
+            }
+            // Skip the API hit unless the user has moved meaningfully
+            if (lastNearbyQuery) {
+                let moved = GPSMonitor.distance(
+                    lastNearbyQuery.lat, lastNearbyQuery.lng, pos.lat, pos.lng);
+                if (moved < NEARBY_REFETCH_M) return;
+            }
+            lastNearbyQuery = { lat: pos.lat, lng: pos.lng };
+            await fetchNearbyPools(pos.lat, pos.lng);
+        }
+
+        async function fetchNearbyPools(lat, lng) {
+            try {
+                // Bounding-box pre-filter on the server, true radius client-side.
+                // Vermont sits near 44\u00b0 N where 1\u00b0 lat \u2248 111 km and 1\u00b0 lng \u2248 80 km.
+                const dLat = NEARBY_RADIUS_M / 111000;
+                const dLng = NEARBY_RADIUS_M / (111000 * Math.cos(lat * Math.PI / 180));
+                let qs = new URLSearchParams();
+                qs.append('mappedLatitude|>=',  String(lat - dLat));
+                qs.append('mappedLatitude|<=',  String(lat + dLat));
+                qs.append('mappedLongitude|>=', String(lng - dLng));
+                qs.append('mappedLongitude|<=', String(lng + dLng));
+                let resp = await fetchApiRoute('pools/mapped/geojson', qs.toString());
+                let fc = resp.rows?.[0]?.geojson || resp.geojson || resp;
+                let features = (fc && fc.features) || [];
+
+                // Track which poolIds belong in the nearby layer right now
+                let wantedIds = new Set();
+                for (let f of features) {
+                    let p = f.properties || {};
+                    let pid = p.poolId || p.mappedPoolId;
+                    if (!pid) continue;
+                    if (selectedPools.has(pid)) continue; // already a tracked target
+                    let plat = parseFloat(p.mappedLatitude);
+                    let plng = parseFloat(p.mappedLongitude);
+                    if (isNaN(plat) || isNaN(plng)) continue;
+                    let d = GPSMonitor.distance(lat, lng, plat, plng);
+                    if (d > NEARBY_RADIUS_M) continue;
+                    wantedIds.add(pid);
+                    if (nearbyMarkers.has(pid)) continue; // already plotted
+
+                    let status = p.poolStatus || p.mappedPoolStatus || 'Potential';
+                    let level = getSurveyLevel(p);
+                    let m = addPoolMarker(map, [plat, plng], {
+                        status, surveyLevel: level, size: 16,
+                        tooltip: `${pid} \u2014 ${status}${p.townName ? ', ' + p.townName : ''} \u00b7 tap to add`
+                    });
+                    // Visually distinguish nearby pools from selected ones
+                    try { m.getElement().style.opacity = '0.65'; } catch(_) {}
+                    m.on('click', () => {
+                        // Promote to a "selected" pool (full marker + nav line + chip)
+                        addPool(p);
+                    });
+                    nearbyMarkers.set(pid, m);
+                }
+                // Clean up markers that left the radius
+                for (let [pid, m] of [...nearbyMarkers.entries()]) {
+                    if (!wantedIds.has(pid)) {
+                        map.removeLayer(m);
+                        nearbyMarkers.delete(pid);
+                    }
+                }
+            } catch (err) {
+                console.warn('PoolFinder: nearby pools fetch failed', err);
+            }
+        }
+
+        function clearNearby() {
+            if (nearbyCircle) { map.removeLayer(nearbyCircle); nearbyCircle = null; }
+            for (let m of nearbyMarkers.values()) map.removeLayer(m);
+            nearbyMarkers.clear();
+            lastNearbyQuery = null;
+        }
+
+        function setNearbyEnabled(on) {
+            nearbyEnabled = !!on;
+            if (!nearbyEnabled) {
+                clearNearby();
+            } else if (gps && gps.position) {
+                updateNearbyPools(gps.position);
+            }
         }
 
         // \u2500\u2500\u2500 Navigation compass \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500

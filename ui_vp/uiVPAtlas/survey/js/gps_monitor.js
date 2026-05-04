@@ -38,6 +38,12 @@
                            Default: 5500.
         lastKnownMaxAgeMs  Don't surface a stale-from-disk position older than
                            this on construction. Default: 5 * 60 * 1000 (5 min).
+        passiveOnly        When true, this instance will never claim primary
+                           and will never call watchPosition. It only listens
+                           on the channel for positions broadcast by other
+                           tabs. Useful for diagnostic / status pages that
+                           should reflect the app's GPS state without
+                           triggering a permission prompt. Default: false.
 
     Static helpers (unchanged):
         GPSMonitor.distance(lat1, lng1, lat2, lng2)
@@ -54,7 +60,8 @@ const DEFAULTS = {
     sharedAcrossPages: true,
     heartbeatMs: 2000,
     aliveTimeoutMs: 5500,
-    lastKnownMaxAgeMs: 5 * 60 * 1000
+    lastKnownMaxAgeMs: 5 * 60 * 1000,
+    passiveOnly: false
 };
 
 export class GPSMonitor {
@@ -107,19 +114,33 @@ export class GPSMonitor {
         if (this.opts.sharedAcrossPages && typeof BroadcastChannel !== 'undefined') {
             this._chan = new BroadcastChannel(this.opts.channelName);
             this._chan.onmessage = (e) => this._onChannelMessage(e.data);
-            // Election: announce ourselves and wait briefly for an existing
-            // primary to identify itself. Default to becoming primary.
             this.emit('status', { tracking: true, acquiring: true, mode: 'idle' });
+            // Always announce ourselves so an existing primary will identify
+            // itself with 'iam' and we can attach passively without a prompt.
             this._sendChannel({ type: 'who', tabId: this.tabId, ts: Date.now() });
-            this._electionTimer = setTimeout(() => {
-                if (this.mode === 'idle') this._becomePrimary();
-            }, 350);
+
+            if (this.opts.passiveOnly) {
+                // Diagnostic / observer mode: never claim primary, never call
+                // watchPosition. We just listen for broadcasts. If no primary
+                // exists, we stay idle until one appears.
+                // No election timer.
+            } else {
+                // Election: wait briefly for an existing primary; otherwise
+                // claim primary ourselves.
+                this._electionTimer = setTimeout(() => {
+                    if (this.mode === 'idle') this._becomePrimary();
+                }, 350);
+            }
 
             if (!this._byeListener) {
                 this._byeListener = () => this._sendBye();
                 window.addEventListener('pagehide', this._byeListener);
                 window.addEventListener('beforeunload', this._byeListener);
             }
+        } else if (this.opts.passiveOnly) {
+            // Passive-only without BroadcastChannel: nothing useful to do,
+            // but stay running so the listener is in place if support arrives.
+            this.emit('status', { tracking: true, acquiring: true, mode: 'idle' });
         } else {
             // No cross-page coordination — single-tab fallback (old behavior).
             this._becomePrimary();
@@ -182,9 +203,11 @@ export class GPSMonitor {
             case 'bye':
                 // Primary is leaving. Run a fresh election after small jitter
                 // so two passives don't both try to become primary instantly.
+                // Passive-only instances skip the election and go idle.
                 if (this.mode === 'passive' && this.isTracking) {
                     this._setMode('idle');
                     if (this._heartbeatTimer) { clearInterval(this._heartbeatTimer); this._heartbeatTimer = null; }
+                    if (this.opts.passiveOnly) break;
                     this._sendChannel({ type: 'who', tabId: this.tabId, ts: Date.now() });
                     this._electionTimer = setTimeout(() => {
                         if (this.mode === 'idle') this._becomePrimary();
@@ -213,12 +236,14 @@ export class GPSMonitor {
         this._setMode('passive');
         if (this._heartbeatTimer) clearInterval(this._heartbeatTimer);
         // Watch for a dead primary; trigger an election if quiet too long.
+        // Passive-only instances skip elections entirely and just go idle.
         this._heartbeatTimer = setInterval(() => {
             if (this.mode !== 'passive' || !this.isTracking) return;
             if (Date.now() - this._lastPrimarySeen > this.opts.aliveTimeoutMs) {
                 clearInterval(this._heartbeatTimer);
                 this._heartbeatTimer = null;
                 this._setMode('idle');
+                if (this.opts.passiveOnly) return;
                 this._sendChannel({ type: 'who', tabId: this.tabId, ts: Date.now() });
                 if (this._electionTimer) clearTimeout(this._electionTimer);
                 this._electionTimer = setTimeout(() => {

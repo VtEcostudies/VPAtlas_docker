@@ -189,7 +189,7 @@
                     <button id="btn_gps_clear">Clear history</button>
                 </div>
                 <div class="si-msg" style="font-size:11px; color:#777;">
-                    Tracking is shared across pages: if another VPAtlas tab is the primary, this page receives positions passively without re-prompting for permission.
+                    This page observes GPS in passive-only mode by default — it shows live positions broadcast by other VPAtlas tabs (e.g. Pool Finder) without prompting for permission. Click <b>Start tracking</b> to make this tab itself drive the GPS.
                 </div>
             </div>
 
@@ -375,10 +375,13 @@
         }
 
         // ---------------- GPS (driven by shared GPSMonitor) ----------------
-        // Uses the cross-page GPSMonitor library. If another VPAtlas tab is
-        // already the primary, this page joins as a passive observer and
-        // receives broadcast positions without prompting for permission.
-        const gps = new GPSMonitor({ channelName: 'vpatlas-gps' });
+        // Uses the cross-page GPSMonitor library in passive-only mode: this
+        // diagnostic page never claims primary or calls watchPosition, so it
+        // never triggers a permission prompt. It only listens on the channel
+        // for positions broadcast by other tabs (e.g. Pool Finder).
+        // The "Start tracking" button below switches into active mode if the
+        // user wants this tab to drive the GPS itself.
+        let gps = new GPSMonitor({ channelName: 'vpatlas-gps', passiveOnly: true });
 
         const gpsState = {
             permission: 'unknown',
@@ -513,50 +516,59 @@
             document.getElementById('gps_history').innerHTML = hh || '<div style="font-size:12px; color:#888;">No positions yet.</div>';
         }
 
-        // GPSMonitor event wiring
-        gps.on('position', (p) => {
-            gpsState.position = p;
-            gpsState.timestamp = p.timestamp;
-            gpsState.history.push(p);
-            if (gpsState.history.length > 10) gpsState.history.shift();
-            gpsState.pointCount++;
-            if (gpsState.capability === 'unknown' || gpsState.capability === 'checking' || gpsState.capability === 'acquiring') {
-                gpsState.capability = (p.accuracy > 500) ? 'ip-only' : 'available';
-            }
-            if (gpsState.isAcquiring && p.accuracy != null && p.accuracy <= 50) {
-                gpsState.isAcquiring = false;
-            }
-            if (gpsState.permission !== 'granted') gpsState.permission = 'granted';
-            renderGps();
-        });
-        gps.on('status', (s) => {
-            gpsState.isTracking = !!s.tracking;
-            gpsState.isAcquiring = !!s.acquiring;
-            if (s.denied) {
-                gpsState.permission = 'denied';
-                gpsState.capability = 'denied';
-            }
-            renderGps();
-        });
-        gps.on('mode', () => renderGps());
-        gps.on('error', (err) => {
-            let map = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
-            if (err.code === 1) {
-                gpsState.permission = 'denied';
-                gpsState.capability = 'denied';
-            }
-            setMsg('gps_msg', `Error ${err.code}: ${map[err.code] || ''} ${err.message || ''}`, 'err');
-            renderGps();
-        });
+        // GPSMonitor event wiring (re-applied each time we swap instances)
+        function wireGps(instance) {
+            instance.on('position', (p) => {
+                gpsState.position = p;
+                gpsState.timestamp = p.timestamp;
+                gpsState.history.push(p);
+                if (gpsState.history.length > 10) gpsState.history.shift();
+                gpsState.pointCount++;
+                if (gpsState.capability === 'unknown' || gpsState.capability === 'checking' || gpsState.capability === 'acquiring') {
+                    gpsState.capability = (p.accuracy > 500) ? 'ip-only' : 'available';
+                }
+                if (gpsState.isAcquiring && p.accuracy != null && p.accuracy <= 50) {
+                    gpsState.isAcquiring = false;
+                }
+                if (gpsState.permission !== 'granted') gpsState.permission = 'granted';
+                renderGps();
+            });
+            instance.on('status', (s) => {
+                gpsState.isTracking = !!s.tracking;
+                gpsState.isAcquiring = !!s.acquiring;
+                if (s.denied) {
+                    gpsState.permission = 'denied';
+                    gpsState.capability = 'denied';
+                }
+                renderGps();
+            });
+            instance.on('mode', () => renderGps());
+            instance.on('error', (err) => {
+                let map = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
+                if (err.code === 1) {
+                    gpsState.permission = 'denied';
+                    gpsState.capability = 'denied';
+                }
+                setMsg('gps_msg', `Error ${err.code}: ${map[err.code] || ''} ${err.message || ''}`, 'err');
+                renderGps();
+            });
+        }
+        wireGps(gps);
 
+        // "Start tracking" makes THIS tab the active GPS driver (claims
+        // primary if no other tab is). Swaps the passive-only monitor for
+        // an active one and re-wires events.
         function startTracking() {
             if (!('geolocation' in navigator)) {
                 setMsg('gps_msg', 'Geolocation not supported.', 'err');
                 return;
             }
-            setMsg('gps_msg', 'Joining shared GPS coordination…', 'ok');
+            if (!gps.opts.passiveOnly) return;     // already active
+            gps.stop();
+            gps = new GPSMonitor({ channelName: 'vpatlas-gps' });
+            wireGps(gps);
+            setMsg('gps_msg', 'This tab is now driving GPS (or attaching to an existing primary).', 'ok');
             gps.start();
-            // Tick the "time since last" row every 500ms
             if (!gpsState.tickInterval) {
                 gpsState.tickInterval = setInterval(renderGps, 500);
             }
@@ -564,12 +576,13 @@
             document.getElementById('btn_gps_stop').disabled = false;
             renderGps();
         }
+        // "Stop tracking" drops back to passive-only observation.
         function stopTracking() {
             gps.stop();
-            if (gpsState.tickInterval) {
-                clearInterval(gpsState.tickInterval);
-                gpsState.tickInterval = null;
-            }
+            gps = new GPSMonitor({ channelName: 'vpatlas-gps', passiveOnly: true });
+            wireGps(gps);
+            gps.start();
+            setMsg('gps_msg', 'This tab is now passive (observing only).', 'ok');
             document.getElementById('btn_gps_start').disabled = false;
             document.getElementById('btn_gps_stop').disabled = true;
             renderGps();
@@ -620,18 +633,13 @@
         document.getElementById('btn_gps_clear').addEventListener('click', clearHistory);
         document.getElementById('btn_gps_request').addEventListener('click', requestSingleFix);
 
-        // Auto-join coordination if permission is already granted, so this
-        // diagnostic page reflects whatever the rest of the app is doing.
-        // We avoid triggering a fresh permission prompt — users who haven't
-        // granted yet must click "Start tracking" explicitly.
-        async function maybeAutoStart() {
-            if (!navigator.permissions || !navigator.permissions.query) return;
-            try {
-                let p = await navigator.permissions.query({ name: 'geolocation' });
-                if (p.state === 'granted') startTracking();
-            } catch(_) {}
+        // Always join the channel as a passive observer on page load. Safe
+        // even without permission — passive-only never calls watchPosition.
+        // If another tab (e.g. Pool Finder) is broadcasting, we'll see it.
+        gps.start();
+        if (!gpsState.tickInterval) {
+            gpsState.tickInterval = setInterval(renderGps, 500);
         }
-        maybeAutoStart();
 
         // ---------------- Storage ----------------
         // Measure a Storage (localStorage/sessionStorage). Bytes is approximate:
