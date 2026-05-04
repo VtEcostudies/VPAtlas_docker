@@ -135,6 +135,9 @@
         import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
         import { getLocal, setLocal } from '/js/storage.js';
 
+        // Track this as the last-visited path for /js/home_button.js.
+        try { sessionStorage.setItem('lastPath', '/explore/'); } catch (_) {}
+
         // Master pool dataset — loaded once, filtered client-side
         var masterRows = [];
         var currentUser = null;

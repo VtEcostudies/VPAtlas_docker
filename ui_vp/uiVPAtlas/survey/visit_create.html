@@ -1638,6 +1638,14 @@
                 };
                 menuPanel.appendChild(mkItem('fa-download', 'Save Draft', 'btn_save_draft'));
                 menuPanel.appendChild(mkItem('fa-cloud-arrow-up', 'Upload', 'btn_save_upload'));
+                let sysInfoItem = document.createElement('button');
+                sysInfoItem.className = 'action-button';
+                sysInfoItem.innerHTML = '<i class="fa fa-circle-info" style="width:20px;"></i> System Info';
+                sysInfoItem.addEventListener('click', () => {
+                    menuPanel.classList.remove('show');
+                    window.location.href = '/explore/system.html';
+                });
+                menuPanel.appendChild(sysInfoItem);
                 menuBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     menuPanel.classList.toggle('show');

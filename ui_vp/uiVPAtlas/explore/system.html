@@ -10,7 +10,29 @@
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="./css/common.css">
     <style>
-        .si-container { max-width: 760px; padding: 10px 14px; }
+        .si-container { max-width: 760px; padding: 6px 10px 80px; }
+
+        /* Tab bar */
+        .si-tabs {
+            display: flex; gap: 2px; overflow-x: auto;
+            border-bottom: 2px solid var(--primary-color);
+            margin-bottom: 8px; -webkit-overflow-scrolling: touch;
+        }
+        .si-tab {
+            flex: 0 0 auto; padding: 8px 14px; border: none; background: transparent;
+            color: var(--text-secondary); font-size: 13px; cursor: pointer;
+            border-radius: 5px 5px 0 0; white-space: nowrap;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .si-tab i { font-size: 14px; }
+        .si-tab:hover { background: var(--primary-light); color: var(--primary-color); }
+        .si-tab.active {
+            background: var(--primary-color); color: white; font-weight: 600;
+        }
+        .si-pane { display: none; }
+        .si-pane.active { display: block; }
+
+        /* Sections within a pane */
         .si-section {
             border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;
             background: white;
@@ -37,11 +59,52 @@
         .si-actions button:hover { background: var(--primary-light); }
         .si-actions button.danger { border-color: #b21f2d; color: #b21f2d; }
         .si-actions button.danger:hover { background: #f8e3e5; }
+        .si-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
         .si-msg { font-size: 12px; color: #555; margin-top: 4px; min-height: 16px; }
         .si-msg.ok { color: #1b6e2c; }
         .si-msg.err { color: #b21f2d; }
-        @media (max-width: 500px) {
+
+        /* GPS — signal bar */
+        .gps-signal-bar {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: 6px;
+            background: #f6f9f7; border: 1px solid #ddd; margin-bottom: 10px;
+        }
+        .gps-dot {
+            width: 14px; height: 14px; border-radius: 50%; background: #ccc;
+            box-shadow: 0 0 6px rgba(0,0,0,0.15);
+        }
+        .gps-dot.excellent { background: #1b6e2c; box-shadow: 0 0 8px #1b6e2c; }
+        .gps-dot.good      { background: #6abf69; box-shadow: 0 0 8px #6abf69; }
+        .gps-dot.fair      { background: #d4a017; box-shadow: 0 0 8px #d4a017; }
+        .gps-dot.poor      { background: #b21f2d; box-shadow: 0 0 8px #b21f2d; }
+        .gps-dot.unknown   { background: #999; }
+        .gps-signal-label { font-weight: 600; font-size: 14px; letter-spacing: 0.5px; }
+        .gps-signal-accuracy { color: #555; font-family: ui-monospace, monospace; font-size: 13px; margin-left: auto; }
+
+        .gps-history-item {
+            font-size: 12px; font-family: ui-monospace, monospace;
+            padding: 3px 6px; border-bottom: 1px dashed #f0f0f0;
+        }
+        .gps-history-item:first-child { background: #f6f9f7; }
+
+        @media (max-width: 600px) {
+            .si-tabs {
+                flex-wrap: wrap;
+                overflow-x: visible;
+                gap: 4px 2px;
+            }
+            .si-tab {
+                flex: 1 1 calc(33.333% - 4px);
+                padding: 8px 4px;
+                font-size: 12px;
+                justify-content: center;
+            }
+            .si-tab i { font-size: 13px; }
             .si-row { grid-template-columns: 130px 1fr; font-size: 12px; }
+        }
+        @media (max-width: 360px) {
+            .si-tab { font-size: 11px; padding: 8px 2px; gap: 4px; }
         }
     </style>
     <script src="/js/home_button.js" defer></script>
@@ -58,49 +121,108 @@
     <hr class="divider-header">
 
     <div class="si-container">
-        <div class="si-section">
-            <h5><i class="fa fa-tag"></i> App</h5>
-            <div id="si_app"></div>
+        <!-- Tab bar -->
+        <div class="si-tabs" role="tablist">
+            <button class="si-tab active" data-tab="app"><i class="fa fa-tag"></i> App</button>
+            <button class="si-tab" data-tab="sw"><i class="fa fa-cogs"></i> Service Worker</button>
+            <button class="si-tab" data-tab="net"><i class="fa fa-wifi"></i> Network</button>
+            <button class="si-tab" data-tab="gps"><i class="fa fa-location-crosshairs"></i> GPS</button>
+            <button class="si-tab" data-tab="storage"><i class="fa fa-database"></i> Storage</button>
+            <button class="si-tab" data-tab="device"><i class="fa fa-display"></i> Device</button>
         </div>
 
-        <div class="si-section">
-            <h5><i class="fa fa-cogs"></i> Service Worker</h5>
-            <div id="si_sw"></div>
-            <div class="si-actions">
-                <button id="btn_sw_update">Check for update</button>
-                <button id="btn_sw_skip">Activate waiting SW</button>
-                <button id="btn_clear_caches" class="danger">Clear all caches</button>
+        <!-- Tab panes -->
+        <div class="si-pane active" data-pane="app">
+            <div class="si-section">
+                <h5>App</h5>
+                <div id="si_app"></div>
             </div>
-            <div id="sw_msg" class="si-msg"></div>
         </div>
 
-        <div class="si-section">
-            <h5><i class="fa fa-wifi"></i> Network</h5>
-            <div id="si_net"></div>
-            <div class="si-actions">
-                <button id="btn_speed_small">Field probe (~35 KB)</button>
-                <button id="btn_speed_large">Accurate test (~210 KB)</button>
+        <div class="si-pane" data-pane="sw">
+            <div class="si-section">
+                <h5>Service Worker</h5>
+                <div id="si_sw"></div>
+                <div class="si-actions">
+                    <button id="btn_sw_update">Check for update</button>
+                    <button id="btn_sw_skip">Activate waiting SW</button>
+                    <button id="btn_clear_caches" class="danger">Clear all caches</button>
+                </div>
+                <div id="sw_msg" class="si-msg"></div>
             </div>
-            <div id="net_msg" class="si-msg"></div>
         </div>
 
-        <div class="si-section">
-            <h5><i class="fa fa-location-crosshairs"></i> Location (GPS)</h5>
-            <div id="si_gps"></div>
-            <div class="si-actions">
-                <button id="btn_gps">Get current position</button>
+        <div class="si-pane" data-pane="net">
+            <div class="si-section">
+                <h5>Network</h5>
+                <div id="si_net"></div>
+                <div class="si-actions">
+                    <button id="btn_speed_small">Field probe (~35 KB)</button>
+                    <button id="btn_speed_large">Accurate test (~210 KB)</button>
+                </div>
+                <div id="net_msg" class="si-msg"></div>
             </div>
-            <div id="gps_msg" class="si-msg"></div>
         </div>
 
-        <div class="si-section">
-            <h5><i class="fa fa-database"></i> Storage</h5>
-            <div id="si_storage"></div>
+        <div class="si-pane" data-pane="gps">
+            <div class="gps-signal-bar">
+                <span id="gps_dot" class="gps-dot unknown"></span>
+                <span id="gps_signal_label" class="gps-signal-label">UNKNOWN</span>
+                <span id="gps_signal_accuracy" class="gps-signal-accuracy"></span>
+            </div>
+
+            <div class="si-section">
+                <h5>Source</h5>
+                <div id="gps_source"></div>
+                <div class="si-actions">
+                    <button id="btn_gps_request">Request permission / single fix</button>
+                </div>
+                <div id="gps_msg" class="si-msg"></div>
+            </div>
+
+            <div class="si-section">
+                <h5>Tracking</h5>
+                <div id="gps_tracking"></div>
+                <div class="si-actions">
+                    <button id="btn_gps_start">Start tracking</button>
+                    <button id="btn_gps_stop" disabled>Stop tracking</button>
+                    <button id="btn_gps_clear">Clear history</button>
+                </div>
+            </div>
+
+            <div class="si-section">
+                <h5>Motion</h5>
+                <div id="gps_motion"></div>
+            </div>
+
+            <div class="si-section">
+                <h5>Position</h5>
+                <div id="gps_position"></div>
+            </div>
+
+            <div class="si-section">
+                <h5>Accuracy</h5>
+                <div id="gps_accuracy"></div>
+            </div>
+
+            <div class="si-section">
+                <h5>Recent Positions</h5>
+                <div id="gps_history" style="max-height:160px; overflow-y:auto;"></div>
+            </div>
         </div>
 
-        <div class="si-section">
-            <h5><i class="fa fa-display"></i> Device / Browser</h5>
-            <div id="si_device"></div>
+        <div class="si-pane" data-pane="storage">
+            <div class="si-section">
+                <h5>Storage</h5>
+                <div id="si_storage"></div>
+            </div>
+        </div>
+
+        <div class="si-pane" data-pane="device">
+            <div class="si-section">
+                <h5>Device / Browser</h5>
+                <div id="si_device"></div>
+            </div>
         </div>
     </div>
 
@@ -113,6 +235,21 @@
     <script type="module">
         import { setupProfileIcon } from '/js/profile_icon.js';
         setupProfileIcon('profile_container');
+
+        // ---------------- Tab switching ----------------
+        document.querySelectorAll('.si-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                let tab = btn.dataset.tab;
+                document.querySelectorAll('.si-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+                document.querySelectorAll('.si-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === tab));
+            });
+        });
+        // Optional: open a specific tab via #hash or ?tab=
+        let initialTab = (new URLSearchParams(window.location.search).get('tab')) || (window.location.hash || '').replace('#','');
+        if (initialTab) {
+            let btn = document.querySelector(`.si-tab[data-tab="${initialTab}"]`);
+            if (btn) btn.click();
+        }
 
         // ---------------- Render helpers ----------------
         function row(label, value, cls) {
@@ -168,7 +305,6 @@
             } catch(e) {
                 html += row('Registration error', e.message, 'bad');
             }
-            // Cache status
             try {
                 if ('caches' in window) {
                     let names = await caches.keys();
@@ -205,7 +341,6 @@
                 html += row('Type', conn.type || '—');
                 html += row('Save-Data', conn.saveData ? 'Yes' : 'No');
             }
-            // Note about the SW update gate
             html += row('Update gate', 'Skips registration.update() if downlink&lt;1.5 Mbps OR unknown (see app.js)', 'warn');
             document.getElementById('si_net').innerHTML = html;
         }
@@ -213,66 +348,240 @@
         async function runBandwidthTest(size) {
             let label = size === 'large' ? '~210 KB' : '~35 KB';
             setMsg('net_msg', `Measuring (downloading speed-test ${label})…`);
-            if (!window.bandwidthMonitor) {
-                setMsg('net_msg', 'bandwidthMonitor not loaded.', 'err');
-                return;
-            }
+            if (!window.bandwidthMonitor) { setMsg('net_msg', 'bandwidthMonitor not loaded.', 'err'); return; }
             let started = performance.now();
             let kbps = await window.bandwidthMonitor.measureBandwidth({ size });
             let elapsed = (performance.now() - started) / 1000;
-            if (kbps == null) {
-                setMsg('net_msg', 'Bandwidth test failed (see console).', 'err');
-                return;
-            }
+            if (kbps == null) { setMsg('net_msg', 'Bandwidth test failed (see console).', 'err'); return; }
             let mbps = kbps / 1000;
             setMsg('net_msg', `Downloaded ${label} in ${elapsed.toFixed(2)}s → ${mbps.toFixed(2)} Mbps (~${Math.round(kbps)} kbps). ${mbps >= 1.5 ? 'Above the 1.5 Mbps update gate.' : 'Below the 1.5 Mbps update gate.'}`, mbps >= 1.5 ? 'ok' : 'err');
         }
 
-        // ---------------- GPS ----------------
-        async function renderGps(initial) {
-            let html = '';
+        // ---------------- GPS (LoonWeb-style live monitor) ----------------
+        const gpsState = {
+            permission: 'unknown',
+            capability: 'unknown',
+            isTracking: false,
+            isAcquiring: true,
+            watchId: null,
+            position: null,
+            timestamp: null,
+            history: [],   // last 10 positions
+            pointCount: 0,
+            tickInterval: null
+        };
+
+        function classifyAccuracy(acc) {
+            if (acc == null) return { status: 'unknown', cls: 'unknown' };
+            if (acc <= 5)   return { status: 'EXCELLENT', cls: 'excellent' };
+            if (acc <= 10)  return { status: 'GOOD', cls: 'good' };
+            if (acc <= 20)  return { status: 'FAIR', cls: 'fair' };
+            return { status: 'POOR', cls: 'poor' };
+        }
+
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function calcDrift() {
+            if (gpsState.history.length < 2) return null;
+            let recent = gpsState.history.slice(-3);
+            let dists = [];
+            for (let i = 1; i < recent.length; i++) {
+                dists.push(haversine(
+                    recent[i-1].latitude, recent[i-1].longitude,
+                    recent[i].latitude, recent[i].longitude
+                ));
+            }
+            return dists.length ? (dists.reduce((a,b)=>a+b,0) / dists.length) : null;
+        }
+
+        async function checkGpsPermission() {
+            if (!navigator.permissions || !navigator.permissions.query) return;
+            try {
+                let p = await navigator.permissions.query({ name: 'geolocation' });
+                gpsState.permission = p.state;
+                p.addEventListener('change', () => {
+                    gpsState.permission = p.state;
+                    renderGps();
+                });
+            } catch(_) {}
+        }
+
+        function dataSourceLabel() {
+            if (!('geolocation' in navigator)) return 'Unsupported';
+            if (gpsState.capability === 'denied') return 'Denied';
+            if (gpsState.capability === 'ip-only') return 'IP Geolocation';
+            if (gpsState.capability === 'available') return 'Device GPS';
+            if (gpsState.capability === 'acquiring') return 'Acquiring…';
+            return 'Checking…';
+        }
+
+        function renderGps() {
+            // Signal bar
+            let acc = gpsState.position?.accuracy;
+            let info = classifyAccuracy(acc);
+            document.getElementById('gps_dot').className = 'gps-dot ' + info.cls;
+            document.getElementById('gps_signal_label').textContent = info.status;
+            document.getElementById('gps_signal_accuracy').textContent = acc != null ? `±${acc.toFixed(1)}m` : '';
+
+            // Source
+            let src = '';
+            src += row('Geolocation', ('geolocation' in navigator) ? 'Supported' : 'Not supported', ('geolocation' in navigator) ? 'good' : 'bad');
+            src += row('Data source', dataSourceLabel());
+            src += row('Permission', (gpsState.permission || 'unknown').toUpperCase(),
+                gpsState.permission === 'granted' ? 'good' : (gpsState.permission === 'denied' ? 'bad' : 'warn'));
+            let lastTxt = '—', sinceTxt = '—';
+            if (gpsState.timestamp) {
+                lastTxt = new Date(gpsState.timestamp).toLocaleTimeString();
+                sinceTxt = ((Date.now() - gpsState.timestamp) / 1000).toFixed(1) + 's ago';
+            }
+            src += row('Last update', lastTxt);
+            src += row('Time since last', sinceTxt);
+            document.getElementById('gps_source').innerHTML = src;
+
+            // Tracking
+            let trackStatus = gpsState.isTracking ? (gpsState.isAcquiring ? 'ACQUIRING' : 'ACTIVE') : 'STOPPED';
+            let trackCls = gpsState.isTracking ? (gpsState.isAcquiring ? 'warn' : 'good') : 'bad';
+            let trk = '';
+            trk += row('Status', trackStatus, trackCls);
+            trk += row('Points recorded', gpsState.pointCount);
+            trk += row('Watch ID', gpsState.watchId != null ? gpsState.watchId : '(none)');
+            document.getElementById('gps_tracking').innerHTML = trk;
+
+            // Motion
+            let m = '';
+            let speedMs = gpsState.position?.speed;
+            let speedKmh = (speedMs != null) ? (speedMs * 3.6) : null;
+            m += row('Speed', speedKmh != null ? `${speedKmh.toFixed(1)} km/h (${speedMs.toFixed(2)} m/s)` : '—');
+            m += row('Direction', gpsState.position?.heading != null ? `${gpsState.position.heading.toFixed(0)}°` : '—');
+            document.getElementById('gps_motion').innerHTML = m;
+
+            // Position
+            let p = '';
+            if (gpsState.position) {
+                p += row('Latitude', gpsState.position.latitude.toFixed(6) + '°');
+                p += row('Longitude', gpsState.position.longitude.toFixed(6) + '°');
+                p += row('Altitude', gpsState.position.altitude != null ? `${gpsState.position.altitude.toFixed(1)} m` : '—');
+            } else {
+                p += row('Latitude', '—');
+                p += row('Longitude', '—');
+                p += row('Altitude', '—');
+            }
+            document.getElementById('gps_position').innerHTML = p;
+
+            // Accuracy
+            let a = '';
+            a += row('Horizontal', acc != null ? `±${acc.toFixed(1)} m` : '—',
+                acc != null ? (acc <= 10 ? 'good' : (acc <= 30 ? 'warn' : 'bad')) : '');
+            a += row('Vertical', gpsState.position?.altitudeAccuracy != null ? `±${gpsState.position.altitudeAccuracy.toFixed(1)} m` : '—');
+            let drift = calcDrift();
+            a += row('Drift (avg of last 3)', drift != null ? `${drift.toFixed(1)} m` : '—');
+            document.getElementById('gps_accuracy').innerHTML = a;
+
+            // History
+            let hist = gpsState.history.slice(-10).reverse();
+            let hh = hist.map(p => `<div class="gps-history-item">${new Date(p.timestamp).toLocaleTimeString()}: ${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)} (±${p.accuracy.toFixed(1)} m)</div>`).join('');
+            document.getElementById('gps_history').innerHTML = hh || '<div style="font-size:12px; color:#888;">No positions yet.</div>';
+        }
+
+        function applyPositionSuccess(pos) {
+            let coords = pos.coords;
+            let p = {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                accuracy: coords.accuracy,
+                altitude: coords.altitude,
+                altitudeAccuracy: coords.altitudeAccuracy,
+                heading: coords.heading,
+                speed: coords.speed,
+                timestamp: pos.timestamp
+            };
+            gpsState.position = p;
+            gpsState.timestamp = pos.timestamp;
+            gpsState.history.push(p);
+            if (gpsState.history.length > 10) gpsState.history.shift();
+            gpsState.pointCount++;
+            // Auto-classify capability on first fix
+            if (gpsState.capability === 'unknown' || gpsState.capability === 'checking' || gpsState.capability === 'acquiring') {
+                gpsState.capability = (coords.accuracy > 500) ? 'ip-only' : 'available';
+            }
+            // Acquisition complete when accuracy <= 50m
+            if (gpsState.isAcquiring && coords.accuracy != null && coords.accuracy <= 50) {
+                gpsState.isAcquiring = false;
+            }
+            // Permission must be granted if positions arrive
+            if (gpsState.permission !== 'granted') gpsState.permission = 'granted';
+            renderGps();
+        }
+        function applyPositionError(err) {
+            let map = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
+            if (err.code === 1) {
+                gpsState.permission = 'denied';
+                gpsState.capability = 'denied';
+                stopTracking();
+            }
+            setMsg('gps_msg', `Error ${err.code}: ${map[err.code] || ''} ${err.message || ''}`, 'err');
+            renderGps();
+        }
+
+        function startTracking() {
+            if (!('geolocation' in navigator) || gpsState.isTracking) return;
+            gpsState.isTracking = true;
+            gpsState.isAcquiring = true;
+            setMsg('gps_msg', 'Tracking started.', 'ok');
+            gpsState.watchId = navigator.geolocation.watchPosition(
+                applyPositionSuccess, applyPositionError,
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+            // Tick the "time since last" row every 500ms
+            gpsState.tickInterval = setInterval(renderGps, 500);
+            document.getElementById('btn_gps_start').disabled = true;
+            document.getElementById('btn_gps_stop').disabled = false;
+            renderGps();
+        }
+        function stopTracking() {
+            if (gpsState.watchId != null) {
+                navigator.geolocation.clearWatch(gpsState.watchId);
+                gpsState.watchId = null;
+            }
+            if (gpsState.tickInterval) {
+                clearInterval(gpsState.tickInterval);
+                gpsState.tickInterval = null;
+            }
+            gpsState.isTracking = false;
+            document.getElementById('btn_gps_start').disabled = false;
+            document.getElementById('btn_gps_stop').disabled = true;
+            renderGps();
+        }
+        function clearHistory() {
+            gpsState.history = [];
+            gpsState.pointCount = 0;
+            renderGps();
+        }
+        function requestSingleFix() {
             if (!('geolocation' in navigator)) {
-                html += row('Supported', 'No', 'bad');
-                document.getElementById('si_gps').innerHTML = html;
+                setMsg('gps_msg', 'Geolocation not supported.', 'err');
                 return;
             }
-            html += row('Supported', 'Yes', 'good');
-            // Permission state (Permissions API)
-            try {
-                if (navigator.permissions && navigator.permissions.query) {
-                    let p = await navigator.permissions.query({ name: 'geolocation' });
-                    html += row('Permission', p.state, p.state === 'granted' ? 'good' : (p.state === 'denied' ? 'bad' : 'warn'));
-                }
-            } catch(_) {}
-            document.getElementById('si_gps').innerHTML = html;
-            if (initial && navigator.geolocation) {
-                getGps(false);
-            }
-        }
-        function getGps(showLoadingMsg) {
-            if (showLoadingMsg) setMsg('gps_msg', 'Requesting position…');
+            setMsg('gps_msg', 'Requesting position…');
             navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    let { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed } = pos.coords;
-                    let extra = '';
-                    extra += row('Latitude', latitude.toFixed(6));
-                    extra += row('Longitude', longitude.toFixed(6));
-                    extra += row('Accuracy (m)', Math.round(accuracy), accuracy <= 30 ? 'good' : (accuracy <= 100 ? 'warn' : 'bad'));
-                    extra += row('Altitude (m)', altitude != null ? altitude.toFixed(1) : '—');
-                    extra += row('Altitude accuracy', altitudeAccuracy != null ? altitudeAccuracy.toFixed(1) : '—');
-                    extra += row('Heading', heading != null ? heading.toFixed(1) : '—');
-                    extra += row('Speed (m/s)', speed != null ? speed.toFixed(2) : '—');
-                    extra += row('Timestamp', new Date(pos.timestamp).toLocaleString());
-                    document.getElementById('si_gps').insertAdjacentHTML('beforeend', extra);
-                    setMsg('gps_msg', 'Position acquired.', 'ok');
-                },
-                (err) => {
-                    let map = { 1: 'Permission denied', 2: 'Position unavailable', 3: 'Timeout' };
-                    setMsg('gps_msg', `Error ${err.code}: ${map[err.code] || ''} ${err.message || ''}`, 'err');
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                applyPositionSuccess, applyPositionError,
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
         }
+
+        document.getElementById('btn_gps_start').addEventListener('click', startTracking);
+        document.getElementById('btn_gps_stop').addEventListener('click', stopTracking);
+        document.getElementById('btn_gps_clear').addEventListener('click', clearHistory);
+        document.getElementById('btn_gps_request').addEventListener('click', requestSingleFix);
+
+        // Stop tracking when leaving the page
+        window.addEventListener('beforeunload', stopTracking);
 
         // ---------------- Storage ----------------
         async function renderStorage() {
@@ -325,7 +634,7 @@
             document.getElementById('si_device').innerHTML = html;
         }
 
-        // ---------------- Wire up ----------------
+        // ---------------- SW action buttons ----------------
         document.getElementById('btn_sw_update').addEventListener('click', async () => {
             setMsg('sw_msg', 'Checking for updates…');
             try {
@@ -361,16 +670,13 @@
         });
         document.getElementById('btn_speed_small').addEventListener('click', () => runBandwidthTest('small'));
         document.getElementById('btn_speed_large').addEventListener('click', () => runBandwidthTest('large'));
-        document.getElementById('btn_gps').addEventListener('click', () => {
-            // Refresh permission row before requesting
-            renderGps(false).then(() => getGps(true));
-        });
 
-        // Init
+        // ---------------- Init ----------------
         await Promise.all([renderApp(), renderSW(), renderStorage()]);
         renderNetwork();
-        renderGps(false);
         renderDevice();
+        await checkGpsPermission();
+        renderGps();
     </script>
 </body>
 </html>

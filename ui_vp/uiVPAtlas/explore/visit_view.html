@@ -215,7 +215,8 @@
                         menuItems.push({ label: '+ Review', action: () => window.location.href = `/admin/review_create.html?visitId=${visitId}&poolId=${poolId}` });
                     }
 
-                    if (menuItems.length) initOverflowMenu('action_menu_btn', 'action_menu_panel', menuItems);
+                    menuItems.push({ label: 'System Info', action: () => window.location.href = '/explore/system.html' });
+                    initOverflowMenu('action_menu_btn', 'action_menu_panel', menuItems);
                 }
             } catch(err) {
                 document.getElementById('visit_info').innerHTML =
