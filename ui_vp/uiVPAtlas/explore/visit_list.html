@@ -114,13 +114,18 @@
     <script src="/js/app.js"></script>
 
     <script type="module">
-        import { fetchVisits, fetchTracks, createTrack, deleteTrack } from '/js/api.js';
+        import { fetchVisits, createTrack, deleteTrack } from '/js/api.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { loadAllVisits, deleteVisit } from '/survey/js/visit_store.js';
         import { syncVisit } from '/survey/js/visit_sync.js';
-        import { listQueue as listLocalTracks, deleteLocal as deleteLocalTrack, markUploaded as markTrackUploaded } from '/survey/js/track_recorder.js';
+        import {
+            listQueue as listLocalTracks,
+            deleteLocal as deleteLocalTrack,
+            markUploaded as markTrackUploaded,
+            syncFromServer as syncTracksFromServer
+        } from '/survey/js/track_recorder.js';
 
         setupProfileIcon('profile_container');
 
@@ -333,54 +338,34 @@
             let loading = document.getElementById('track_loading');
             loading.style.display = 'block';
 
-            // Local queue (recorded but not yet uploaded, plus already-uploaded
-            // tracks that the user hasn't cleared from local).
-            let local = [];
-            try { local = await listLocalTracks(); } catch(e) { console.warn('tracks: local load failed', e); }
-
-            // Server-side tracks (filtered to current user by API; admins can
-            // see ?scope=all but we keep this page personal — admin global view
-            // belongs in the admin panel).
-            let serverRows = [];
+            // Pull the user's server-side tracks into the local queue first
+            // (track_recorder.syncFromServer handles dedupe by remoteId and
+            // is a no-op when offline / unauthed). Then render straight from
+            // the queue — it now holds both locally-recorded and server-stub
+            // entries, each tagged with its `source`.
             if (currentUser) {
-                try {
-                    let resp = await fetchTracks();
-                    serverRows = resp.rows || [];
-                } catch(e) { console.warn('tracks: server load failed', e); }
+                try { await syncTracksFromServer(); }
+                catch(e) { console.warn('tracks: server sync failed', e); }
             }
 
-            // Merge: any local with a remoteId is the same row as the server's
-            // matching trackId — prefer local (it carries the geometry).
-            let serverIds = new Set(local.filter(t => t.remoteId).map(t => t.remoteId));
-            let serverOnly = serverRows.filter(r => !serverIds.has(r.trackId));
+            let queue = [];
+            try { queue = await listLocalTracks(); } catch(e) { console.warn('tracks: local load failed', e); }
 
-            allTracks = [
-                ...local.map(t => ({
-                    source: 'local',
-                    localId: t.localId,
-                    remoteId: t.remoteId || null,
-                    name: t.name,
-                    notes: t.notes,
-                    startedAt: t.startedAt,
-                    endedAt: t.endedAt,
-                    pointCount: t.points?.length || 0,
-                    lengthM: null,
-                    uploadedAt: t.uploadedAt,
-                    accuracyMinM: t.accuracyMinM
-                })),
-                ...serverOnly.map(r => ({
-                    source: 'server',
-                    localId: null,
-                    remoteId: r.trackId,
-                    name: r.name,
-                    notes: r.notes,
-                    startedAt: r.startedAt,
-                    endedAt: r.endedAt,
-                    pointCount: r.pointCount,
-                    lengthM: r.lengthM,
-                    uploadedAt: r.uploadedAt
-                }))
-            ];
+            allTracks = queue.map(t => ({
+                source: t.source || 'local',  // legacy entries pre-source-field
+                localId: t.localId,
+                remoteId: t.remoteId || null,
+                name: t.name,
+                notes: t.notes,
+                startedAt: t.startedAt,
+                endedAt: t.endedAt,
+                // Server stubs report pointCount from the API; locally-recorded
+                // tracks count their actual point array.
+                pointCount: Array.isArray(t.points) ? t.points.length : (t.pointCount || 0),
+                lengthM: t.lengthM ?? null,
+                uploadedAt: t.uploadedAt,
+                accuracyMinM: t.accuracyMinM
+            }));
 
             // Sort newest first by startedAt
             allTracks.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
@@ -433,7 +418,7 @@
                 } else {
                     statusClass = 'vl-track-uploaded';
                     statusLabel = 'server';
-                    actions = `${viewBtn} <button class="vq-btn track-delete-remote" data-remote="${t.remoteId}" title="Delete from server"><i class="fa fa-trash"></i></button>`;
+                    actions = `${viewBtn} <button class="vq-btn track-delete-remote" data-remote="${t.remoteId}" data-local="${t.localId}" title="Delete from server"><i class="fa fa-trash"></i></button>`;
                 }
 
                 let dateStr = t.startedAt ? new Date(t.startedAt).toLocaleString() : '';
@@ -482,6 +467,13 @@
                     catch(e) {
                         console.error('Track delete failed', e);
                         alert(`Delete failed: ${describeError(e)}\n\nTrack #${btn.dataset.remote}`);
+                        return;
+                    }
+                    // Remove the orphaned local stub so the row doesn't reappear
+                    // until the next sync. (Sync only adds/updates; it doesn't
+                    // remove server-deleted entries from local.)
+                    if (btn.dataset.local) {
+                        try { await deleteLocalTrack(btn.dataset.local); } catch(_) {}
                     }
                     await loadAllTracks();
                 });

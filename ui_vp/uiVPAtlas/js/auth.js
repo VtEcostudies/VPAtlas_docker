@@ -32,15 +32,28 @@ export async function login(username, password, confirmToken=null) {
     if (res.token) {
         await setLocal('auth_token', res.token);
         await setLocal('auth_user', res.user || res);
+        // Fire-and-forget: pull this user's saved tracks from the DB into local
+        // IndexedDB so they show up across devices and survive going offline.
+        // Dynamic import keeps auth.js free of a top-level dep on /survey/.
+        import('/survey/js/track_recorder.js')
+            .then(m => m.syncFromServer())
+            .catch(err => console.warn('auth.js: track sync after login failed', err));
         return res;
     }
     throw res;
 }
 
-// Logout - clear stored auth
+// Logout - clear stored auth and any other user's server-side track stubs.
+// We deliberately keep locally-recorded tracks; they may not be uploaded yet.
 export async function logout() {
     await delLocal('auth_token');
     await delLocal('auth_user');
+    try {
+        const m = await import('/survey/js/track_recorder.js');
+        await m.clearServerStubs();
+    } catch (err) {
+        console.warn('auth.js: clearServerStubs on logout failed', err);
+    }
 }
 
 // Register new user

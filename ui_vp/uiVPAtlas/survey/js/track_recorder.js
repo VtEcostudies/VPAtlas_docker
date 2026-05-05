@@ -15,19 +15,23 @@
     Track shape
     -----------
     {
-        localId:    'tr_<rand>',       // client-side id, unique per device
+        localId:    'tr_<rand>' | 'sv_<remoteId>',  // 'tr_' = recorded here, 'sv_' = stub from server
+        source:     'local' | 'server',  // 'local' = recorded on this device; 'server' = stub synced from DB
         name:        string|null,
         notes:       string|null,
         startedAt:   ISO,
         endedAt:     ISO | null,        // null while active
-        points:      [[lng, lat, elev|null, ts]...],
-        remoteId:    number | null,     // server "trackId" once uploaded
+        points:      [[lng, lat, elev|null, ts]...] | null,  // null on a server stub until lazy-fetched
+        pointCount:  number | null,     // server-reported count (used when points is null)
+        lengthM:     number | null,
+        remoteId:    number | null,     // server "trackId" once uploaded or for server stubs
         uploadedAt:  ISO | null,
         accuracyMinM: number | null     // best (smallest) horizontal accuracy seen
     }
 */
 
 import { getLocal, setLocal } from '/js/storage.js';
+import { fetchTracks, fetchTrackById } from '/js/api.js';
 
 const ACTIVE_KEY = 'track_recorder.active';
 const QUEUE_KEY  = 'track_recorder.queue';
@@ -65,11 +69,14 @@ export async function startTrack({ name = null } = {}) {
     let now = new Date().toISOString();
     active = {
         localId: 'tr_' + Math.random().toString(36).slice(2, 10),
+        source: 'local',
         name,
         notes: null,
         startedAt: now,
         endedAt: null,
         points: [],
+        pointCount: null,
+        lengthM: null,
         remoteId: null,
         uploadedAt: null,
         accuracyMinM: null
@@ -161,6 +168,129 @@ export async function markUploaded(localId, remoteId) {
         return t;
     });
     if (updated) await setLocal(QUEUE_KEY, queue);
+}
+
+// Pull the user's server-side tracks into the local queue. Stubs (no points)
+// are added for tracks that exist on the server but not locally; existing
+// local entries with a matching remoteId have their server-mutable metadata
+// (name/notes/uploadedAt/lengthM) refreshed without losing their points.
+//
+// Returns { ok, added, updated, error? }. Failures (offline, 401) are swallowed
+// — the caller should not block on this. Geometry is fetched lazily by
+// getTrackPoints() unless fetchGeometry: true is passed.
+const SYNCED_AT_KEY = 'track_recorder.lastSync';
+let _syncing = false;
+
+export async function syncFromServer({ fetchGeometry = false } = {}) {
+    if (_syncing) return { ok: false, error: 'already syncing' };
+    _syncing = true;
+    try {
+        let resp;
+        try {
+            resp = await fetchTracks();
+        } catch (err) {
+            return { ok: false, error: err };
+        }
+        let serverRows = (resp && resp.rows) || [];
+        let queue = (await getLocal(QUEUE_KEY)) || [];
+
+        const byRemote = new Map();
+        for (let t of queue) if (t.remoteId != null) byRemote.set(t.remoteId, t);
+
+        let added = 0, updated = 0;
+        for (let r of serverRows) {
+            const existing = byRemote.get(r.trackId);
+            if (existing) {
+                existing.name = r.name;
+                existing.notes = r.notes;
+                existing.uploadedAt = r.uploadedAt || existing.uploadedAt;
+                existing.lengthM = r.lengthM;
+                if (existing.pointCount == null) existing.pointCount = r.pointCount;
+                updated++;
+            } else {
+                const stub = {
+                    localId: 'sv_' + r.trackId,
+                    source: 'server',
+                    name: r.name,
+                    notes: r.notes,
+                    startedAt: r.startedAt,
+                    endedAt: r.endedAt,
+                    points: null,
+                    pointCount: r.pointCount,
+                    lengthM: r.lengthM,
+                    remoteId: r.trackId,
+                    uploadedAt: r.uploadedAt,
+                    accuracyMinM: null
+                };
+                if (fetchGeometry) {
+                    try {
+                        const detail = await fetchTrackById(r.trackId);
+                        const geo = parseGeom(detail && detail.geomJson);
+                        if (geo) stub.points = geo.map(c => [c[0], c[1], null, null]);
+                    } catch (_) { /* leave null; lazy-fetch later */ }
+                }
+                queue.push(stub);
+                added++;
+            }
+        }
+
+        await setLocal(QUEUE_KEY, queue);
+        await setLocal(SYNCED_AT_KEY, new Date().toISOString());
+        notify({ type: 'synced', added, updated, total: queue.length });
+        return { ok: true, added, updated };
+    } finally {
+        _syncing = false;
+    }
+}
+
+export async function getLastSyncedAt() {
+    return await getLocal(SYNCED_AT_KEY);
+}
+
+// Resolve points for a track in the queue, fetching geometry from the server
+// the first time a server stub is opened. Subsequent calls hit local IDB.
+export async function getTrackPoints(localId) {
+    let queue = (await getLocal(QUEUE_KEY)) || [];
+    const t = queue.find(x => x.localId === localId);
+    if (!t) return null;
+    if (Array.isArray(t.points) && t.points.length) return t.points;
+    if (t.remoteId == null) return [];
+    try {
+        const detail = await fetchTrackById(t.remoteId);
+        const geo = parseGeom(detail && detail.geomJson);
+        if (!geo) return null;
+        t.points = geo.map(c => [c[0], c[1], null, null]);
+        // Persist the hydrated points so the next viewer is offline-capable
+        const idx = queue.findIndex(x => x.localId === localId);
+        if (idx >= 0) {
+            queue[idx] = t;
+            await setLocal(QUEUE_KEY, queue);
+        }
+        return t.points;
+    } catch (_) {
+        return null;
+    }
+}
+
+// Drop server-stub tracks from local. Useful on logout to clear another user's
+// data from this device — local-recorded tracks are kept (they may not have
+// uploaded yet) so we never destroy field data.
+export async function clearServerStubs() {
+    let queue = (await getLocal(QUEUE_KEY)) || [];
+    const before = queue.length;
+    queue = queue.filter(t => t.source !== 'server');
+    await setLocal(QUEUE_KEY, queue);
+    await setLocal(SYNCED_AT_KEY, null);
+    return before - queue.length;
+}
+
+function parseGeom(geomJson) {
+    if (!geomJson) return null;
+    let parsed;
+    try { parsed = typeof geomJson === 'string' ? JSON.parse(geomJson) : geomJson; }
+    catch (_) { return null; }
+    if (!parsed || !Array.isArray(parsed.coordinates)) return null;
+    return parsed.coordinates;
 }
 
 // Helper: meters between two lat/lng points.
