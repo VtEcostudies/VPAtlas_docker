@@ -277,7 +277,6 @@
             <h3 class="header-name light-foreground" style="margin-right:6px; white-space:normal; line-height:1.1; font-size:16px; max-width:6em;">Pool<br>Finder</h3>
             <div class="pf-chips" id="pool_chips" style="flex:1; min-width:0;"></div>
             <div class="detail-actions" style="position:relative;">
-                <button id="btn_new_pool" class="action-button" style="font-size:13px; padding:4px 10px; white-space:nowrap;"><i class="fa fa-plus"></i> New Pool</button>
                 <button class="action-overflow-btn" id="action_menu_btn"><i class="fa fa-ellipsis-v"></i></button>
                 <div class="action-overflow-panel" id="action_menu_panel"></div>
             </div>
@@ -303,6 +302,9 @@
                 </button>
                 <button class="pf-zoom-btn" id="btn_zoom_both" title="Zoom to pools and my GPS" style="display:none;">
                     <i class="fa fa-crosshairs"></i><span class="zoom-both-icons" aria-hidden="true"><i class="fa fa-tint"></i><i class="fa fa-user"></i></span>
+                </button>
+                <button class="pf-zoom-btn" id="btn_zoom_track" title="Zoom to track" style="display:none;">
+                    <i class="fa fa-crosshairs"></i><i class="fa fa-route" aria-hidden="true"></i>
                 </button>
             </div>
             <!-- Navigation compass — points toward nearest selected pool -->
@@ -469,17 +471,27 @@
             // Auto-start GPS
             startGps();
 
-            // + New Pool button (header) — uses GPS location if available
+            // + New Pool target (used by the overflow-menu item) — uses GPS
+            // location if available.
             function newPoolHref() {
                 return gps && gps.position
                     ? `/survey/visit_create.html?lat=${gps.position.lat.toFixed(6)}&lng=${gps.position.lng.toFixed(6)}`
                     : '/survey/visit_create.html';
             }
-            document.getElementById('btn_new_pool').addEventListener('click', () => {
-                window.location.href = newPoolHref();
+
+            // Zoom-to-track button — visible whenever any track polyline
+            // (saved view, in-progress recording, or resumed recording)
+            // is on the map. updateZoomTrackBtn() is called by the track
+            // event handler and by displayTrackParam when state changes.
+            document.getElementById('btn_zoom_track').addEventListener('click', () => {
+                let line = activeTrackLineRef() || savedTrackLine;
+                if (line) {
+                    map.fitBounds(line.getBounds(), { padding: [40, 40], maxZoom: 16 });
+                    followUser = false;
+                }
             });
 
-            // Overflow menu (mobile) — same items as header buttons
+            // Overflow menu — same items as header buttons
             let menuBtn = document.getElementById('action_menu_btn');
             let menuPanel = document.getElementById('action_menu_panel');
             if (menuBtn && menuPanel) {
@@ -585,14 +597,15 @@
                 menuPanel.appendChild(sysInfoItem);
 
                 // Polyline + status pill driven by track recorder events.
-                let trackLine = null;
+                // recordingTrackLine is declared at module scope so the
+                // zoom-to-track button can reach it.
                 let trackPill = document.getElementById('pf_track_pill');
                 let trackPillLabel = document.getElementById('pf_track_pill_label');
                 function showTrackPolyline(track) {
-                    if (trackLine) { map.removeLayer(trackLine); trackLine = null; }
+                    if (recordingTrackLine) { map.removeLayer(recordingTrackLine); recordingTrackLine = null; }
                     if (!track || !track.points.length) return;
                     let latlngs = track.points.map(p => [p[1], p[0]]);
-                    trackLine = L.polyline(latlngs, {
+                    recordingTrackLine = L.polyline(latlngs, {
                         color: '#dc2626', weight: 4, opacity: 0.85,
                         dashArray: '6,4', interactive: false
                     }).addTo(map);
@@ -611,15 +624,16 @@
                         setPill(evt.track);
                     } else if (evt.type === 'point') {
                         // Append rather than redraw the whole polyline.
-                        if (trackLine) trackLine.addLatLng([evt.point[1], evt.point[0]]);
+                        if (recordingTrackLine) recordingTrackLine.addLatLng([evt.point[1], evt.point[0]]);
                         else showTrackPolyline(evt.track);
                         setPill(evt.track);
                         refreshTrackMenu();
                     } else if (evt.type === 'stopped' || evt.type === 'discarded') {
-                        if (trackLine) { map.removeLayer(trackLine); trackLine = null; }
+                        if (recordingTrackLine) { map.removeLayer(recordingTrackLine); recordingTrackLine = null; }
                         setPill(null);
                         refreshTrackMenu();
                     }
+                    updateZoomTrackBtn();
                 });
                 // Resume an in-progress track if the page was reloaded mid-record.
                 (async () => {
@@ -628,6 +642,7 @@
                         showTrackPolyline(resumed);
                         setPill(resumed);
                         refreshTrackMenu();
+                        updateZoomTrackBtn();
                     }
                 })();
 
@@ -793,6 +808,16 @@
         // URL params from the View button on the My Visits and Tracks page.
         // =================================================================
         let savedTrackLine = null;
+        // Active recording polyline reference, populated by the recorder
+        // event handler below. Module-scoped so the zoom-to-track button
+        // (which lives outside the recorder block) can fit to it.
+        let recordingTrackLine = null;
+        function activeTrackLineRef() { return recordingTrackLine; }
+        function updateZoomTrackBtn() {
+            let btn = document.getElementById('btn_zoom_track');
+            if (!btn) return;
+            btn.style.display = (recordingTrackLine || savedTrackLine) ? '' : 'none';
+        }
         async function displayTrackParam(serverTrackId, localTrackId) {
             // Build an array of [lat, lng] pairs from whichever source.
             let latlngs = [];
@@ -823,6 +848,7 @@
             }).addTo(map);
             savedTrackLine.bindTooltip(label, { sticky: true, direction: 'top' });
             map.fitBounds(savedTrackLine.getBounds(), { padding: [40, 40], maxZoom: 16 });
+            updateZoomTrackBtn();
         }
 
         // =================================================================
