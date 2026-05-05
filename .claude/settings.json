@@ -44,7 +44,9 @@
       "Bash(convert -version*)",
       "Bash(magick -version*)",
 
-      "Bash(for f in /home/jloomis/VPAtlas/VPAtlas_docker/*; do echo *grep*)"
+      "Bash(for f in /home/jloomis/VPAtlas/VPAtlas_docker/*; do echo *grep*)",
+
+      "Bash(/home/jloomis/VPAtlas/VPAtlas_docker/deploy/deploy-dev.sh logs *)"
     ]
   }
 }

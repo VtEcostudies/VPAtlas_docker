@@ -17,27 +17,35 @@ router.delete('/:id', _delete);
 
 module.exports = router;
 
+// express-jwt 6.x overwrites req.user with the decoded JWT payload after
+// our isRevoked callback runs (see node_modules/express-jwt/lib/index.js
+// at the end of async.waterfall). So req.user always looks like
+//   { sub: <userId>, role: <userrole>, iat: ... }
+// even though our jwt.js tries to put the vpuser row there. The DB row
+// survives only at req.dbUser. Authoritative user id = JWT subject;
+// authoritative role = JWT role (which authenticate signed with the
+// vpuser.userrole at login time).
+function getAuthUserId(req) {
+    if (req.user && (req.user.sub != null)) return req.user.sub;
+    if (req.dbUser && (req.dbUser.id != null)) return req.dbUser.id;
+    return null;
+}
 function isAdmin(req) {
-    return req.user && req.user.userrole === 'admin';
+    if (req.user && req.user.role === 'admin') return true;
+    if (req.dbUser && req.dbUser.userrole === 'admin') return true;
+    return false;
 }
 
-// jwt.js sets req.user from the JWT subject. If the JWT references a user id
-// that no longer exists in vpuser (account deleted, DB restored, etc.) the
-// lookup returns an empty object, not null — so a plain `!req.user` check
-// would let the request through with userId=undefined and we'd hit a NOT
-// NULL / foreign-key violation deep in PostGIS. Reject up-front instead.
 function requireAuthedUser(req, res) {
-    if (!req.user || !req.user.id) {
-        // Include enough server-side telemetry that the iPhone alert can
-        // tell us *why* the check failed. Common causes: stale JWT after
-        // DB restore, JWT minted with sub=0, jwt.js getById returning {}.
+    let uid = getAuthUserId(req);
+    if (uid == null) {
         let userKeys = req.user ? Object.keys(req.user) : null;
-        let userIdValue = req.user ? req.user.id : '(req.user is falsy)';
-        let detail = `req.user keys=[${userKeys ? userKeys.join(',') : 'null'}], req.user.id=${JSON.stringify(userIdValue)}`;
+        let dbKeys = req.dbUser ? Object.keys(req.dbUser) : null;
+        let detail = `req.user keys=[${userKeys ? userKeys.join(',') : 'null'}], req.dbUser keys=[${dbKeys ? dbKeys.join(',') : 'null'}]`;
         console.log('vpTrack.routes::requireAuthedUser BLOCKED |', detail);
         res.status(401).json({
             name: 'UnauthorizedError',
-            message: 'Your session has expired or is for an account that no longer exists. Please sign out and sign back in.',
+            message: 'Your session has expired. Please sign out and sign back in.',
             detail
         });
         return false;
@@ -47,13 +55,14 @@ function requireAuthedUser(req, res) {
 
 function list(req, res, next) {
     if (!requireAuthedUser(req, res)) return;
+    let uid = getAuthUserId(req);
     if (req.query.scope === 'all' && isAdmin(req)) {
         service.listAll(parseInt(req.query.limit) || 500)
             .then(result => res.json({ rowCount: result.rowCount, rows: result.rows }))
             .catch(err => next(err));
         return;
     }
-    service.listForUser(req.user.id, parseInt(req.query.limit) || 200)
+    service.listForUser(uid, parseInt(req.query.limit) || 200)
         .then(result => res.json({ rowCount: result.rowCount, rows: result.rows }))
         .catch(err => next(err));
 }
@@ -62,11 +71,12 @@ function getById(req, res, next) {
     if (!requireAuthedUser(req, res)) return;
     let trackId = parseInt(req.params.id);
     if (!trackId) return res.status(400).json({ message: 'invalid track id' });
+    let uid = getAuthUserId(req);
     service.getById(trackId)
         .then(result => {
             if (!result.rowCount) return res.sendStatus(404);
             let row = result.rows[0];
-            if (row.userId !== req.user.id && !isAdmin(req)) return res.sendStatus(403);
+            if (row.userId !== uid && !isAdmin(req)) return res.sendStatus(403);
             res.json(row);
         })
         .catch(err => next(err));
@@ -74,7 +84,8 @@ function getById(req, res, next) {
 
 function create(req, res, next) {
     if (!requireAuthedUser(req, res)) return;
-    service.create(req.user.id, req.body)
+    let uid = getAuthUserId(req);
+    service.create(uid, req.body)
         .then(result => res.json(result.rows[0]))
         .catch(err => {
             console.log('vpTrack.routes.create | error:', err.message || err);
@@ -86,7 +97,8 @@ function _delete(req, res, next) {
     if (!requireAuthedUser(req, res)) return;
     let trackId = parseInt(req.params.id);
     if (!trackId) return res.status(400).json({ message: 'invalid track id' });
-    service.delete(trackId, req.user.id, isAdmin(req))
+    let uid = getAuthUserId(req);
+    service.delete(trackId, uid, isAdmin(req))
         .then(result => {
             if (!result.rowCount) return res.sendStatus(404);
             res.json({ trackId: result.rows[0].trackId });
