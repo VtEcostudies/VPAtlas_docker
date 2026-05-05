@@ -68,6 +68,15 @@ export function initFilterBar(filterCallback) {
                 <input type="checkbox" id="filter_indicator" style="width:auto; margin:0; accent-color:var(--primary-color);">
                 <span style="font-size:12px;">Indicator Spp</span>
             </label>
+
+            <!-- Near-me radius filter (uses GPS) -->
+            <label id="near-me-toggle" class="data-type-btn" style="display:flex; align-items:center; gap:4px; cursor:pointer;" title="Show only pools within a radius of your GPS location">
+                <input type="checkbox" id="filter_near_me" style="width:auto; margin:0; accent-color:var(--primary-color);">
+                <span style="font-size:12px;">Near me</span>
+                <input type="number" id="filter_near_me_km" min="0.5" max="200" step="0.5" value="5"
+                    style="width:46px; font-size:12px; padding:1px 3px; margin-left:2px;" disabled>
+                <span style="font-size:11px;">km</span>
+            </label>
         </div>
 
         <!-- Active filter tokens (rendered into row 3 if available, else here) -->
@@ -112,6 +121,68 @@ export function initFilterBar(filterCallback) {
         indicatorCb.addEventListener('change', () => {
             filters.hasIndicator = indicatorCb.checked;
             putUserState(1, { hasIndicator: indicatorCb.checked });
+            applyFilters();
+        });
+    }
+
+    // Near-me radius toggle. Activating prompts the browser for GPS, captures
+    // a one-shot fix as the filter origin, then triggers a refresh. The
+    // radius input is enabled only while the toggle is on.
+    let nearCb = document.getElementById('filter_near_me');
+    let nearKm = document.getElementById('filter_near_me_km');
+    if (nearCb && nearKm) {
+        // Restore from filters state on init
+        nearCb.checked = !!(filters.nearMeKm > 0 && filters.nearMeOrigin);
+        if (filters.nearMeKm > 0) nearKm.value = filters.nearMeKm;
+        nearKm.disabled = !nearCb.checked;
+
+        nearCb.addEventListener('change', async () => {
+            if (nearCb.checked) {
+                if (!navigator.geolocation) {
+                    alert('Geolocation is not available on this device.');
+                    nearCb.checked = false;
+                    return;
+                }
+                let prevLabel = nearCb.parentElement.querySelector('span').textContent;
+                nearCb.parentElement.querySelector('span').textContent = 'Locating…';
+                nearCb.disabled = true;
+                try {
+                    let pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            enableHighAccuracy: true, timeout: 15000, maximumAge: 60000
+                        });
+                    });
+                    filters.nearMeOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    filters.nearMeKm = parseFloat(nearKm.value) || 5;
+                    nearKm.disabled = false;
+                    putUserState(1, { nearMeOrigin: filters.nearMeOrigin, nearMeKm: filters.nearMeKm });
+                    renderTokens();
+                    applyFilters();
+                } catch (err) {
+                    console.warn('Near-me GPS failed:', err);
+                    alert('Could not get your GPS location: ' + (err.message || err.code));
+                    nearCb.checked = false;
+                } finally {
+                    nearCb.parentElement.querySelector('span').textContent = prevLabel;
+                    nearCb.disabled = false;
+                }
+            } else {
+                filters.nearMeKm = 0;
+                filters.nearMeOrigin = null;
+                nearKm.disabled = true;
+                putUserState(1, { nearMeKm: 0, nearMeOrigin: null });
+                renderTokens();
+                applyFilters();
+            }
+        });
+
+        nearKm.addEventListener('change', () => {
+            if (!nearCb.checked) return;
+            let v = parseFloat(nearKm.value);
+            if (!(v > 0)) return;
+            filters.nearMeKm = v;
+            putUserState(1, { nearMeKm: v });
+            renderTokens();
             applyFilters();
         });
     }
@@ -454,6 +525,9 @@ function renderTokens() {
     filters.countyNames.forEach(name => {
         tokens.push({ key: 'countyName', value: name, label: 'County' });
     });
+    if (filters.nearMeKm > 0 && filters.nearMeOrigin) {
+        tokens.push({ key: 'nearMe', value: `${filters.nearMeKm} km`, label: 'Near me' });
+    }
     // Status chips now driven by map layer control, not shown here
 
     if (!tokens.length) {
@@ -497,6 +571,14 @@ function renderTokens() {
                     cb.checked = filters.poolStatuses.includes(cb.value);
                 });
                 putUserState(1, { poolStatuses: filters.poolStatuses });
+            } else if (btn.dataset.removeKey === 'nearMe') {
+                filters.nearMeKm = 0;
+                filters.nearMeOrigin = null;
+                let cb = document.getElementById('filter_near_me');
+                let km = document.getElementById('filter_near_me_km');
+                if (cb) cb.checked = false;
+                if (km) km.disabled = true;
+                putUserState(1, { nearMeKm: 0, nearMeOrigin: null });
             }
             renderTokens();
             applyFilters();

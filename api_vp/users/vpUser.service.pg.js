@@ -23,6 +23,8 @@ module.exports = {
     verify,
     confirm,
     new_email,
+    confirm_email,
+    getEmailHistory,
     delete: _delete
 };
 
@@ -340,36 +342,117 @@ function reset(email) {
 }
 
 /*
-  Change user email. Call this route to set a new_email token before
-  sending a new_email email/token. This route will emulate the registration
-  flow, requiring that the user logs in from the new email token.
+  Request a user email change (deferred-swap flow).
 
-  - verify user email. if found:
-  - set db new_email token (for comparison on /authenticate route)
-  - send email with url and new_email token
+  We do NOT change vpuser.email here — that only happens on confirm. Instead
+  we stash the requested address as pendingEmail and send a JWT-bearing link
+  to the *new* address. Possession of that JWT proves control of the new
+  inbox; the swap happens in confirm_email().
+
+  Conflicts: rejects if the new address is already in use as another user's
+  email or pendingEmail. If THIS user already has a pending change, the new
+  request overwrites it.
 */
 function new_email(id, email) {
-    return new Promise((resolve, reject) => {
-      const token = jwt.sign({ new_email:true, email:email }, config.secret, { expiresIn: config.token.resetExpiry });
-      text = `update vpuser set email=$2,token=$3,status='new_email' where id=$1 returning id,email,token;`;
-      console.log(text, [id, email, token]);
-      query(text, [id, email, token])
-        .then(res => {
-          console.log('vpUser.service.pg.js::new_email | rowCount ', res.rowCount);
-          if (res.rowCount == 1) {
-            sendmail.new_email(res.rows[0].email, res.rows[0].token)
-              .then(ret => {resolve(ret);})
-              .catch(err => {reject(err)});
-          } else {
-            console.log('vpUser.service.pg.js::new_email | ERROR', `email ${email} NOT found.`);
-            reject(new Error(`email ${email} NOT found.`));
-          }
-        })
-        .catch(err => {
-          console.log('vpUser.service.pg.js::new_email | ERROR ', err.message);
-          reject(err.message);
-        });
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Conflict check: another user already owns or is reserving this email.
+        const conflict = await query(
+          `select id from vpuser
+             where id <> $1
+               and (lower(email) = lower($2) or lower("pendingEmail") = lower($2));`,
+          [id, email]
+        );
+        if (conflict.rowCount > 0) {
+          return reject(new Error(`email '${email}' is already in use.`));
+        }
+
+        const token = jwt.sign({ new_email:true, email:email }, config.secret, { expiresIn: config.token.resetExpiry });
+        const text = `update vpuser
+                        set "pendingEmail"=$2,
+                            "pendingEmailToken"=$3,
+                            "pendingEmailRequestedAt"=now()
+                      where id=$1
+                      returning id, "pendingEmail" as email, "pendingEmailToken" as token;`;
+        console.log(text, [id, email, '<token>']);
+        const res = await query(text, [id, email, token]);
+        console.log('vpUser.service.pg.js::new_email | rowCount ', res.rowCount);
+        if (res.rowCount !== 1) {
+          return reject(new Error(`user id ${id} NOT found.`));
+        }
+        const sent = await sendmail.new_email(res.rows[0].email, res.rows[0].token);
+        resolve(sent);
+      } catch (err) {
+        console.log('vpUser.service.pg.js::new_email | ERROR ', err.message);
+        reject(err);
+      }
     });
+}
+
+/*
+  Confirm a pending email change.
+
+  The JWT in the URL was sent to the new address; possession is the proof.
+  We verify the JWT, look up the user whose pendingEmail/pendingEmailToken
+  matches, archive the prior email to vpuser_email_history, then promote
+  pendingEmail -> email and clear the pending fields.
+*/
+function confirm_email(token) {
+  return new Promise((resolve, reject) => {
+    jwt.verify(token, config.secret, async (err, payload) => {
+      if (err) {
+        console.log('vpUser.service.pg.js::confirm_email | jwt verify ERROR', err.message);
+        return reject(err);
+      }
+      try {
+        const sel = await query(
+          `select id, email, "pendingEmail"
+             from vpuser
+            where lower("pendingEmail") = lower($1)
+              and "pendingEmailToken" = $2;`,
+          [payload.email, token]
+        );
+        if (sel.rowCount !== 1) {
+          return reject(new Error('Email-change link is invalid or has already been used.'));
+        }
+        const user = sel.rows[0];
+
+        // Archive the previous email, then swap. changedBy = the user themselves
+        // for self-initiated changes; admin-initiated changes from a future
+        // admin UI can pass a different requestingUserId.
+        await query(
+          `insert into vpuser_email_history ("userId", email, "changedBy")
+             values ($1, $2, $1);`,
+          [user.id, user.email]
+        );
+        const upd = await query(
+          `update vpuser
+              set email = "pendingEmail",
+                  "pendingEmail" = null,
+                  "pendingEmailToken" = null,
+                  "pendingEmailRequestedAt" = null
+            where id = $1
+            returning id, email;`,
+          [user.id]
+        );
+        resolve(upd.rows[0]);
+      } catch (e) {
+        console.log('vpUser.service.pg.js::confirm_email | ERROR', e.message);
+        reject(e);
+      }
+    });
+  });
+}
+
+async function getEmailHistory(userId) {
+  const res = await query(
+    `select id, email, "changedAt", "changedBy"
+       from vpuser_email_history
+      where "userId" = $1
+      order by "changedAt" desc;`,
+    [userId]
+  );
+  return res.rows;
 }
 
 /*

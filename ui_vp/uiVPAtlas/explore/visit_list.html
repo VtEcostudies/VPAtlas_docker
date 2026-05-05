@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VPAtlas - My Visits</title>
+    <title>VPAtlas - My Visits and Tracks</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2c5530">
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
@@ -22,6 +22,38 @@
         .vl-header-row h5 { margin: 0; font-size: 15px; }
         .vl-sort { font-size: 13px; display: flex; gap: 4px; align-items: center; }
         .vl-sort select { font-size: 13px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 4px; }
+
+        /* Tab nav for Visits / Tracks */
+        .vl-tabs {
+            display: flex; gap: 0; margin: 0 -16px 12px -16px; padding: 0 16px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .vl-tab {
+            background: none; border: none; padding: 8px 16px;
+            font-size: 14px; font-weight: 600; color: var(--text-muted, #666);
+            border-bottom: 3px solid transparent; margin-bottom: -2px;
+            cursor: pointer;
+        }
+        .vl-tab.active {
+            color: var(--primary-color); border-bottom-color: var(--primary-color);
+        }
+        .vl-tab .vl-badge {
+            display: inline-block; min-width: 18px; padding: 0 6px;
+            background: var(--primary-color); color: white;
+            border-radius: 9px; font-size: 11px; line-height: 18px;
+            text-align: center; margin-left: 4px;
+        }
+        .vl-panel { display: none; }
+        .vl-panel.active { display: block; }
+        /* Track-specific list styling — reuse vq-* classes from visit_queue.css */
+        .vl-track-meta { font-size: 12px; color: var(--text-muted, #666); }
+        .vl-track-pending { background: #fef3c7; color: #92400e; }
+        .vl-track-uploaded { background: #d1fae5; color: #065f46; }
+        .vl-track-failed { background: #fee2e2; color: #991b1b; }
+        .vl-track-status {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; margin-right: 6px;
+        }
     </style>
     <script src="/js/home_button.js" defer></script>
 </head>
@@ -30,29 +62,48 @@
         <div class="detail-header">
             <a class="home-button" href="/explore/" title="Home"><i class="fa fa-house"></i></a>
             <button class="exit-button" onclick="history.back()" title="Back">&times;</button>
-            <h3 class="header-name light-foreground detail-title" id="page_title">My Visits</h3>
+            <h3 class="header-name light-foreground detail-title" id="page_title">My Visits and Tracks</h3>
             <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
     <hr class="divider-header">
 
     <div class="vl-container">
-        <div class="vl-header-row">
-            <h5 id="list_title"><i class="fa fa-inbox"></i> Visits</h5>
-            <div class="vl-sort">
-                <label>Sort:</label>
-                <select id="sort_select">
-                    <option value="date-desc">Date (newest)</option>
-                    <option value="date-asc">Date (oldest)</option>
-                    <option value="pool-asc">Pool ID (A-Z)</option>
-                    <option value="status">Status</option>
-                </select>
-            </div>
+        <div class="vl-tabs">
+            <button class="vl-tab active" data-tab="visits"><i class="fa fa-inbox"></i> Visits<span class="vl-badge" id="badge_visits" style="display:none;"></span></button>
+            <button class="vl-tab" data-tab="tracks"><i class="fa fa-route"></i> Tracks<span class="vl-badge" id="badge_tracks" style="display:none;"></span></button>
         </div>
 
-        <div id="visit_list" class="vq-list"></div>
-        <div id="visit_empty" class="vl-empty" style="display:none;">No visits found.</div>
-        <div id="visit_loading" class="vl-empty"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
+        <div class="vl-panel active" id="panel_visits">
+            <div class="vl-header-row">
+                <h5 id="list_title"><i class="fa fa-inbox"></i> Visits</h5>
+                <div class="vl-sort">
+                    <label>Sort:</label>
+                    <select id="sort_select">
+                        <option value="date-desc">Date (newest)</option>
+                        <option value="date-asc">Date (oldest)</option>
+                        <option value="pool-asc">Pool ID (A-Z)</option>
+                        <option value="status">Status</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="visit_list" class="vq-list"></div>
+            <div id="visit_empty" class="vl-empty" style="display:none;">No visits found.</div>
+            <div id="visit_loading" class="vl-empty"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
+        </div>
+
+        <div class="vl-panel" id="panel_tracks">
+            <div class="vl-header-row">
+                <h5><i class="fa fa-route"></i> Tracks</h5>
+                <button class="btn btn-sm btn-outline-success" id="btn_upload_all" style="display:none;">
+                    <i class="fa fa-cloud-arrow-up"></i> Upload all
+                </button>
+            </div>
+            <div id="track_list" class="vq-list"></div>
+            <div id="track_empty" class="vl-empty" style="display:none;">No tracks recorded yet. Start one from PoolFinder.</div>
+            <div id="track_loading" class="vl-empty"><i class="fa fa-spinner fa-spin"></i> Loading...</div>
+        </div>
     </div>
 
     <script src="/js/console_manager.js"></script>
@@ -63,27 +114,31 @@
     <script src="/js/app.js"></script>
 
     <script type="module">
-        import { fetchVisits } from '/js/api.js';
+        import { fetchVisits, fetchTracks, createTrack, deleteTrack } from '/js/api.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { loadAllVisits, deleteVisit } from '/survey/js/visit_store.js';
         import { syncVisit } from '/survey/js/visit_sync.js';
+        import { listQueue as listLocalTracks, deleteLocal as deleteLocalTrack, markUploaded as markTrackUploaded } from '/survey/js/track_recorder.js';
 
         setupProfileIcon('profile_container');
 
         let currentUser = null;
         let allVisits = [];  // unified list of local + server visits
+        let allTracks = [];  // unified list of local + server tracks
         let currentSort = 'date-desc';
 
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await getUser();
 
             if (!currentUser) {
-                document.getElementById('page_title').textContent = 'Visits (log in to see yours)';
+                document.getElementById('page_title').textContent = 'Visits and Tracks (log in to see yours)';
             }
 
+            wireTabs();
             await loadAll();
+            await loadAllTracks();
 
             // Sort control
             document.getElementById('sort_select').addEventListener('change', (e) => {
@@ -91,11 +146,31 @@
                 renderList();
             });
 
+            // Upload-all button
+            document.getElementById('btn_upload_all').addEventListener('click', uploadAllPendingTracks);
+
             // Refresh on sync events
             window.addEventListener('visitSyncStatus', async (e) => {
                 if (e.detail?.type === 'uploaded') await loadAll();
             });
+
+            // Honor ?tab=tracks deep-link
+            let initialTab = new URLSearchParams(location.search).get('tab');
+            if (initialTab === 'tracks') activateTab('tracks');
         });
+
+        // =====================================================================
+        // Tab switching
+        // =====================================================================
+        function wireTabs() {
+            document.querySelectorAll('.vl-tab').forEach(btn => {
+                btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+            });
+        }
+        function activateTab(name) {
+            document.querySelectorAll('.vl-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+            document.querySelectorAll('.vl-panel').forEach(p => p.classList.toggle('active', p.id === 'panel_' + name));
+        }
 
         // =====================================================================
         // Load local + server visits into one unified list
@@ -248,6 +323,184 @@
                     }
                 });
             });
+        }
+
+        // =====================================================================
+        // Tracks: load local queue + server-side tracks (own + all-for-admin),
+        // merge by remoteId, render, wire upload/delete.
+        // =====================================================================
+        async function loadAllTracks() {
+            let loading = document.getElementById('track_loading');
+            loading.style.display = 'block';
+
+            // Local queue (recorded but not yet uploaded, plus already-uploaded
+            // tracks that the user hasn't cleared from local).
+            let local = [];
+            try { local = await listLocalTracks(); } catch(e) { console.warn('tracks: local load failed', e); }
+
+            // Server-side tracks (filtered to current user by API; admins can
+            // see ?scope=all but we keep this page personal — admin global view
+            // belongs in the admin panel).
+            let serverRows = [];
+            if (currentUser) {
+                try {
+                    let resp = await fetchTracks();
+                    serverRows = resp.rows || [];
+                } catch(e) { console.warn('tracks: server load failed', e); }
+            }
+
+            // Merge: any local with a remoteId is the same row as the server's
+            // matching trackId — prefer local (it carries the geometry).
+            let serverIds = new Set(local.filter(t => t.remoteId).map(t => t.remoteId));
+            let serverOnly = serverRows.filter(r => !serverIds.has(r.trackId));
+
+            allTracks = [
+                ...local.map(t => ({
+                    source: 'local',
+                    localId: t.localId,
+                    remoteId: t.remoteId || null,
+                    name: t.name,
+                    notes: t.notes,
+                    startedAt: t.startedAt,
+                    endedAt: t.endedAt,
+                    pointCount: t.points?.length || 0,
+                    lengthM: null,
+                    uploadedAt: t.uploadedAt,
+                    accuracyMinM: t.accuracyMinM
+                })),
+                ...serverOnly.map(r => ({
+                    source: 'server',
+                    localId: null,
+                    remoteId: r.trackId,
+                    name: r.name,
+                    notes: r.notes,
+                    startedAt: r.startedAt,
+                    endedAt: r.endedAt,
+                    pointCount: r.pointCount,
+                    lengthM: r.lengthM,
+                    uploadedAt: r.uploadedAt
+                }))
+            ];
+
+            // Sort newest first by startedAt
+            allTracks.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
+
+            loading.style.display = 'none';
+            renderTracks();
+        }
+
+        function renderTracks() {
+            let container = document.getElementById('track_list');
+            let empty = document.getElementById('track_empty');
+            let badge = document.getElementById('badge_tracks');
+            let uploadAllBtn = document.getElementById('btn_upload_all');
+
+            badge.textContent = allTracks.length;
+            badge.style.display = allTracks.length ? '' : 'none';
+
+            let pending = allTracks.filter(t => t.source === 'local' && !t.remoteId);
+            uploadAllBtn.style.display = pending.length > 1 ? '' : 'none';
+
+            if (!allTracks.length) {
+                container.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+
+            let html = '';
+            allTracks.forEach(t => {
+                let statusClass, statusLabel, actions;
+                if (t.source === 'local' && !t.remoteId) {
+                    statusClass = 'vl-track-pending';
+                    statusLabel = 'queued';
+                    actions = `
+                        <button class="vq-btn track-upload" data-local="${t.localId}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
+                        <button class="vq-btn track-delete-local" data-local="${t.localId}" title="Delete locally"><i class="fa fa-trash"></i></button>`;
+                } else if (t.source === 'local' && t.remoteId) {
+                    statusClass = 'vl-track-uploaded';
+                    statusLabel = 'uploaded';
+                    actions = `<button class="vq-btn track-delete-local" data-local="${t.localId}" title="Remove from device"><i class="fa fa-trash"></i></button>`;
+                } else {
+                    statusClass = 'vl-track-uploaded';
+                    statusLabel = 'server';
+                    actions = `<button class="vq-btn track-delete-remote" data-remote="${t.remoteId}" title="Delete from server"><i class="fa fa-trash"></i></button>`;
+                }
+
+                let dateStr = t.startedAt ? new Date(t.startedAt).toLocaleString() : '';
+                let durationMin = t.startedAt && t.endedAt
+                    ? Math.round((new Date(t.endedAt) - new Date(t.startedAt)) / 60000)
+                    : null;
+                let lengthStr = t.lengthM != null ? `${(t.lengthM/1000).toFixed(2)} km` : '';
+                let detail = [
+                    `${t.pointCount} pts`,
+                    durationMin ? `${durationMin} min` : '',
+                    lengthStr
+                ].filter(Boolean).join(' · ');
+
+                html += `<div class="vq-item">
+                    <div class="vq-info">
+                        <div><span class="vl-track-status ${statusClass}">${statusLabel}</span> ${t.name || 'Track'} ${t.remoteId ? `<span style="color:var(--text-muted); font-size:12px;">#${t.remoteId}</span>` : ''}</div>
+                        <div class="vl-track-meta">${dateStr}${detail ? ' — ' + detail : ''}</div>
+                    </div>
+                    <div class="vq-actions">${actions}</div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+            wireTrackActions(container);
+        }
+
+        function wireTrackActions(container) {
+            container.querySelectorAll('.track-upload').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+                    await uploadOneTrack(btn.dataset.local);
+                });
+            });
+            container.querySelectorAll('.track-delete-local').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('Remove this track from this device? (Server copy, if any, is not affected.)')) return;
+                    await deleteLocalTrack(btn.dataset.local);
+                    await loadAllTracks();
+                });
+            });
+            container.querySelectorAll('.track-delete-remote').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('Permanently delete this track from the server?')) return;
+                    try { await deleteTrack(btn.dataset.remote); }
+                    catch(e) { alert('Delete failed: ' + (e.message || e)); }
+                    await loadAllTracks();
+                });
+            });
+        }
+
+        async function uploadOneTrack(localId) {
+            let local = (await listLocalTracks()).find(t => t.localId === localId);
+            if (!local) return;
+            try {
+                let result = await createTrack({
+                    name: local.name,
+                    notes: local.notes,
+                    startedAt: local.startedAt,
+                    endedAt: local.endedAt,
+                    points: local.points
+                });
+                if (result && result.trackId) {
+                    await markTrackUploaded(localId, result.trackId);
+                }
+            } catch(e) {
+                alert('Upload failed: ' + (e.message || e));
+            }
+            await loadAllTracks();
+        }
+
+        async function uploadAllPendingTracks() {
+            let pending = (await listLocalTracks()).filter(t => !t.remoteId);
+            for (let t of pending) {
+                await uploadOneTrack(t.localId);
+            }
         }
 
         // =====================================================================

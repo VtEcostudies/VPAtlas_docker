@@ -25,10 +25,9 @@
         <div class="explore-row1">
             <span class="header-logo-link">
                 <a href="https://val.vtecostudies.org/projects/vermont-vernal-pool-atlas/" target="_blank" rel="noopener" title="Vermont Center for Ecostudies — Vernal Pool Atlas">
-                    <picture>
-                        <source media="(max-width: 419px)" srcset="/images/vce_logo_abbrev.png">
-                        <img src="/images/vce_logo_no_tagline.png" alt="VCE" class="header-vce-logo">
-                    </picture>
+                    <img src="/images/vce_logo_no_tagline.png" alt="VCE" class="header-vce-logo">
+                    <img src="/images/vce_logo_abbrev.png" alt="" class="header-vce-icon" aria-hidden="true">
+                    <span class="header-vce-text" aria-hidden="true">VCE</span>
                 </a>
                 <a id="logo_link" href="/explore/" class="header-app-stack" style="text-decoration:none;">
                     <span class="header-name light-foreground header-app-name">VPAtlas</span>
@@ -79,10 +78,13 @@
             <!-- Zoom toolbar — same pattern as Pool Finder -->
             <div class="pf-zoom-bar">
                 <button class="pf-zoom-btn" id="map_zoom_btn" title="Zoom to filtered pools">
-                    <i class="fa fa-crosshairs"></i>
+                    <i class="fa fa-crosshairs"></i><i class="fa fa-tint" aria-hidden="true"></i>
                 </button>
                 <button class="pf-zoom-btn" id="map_gps_btn" title="Zoom to my location">
-                    <i class="fa fa-crosshairs"></i><span>GPS</span>
+                    <i class="fa fa-crosshairs"></i><i class="fa fa-user" aria-hidden="true"></i>
+                </button>
+                <button class="pf-zoom-btn" id="map_both_btn" title="Zoom to pools and my location" style="display:none;">
+                    <i class="fa fa-crosshairs"></i><span class="zoom-both-icons" aria-hidden="true"><i class="fa fa-tint"></i><i class="fa fa-user"></i></span>
                 </button>
             </div>
         </div>
@@ -126,7 +128,7 @@
     <!-- Main app entry point -->
     <script type="module">
         import { initPoolList, loadPools, refreshPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId } from './js/pool_list.js';
-        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible, wireGpsButton } from './js/map.js';
+        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible, wireGpsButton, wireBothButton } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
         import { showWait, hideWait } from './js/utils.js';
@@ -180,9 +182,10 @@
             masterRows = await loadPools(onDataRefresh);
             refreshUI();
 
-            // Wire map zoom button
+            // Wire map zoom buttons
             document.getElementById('map_zoom_btn').addEventListener('click', zoomToFilteredPools);
             wireGpsButton(document.getElementById('map_gps_btn'));
+            wireBothButton(document.getElementById('map_both_btn'));
 
             // Map layer toggles → re-filter list + summary (map already updated its own markers)
             document.addEventListener('map:layer-filter', () => {
@@ -406,10 +409,33 @@
                 filtered = filtered.filter(rowHasIndicator);
             }
 
+            // "Near me" radius filter — keep rows within nearMeKm km of nearMeOrigin
+            if (filters.nearMeKm > 0 && filters.nearMeOrigin) {
+                let { lat: oLat, lng: oLng } = filters.nearMeOrigin;
+                let radiusM = filters.nearMeKm * 1000;
+                filtered = filtered.filter(r => {
+                    let lat = parseFloat(r.latitude ?? r.mappedLatitude);
+                    let lng = parseFloat(r.longitude ?? r.mappedLongitude);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+                    return haversineMeters(oLat, oLng, lat, lng) <= radiusM;
+                });
+            }
+
             // Data type (Mine, Review)
             filtered = filterRowsByDataType(filtered, currentUser);
 
             return filtered;
+        }
+
+        // Great-circle distance in meters. Used by the "Near me" filter.
+        function haversineMeters(lat1, lng1, lat2, lng2) {
+            const R = 6371000;
+            const toRad = (d) => d * Math.PI / 180;
+            let dLat = toRad(lat2 - lat1);
+            let dLng = toRad(lng2 - lng1);
+            let a = Math.sin(dLat / 2) ** 2 +
+                    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+            return 2 * R * Math.asin(Math.sqrt(a));
         }
 
         // Apply map layer visibility (status + survey level) for list/summary rendering
@@ -586,7 +612,7 @@
             if (user) {
                 let counts = await getLocalVisitCount();
                 let badge = counts.total ? ` (${counts.total})` : '';
-                items.push({ label: `My Visits${badge}`, href: '/explore/visit_list.html', icon: 'fa-inbox' });
+                items.push({ label: `My Visits and Tracks${badge}`, href: '/explore/visit_list.html', icon: 'fa-inbox' });
                 items.push({ divider: true });
             }
             items.push({ label: 'Refresh Pool Data', icon: 'fa-rotate', action: async () => {

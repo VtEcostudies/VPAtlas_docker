@@ -14,11 +14,13 @@ router.get('/test', test); //send a test email to req.query.email
 //router.post('/test', test); //send a test email to req.query.email
 router.post('/verify', verify); //verify a valid reset token
 router.post('/confirm', confirm);
+router.post('/confirm_email', confirm_email);
 router.post('/new_email/:id', new_email);
 router.get('/columns', getColumns);
 router.get('/roles', getRoles);
 router.get('/', getAll);
 router.get('/page/:page', getPage);
+router.get('/:id/email_history', getEmailHistory);
 router.get('/:id', getById);
 router.put('/:id', update);
 router.delete('/:id', _delete);
@@ -150,6 +152,23 @@ function new_email(req, res, next) {
     }
     userService.new_email(req.params.id, req.body.email)
         .then(ret => res.json(ret))
+        .catch(err => next(err));
+}
+
+// Public route — JWT in body proves possession of the new email address.
+function confirm_email(req, res, next) {
+    console.log(`vpUser.routes.pg.js::confirm_email() | req.body:`, req.body);
+    userService.confirm_email(req.body.token)
+        .then(ret => res.json(ret))
+        .catch(err => next(err));
+}
+
+function getEmailHistory(req, res, next) {
+    if (req.user.role != 'admin' && req.user.sub != req.params.id) {
+        throw(`Requesting User is not authorized to GET another user's email history.`);
+    }
+    userService.getEmailHistory(req.params.id)
+        .then(rows => res.json(rows))
         .catch(err => next(err));
 }
 

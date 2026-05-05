@@ -21,6 +21,9 @@ export var filters = {
     townNames: [],                          // multi-select town names
     countyNames: [],                        // multi-select county names
     poolStatuses: [...DEFAULT_STATUSES],    // status checkboxes
+    hasIndicator: false,                    // require an indicator species
+    nearMeKm: 0,                            // 0 = off; otherwise client-side radius filter (km)
+    nearMeOrigin: null,                     // { lat, lng } — origin captured when toggle activates
     showFilters: false,                    // filter bar visibility
     page: 1,
     map_layers: { towns: false, counties: false, pools: true, baseLayer: 'Street Map' }
@@ -37,6 +40,10 @@ export function putUserState(fromUser=1, updates={}) {
     filters.townNames.forEach(t => params.append('town', t));
     filters.countyNames.forEach(c => params.append('county', c));
     if (filters.poolStatuses.length < 5) params.set('status', filters.poolStatuses.join(','));
+    if (filters.nearMeKm > 0 && filters.nearMeOrigin) {
+        params.set('nearMeKm', String(filters.nearMeKm));
+        params.set('nearMeOrigin', `${filters.nearMeOrigin.lat.toFixed(6)},${filters.nearMeOrigin.lng.toFixed(6)}`);
+    }
 
     var href = window.location.origin + window.location.pathname;
     var paramStr = params.toString();
@@ -55,6 +62,14 @@ export function loadFromUrl() {
     if (p.getAll('town').length) filters.townNames = p.getAll('town');
     if (p.getAll('county').length) filters.countyNames = p.getAll('county');
     if (p.get('status')) filters.poolStatuses = p.get('status').split(',');
+    if (p.get('nearMeKm') && p.get('nearMeOrigin')) {
+        let km = parseFloat(p.get('nearMeKm'));
+        let parts = p.get('nearMeOrigin').split(',').map(parseFloat);
+        if (km > 0 && parts.length === 2 && parts.every(Number.isFinite)) {
+            filters.nearMeKm = km;
+            filters.nearMeOrigin = { lat: parts[0], lng: parts[1] };
+        }
+    }
     return filters;
 }
 

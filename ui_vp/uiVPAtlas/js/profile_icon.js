@@ -64,7 +64,7 @@ export async function setupProfileIcon(containerId = 'profile_container') {
                 </div>`,
                 [
                     { text: '\u{1F464} My Profile', value: 'profile' },
-                    { text: '\u{1F4E5} My Visits', value: 'visits' },
+                    { text: '\u{1F4E5} My Visits and Tracks', value: 'visits' },
                     { text: '\u{1F6AA} Sign Out', value: 'signout' },
                 ]
             );

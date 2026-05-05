@@ -163,6 +163,22 @@ label.pool-legend-toggle:hover {
 .pf-zoom-btn i { font-size: 18px; }
 .pf-zoom-btn:hover, .pf-zoom-btn:active { background: #e8f5e9; }
 
+/* Standard zoom-button labeling, consistent across PoolFinder, Explore,
+   and all map detail views:
+     crosshair + fa-tint            → zoom to selected/visible pool(s)
+     crosshair + fa-user            → zoom to my GPS location
+     crosshair + .zoom-both-icons   → zoom to both pools and GPS
+   The "both" icon nests fa-tint and fa-user inside a small circle so the
+   button visually communicates that it encompasses both targets. */
+.zoom-both-icons {
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 2px 5px;
+    border: 1.5px solid currentColor;
+    border-radius: 9999px;
+    line-height: 1;
+}
+.pf-zoom-btn .zoom-both-icons i { font-size: 12px; }
+
 /* GPS button state colors */
 .pf-zoom-btn.gps-acquiring { color: #f39c12; animation: gps-pulse 1.5s infinite; }
 .pf-zoom-btn.gps-tracking { color: #27ae60; }
@@ -170,4 +186,28 @@ label.pool-legend-toggle:hover {
 @keyframes gps-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
+}
+
+/* Combined tooltip — surfaces info from every overlapping layer under the
+   cursor in a single panel. Each row corresponds to one layer's tooltip
+   content. See wireCombinedTooltip in /js/map_common.js. */
+.combined-tooltip {
+    background: white;
+    border: 1px solid #888;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #222;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+    max-width: 280px;
+    white-space: normal;
+}
+.combined-tooltip > div {
+    padding: 2px 0;
+}
+.combined-tooltip > div + div {
+    border-top: 1px solid #eee;
+    margin-top: 2px;
+    padding-top: 4px;
 }

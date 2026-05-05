@@ -193,3 +193,13 @@ export async function fetchParcelByTownName(townName) { return fetchApiRoute(`pa
 // AWS S3
 // =============================================================================
 export async function fetchS3Info(bucketName) { return fetchApiRoute(`aws/s3/${bucketName}`); }
+
+// =============================================================================
+// Tracks (GPS breadcrumb tracks recorded in PoolFinder)
+// scope=all returns every user's tracks (admin only); default is the
+// caller's own tracks.
+// =============================================================================
+export async function fetchTracks(searchTerm) { return fetchApiRoute('tracks', searchTerm); }
+export async function fetchTrackById(id) { return fetchApiRoute(`tracks/${id}`); }
+export async function createTrack(body) { return postApiRoute('tracks', body); }
+export async function deleteTrack(id) { return deleteApiRoute(`tracks/${id}`); }

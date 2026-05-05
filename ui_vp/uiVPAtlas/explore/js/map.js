@@ -5,7 +5,7 @@
     Pool markers rendered on Canvas for performance (13.5K+ markers).
 */
 import {
-    createBaseLayers, loadBoundaryOverlays, addBoundaryOverlays,
+    createBaseLayers, loadBoundaryOverlays, addBoundaryOverlays, wireCombinedTooltip,
     getPoolColor, getSurveyLevel,
     poolTooltipText, poolPopupHtml,
     stateBounds
@@ -159,6 +159,10 @@ export async function initMap(opts = {}) {
         mapEl.classList.toggle('map-narrow', mapEl.clientWidth < 600);
     }
 
+    // Combined tooltip: when 2+ markers/boundaries overlap under the cursor,
+    // show a single panel listing all of them rather than just the topmost.
+    wireCombinedTooltip(map);
+
     mapReadyResolve(map);
     return map;
 }
@@ -249,6 +253,9 @@ function onZoomResizeMarkers() {
 // GPS — "zoom to my location" — first click starts tracking, subsequent
 // clicks recenter on the current fix. Wired up by index.html via wireGpsButton().
 // =============================================================================
+// Tracks "both" button so we can show/hide it as GPS state changes.
+let bothBtnRef = null;
+
 export function wireGpsButton(btn) {
     if (!btn) return;
     btn.addEventListener('click', () => {
@@ -266,6 +273,7 @@ export function wireGpsButton(btn) {
                     btn.classList.add('gps-tracking');
                     btn.title = 'Recenter on my location';
                     map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 14));
+                    if (bothBtnRef) bothBtnRef.style.display = '';
                 }
             });
             gps.on('status', (s) => {
@@ -280,6 +288,25 @@ export function wireGpsButton(btn) {
         btn.classList.add('gps-acquiring');
         btn.title = 'Acquiring GPS…';
         gps.start();
+    });
+}
+
+// Zoom to fit both the filtered pool markers AND the user GPS marker.
+// The button stays hidden until GPS has a fix.
+export function wireBothButton(btn) {
+    if (!btn) return;
+    bothBtnRef = btn;
+    btn.style.display = (gps && gpsHasFix) ? '' : 'none';
+    btn.addEventListener('click', () => {
+        if (!map) return;
+        let layers = [];
+        // Visible pool markers (markers is the module-level dict of plotted circleMarkers)
+        Object.values(markers).forEach(m => layers.push(m));
+        if (userMarker) layers.push(userMarker);
+        if (!layers.length) return;
+        let group = L.featureGroup(layers);
+        let b = group.getBounds();
+        if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 16 });
     });
 }
 

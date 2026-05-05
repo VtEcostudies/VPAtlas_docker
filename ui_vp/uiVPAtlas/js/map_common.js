@@ -108,6 +108,138 @@ export function poolPopupHtml(row) {
     return html;
 }
 
+// =============================================================================
+// COMBINED TOOLTIP — shows one tooltip listing every map item under the cursor
+// =============================================================================
+// When the user hovers over a spot where 2+ items overlap (e.g. stacked pool
+// markers, or a marker on top of a county boundary), Leaflet's default
+// behavior surfaces only the topmost layer's tooltip. This helper replaces
+// that with a single tooltip enumerating all hits.
+//
+// Behavior:
+//   - 0 hits: no tooltip.
+//   - 1 hit:  let Leaflet's per-layer bindTooltip do its normal thing.
+//   - 2+ hits: close per-layer tooltips, show one combined tooltip.
+//
+// The function consults each layer's existing bindTooltip content so call
+// sites don't have to register tooltip text twice. It scans markers
+// (L.Marker, L.CircleMarker) and polygon GeoJSON layers (L.Polygon).
+//
+// Call once after the map is created and after baseline layers/markers are
+// added — new layers attached later participate automatically because we
+// iterate map.eachLayer on every mousemove.
+export function wireCombinedTooltip(map, options = {}) {
+    let tooltip = L.tooltip({
+        sticky: true,
+        direction: options.direction || 'top',
+        offset: options.offset || [0, -10],
+        opacity: 0.95,
+        className: 'combined-tooltip ' + (options.className || '')
+    });
+    let visible = false;
+    let lastFingerprint = '';
+
+    function tooltipContent(layer) {
+        let tt = layer.getTooltip && layer.getTooltip();
+        if (!tt) return '';
+        let c = tt._content;
+        if (typeof c === 'function') c = c(layer);
+        return c || '';
+    }
+
+    function markerHits(mousePoint) {
+        let hits = [];
+        map.eachLayer(l => {
+            if (!(l instanceof L.CircleMarker) && !(l instanceof L.Marker)) return;
+            if (!l.getTooltip || !l.getTooltip()) return;
+            // The user's GPS dot has no tooltip and is filtered above; defensive.
+            let mPt;
+            try { mPt = map.latLngToContainerPoint(l.getLatLng()); }
+            catch(_) { return; }
+            let r;
+            if (l instanceof L.CircleMarker) {
+                r = (l.getRadius() || 6) + 2;
+            } else if (l.options.icon && l.options.icon.options.iconSize) {
+                let s = l.options.icon.options.iconSize;
+                r = Math.max(s[0], s[1]) / 2;
+            } else {
+                r = 12;
+            }
+            if (Math.hypot(mPt.x - mousePoint.x, mPt.y - mousePoint.y) <= r) hits.push(l);
+        });
+        return hits;
+    }
+
+    function polygonHits(latlng) {
+        let hits = [];
+        map.eachLayer(l => {
+            // L.Polygon also covers L.Rectangle; we treat both the same.
+            if (!(l instanceof L.Polygon)) return;
+            if (!l.getTooltip || !l.getTooltip()) return;
+            let bounds;
+            try { bounds = l.getBounds(); } catch(_) { return; }
+            if (!bounds.contains(latlng)) return;
+            if (pointInPolygon(latlng, l.getLatLngs())) hits.push(l);
+        });
+        return hits;
+    }
+
+    // Recursive ray-casting that handles single rings, rings-with-holes, and
+    // multi-polygons (Leaflet returns nested arrays for those).
+    function pointInPolygon(latlng, latlngs) {
+        if (!latlngs || !latlngs.length) return false;
+        let first = latlngs[0];
+        // Multi-polygon: array of polygons (each is array of rings)
+        if (Array.isArray(first) && Array.isArray(first[0]) && Array.isArray(first[0][0])) {
+            return latlngs.some(poly => pointInPolygon(latlng, poly));
+        }
+        // Polygon-with-holes: array of rings. Hit if inside outer and outside any hole.
+        if (Array.isArray(first) && first[0] && first[0].lat !== undefined) {
+            let outer = first;
+            if (!raycast(latlng, outer)) return false;
+            for (let i = 1; i < latlngs.length; i++) {
+                if (raycast(latlng, latlngs[i])) return false; // inside a hole
+            }
+            return true;
+        }
+        // Plain ring: array of LatLng objects
+        return raycast(latlng, latlngs);
+    }
+
+    function raycast(latlng, ring) {
+        let inside = false;
+        let x = latlng.lng, y = latlng.lat;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            let xi = ring[i].lng, yi = ring[i].lat;
+            let xj = ring[j].lng, yj = ring[j].lat;
+            let intersect = ((yi > y) !== (yj > y)) &&
+                (x < (xj - xi) * (y - yi) / (yj - yi || 1e-12) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    function clear() {
+        if (visible) { map.closeTooltip(tooltip); visible = false; lastFingerprint = ''; }
+    }
+
+    map.on('mousemove', (e) => {
+        let hits = [...markerHits(e.containerPoint), ...polygonHits(e.latlng)];
+        if (hits.length < 2) { clear(); return; }
+        // Suppress per-layer tooltips so we don't double-display.
+        hits.forEach(l => l.closeTooltip && l.closeTooltip());
+        let fp = hits.map(l => L.Util.stamp(l)).sort().join(',');
+        if (fp !== lastFingerprint) {
+            tooltip.setContent(hits.map(l => `<div>${tooltipContent(l)}</div>`).join(''));
+            lastFingerprint = fp;
+        }
+        tooltip.setLatLng(e.latlng);
+        if (!visible) { tooltip.addTo(map); visible = true; }
+    });
+    map.on('mouseout', clear);
+    map.on('movestart zoomstart', clear);
+}
+
 // Create a marker with the standard pool shape/color (for single-pool detail pages)
 export function addPoolMarker(map, latlng, opts = {}) {
     let color = opts.color || getPoolColor(opts.status || 'Potential');

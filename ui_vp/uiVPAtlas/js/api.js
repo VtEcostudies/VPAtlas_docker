@@ -124,6 +124,9 @@ export async function fetchUsers(searchTerm) { return fetchApiRoute('users', sea
 export async function fetchUserById(id) { return fetchApiRoute(`users/${id}`); }
 export async function updateUser(id, body) { return putApiRoute(`users/${id}`, body); }
 export async function deleteUser(id) { return deleteApiRoute(`users/${id}`); }
+export async function requestEmailChange(id, body) { return postApiRoute(`users/new_email/${id}`, body); }
+export async function confirmEmailChange(body) { return postApiRoute('users/confirm_email', body); }
+export async function fetchEmailHistory(id) { return fetchApiRoute(`users/${id}/email_history`); }
 
 // =============================================================================
 // VT INFO (towns, counties)
@@ -219,3 +222,13 @@ export async function postSurveyS123Abort() { return postApiRoute('survey/s123/a
 // AWS S3
 // =============================================================================
 export async function fetchS3Info(bucketName) { return fetchApiRoute(`aws/s3/${bucketName}`); }
+
+// =============================================================================
+// Tracks (GPS breadcrumb tracks recorded in PoolFinder)
+// scope=all returns every user's tracks (admin only); default is the
+// caller's own tracks.
+// =============================================================================
+export async function fetchTracks(searchTerm) { return fetchApiRoute('tracks', searchTerm); }
+export async function fetchTrackById(id) { return fetchApiRoute(`tracks/${id}`); }
+export async function createTrack(body) { return postApiRoute('tracks', body); }
+export async function deleteTrack(id) { return deleteApiRoute(`tracks/${id}`); }

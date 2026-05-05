@@ -35,7 +35,7 @@ function reset(userMail, token, type='registration') {
     sub = 'VPAtlas Password Reset';
   }
   if (type == 'email') {
-    htm = `<a href=${uiFqdn}/explore/login.html?token=${token}&type=email>Confirm VPAtlas Email Change</a>`;
+    htm = `<a href=${uiFqdn}/explore/confirm_email.html?token=${token}>Confirm VPAtlas Email Change</a>`;
     sub = 'VPAtlas Email Change';
   }
   if (type == 'test') { //use 'token' to pass 'interval'

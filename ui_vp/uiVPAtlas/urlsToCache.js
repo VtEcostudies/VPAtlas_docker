@@ -18,6 +18,7 @@ appConfig.urlsToCache = [
 '/explore/register.html',
 '/explore/reset.html',
 '/explore/confirm_reset.html',
+'/explore/confirm_email.html',
 
 // === Survey pages ===
 '/survey/find_pool.html',
@@ -54,6 +55,7 @@ appConfig.urlsToCache = [
 
 // === Survey JS modules ===
 '/survey/js/gps_monitor.js',
+'/survey/js/track_recorder.js',
 
 // === GPS keep-alive silent audio (iOS Safari fallback) ===
 '/survey/silence.wav',

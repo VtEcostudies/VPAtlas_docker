@@ -1,0 +1,94 @@
+<!--
+    Backup of the "Verify" tab markup from ui_vp/uiVPAtlas/survey/visit_create.html
+    Saved on 2026-05-05 before reverting to the original (pre-014e25f) layout per
+    Design Review 2 decision (1:56:09): "first page restored to its original format
+    so field testing can proceed while F&W review is pending."
+
+    The version below was introduced in commit 014e25f (2026-04-15, "changes from
+    design review feedback") and was the form Kevin field-tested in early May.
+    Restore it here when F&W review concludes and the redesigned fields are
+    re-applied (with the further Tier-3 changes from Design Review 2).
+-->
+
+            <!-- VERIFY TAB -->
+            <div class="visit-tab" id="tab_verify">
+                <div class="form-section">
+                    <div class="form-section-title">Field Characteristics</div>
+                    <span class="help-label" onclick="showHelp('basin-type')">Basin Type (select all that apply)</span>
+                    <div class="choice-group">
+                        <label><input type="checkbox" class="visitPoolType" value="Isolated Forest Depression"> Forest Depression</label>
+                        <label><input type="checkbox" class="visitPoolType" value="Floodplain Depression"> Floodplain</label>
+                        <label><input type="checkbox" class="visitPoolType" value="Artificial"> Artificial</label>
+                        <label><input type="checkbox" class="visitPoolType" value="River Outcrop"> River Outcrop</label>
+                        <label><input type="checkbox" class="visitPoolType" value="Other"> Other</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is water flowing in? (Inlet)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitInletType" value="Yes"> Yes</label>
+                        <label><input type="radio" name="visitInletType" value="No"> No</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is water flowing out? (Outlet)</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitOutletType" value="Yes"> Yes</label>
+                        <label><input type="radio" name="visitOutletType" value="No"> No</label>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Surrounding Habitat</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest/Upland Type</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitForestUpland" value="Open/Field"> Open/Field</label>
+                        <label><input type="radio" name="visitForestUpland" value="New Growth"> New Growth</label>
+                        <label><input type="radio" name="visitForestUpland" value="Forest"> Forest</label>
+                        <label><input type="radio" name="visitForestUpland" value="Other"> Other</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest Condition</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitForestCondition" value="Uncut"> Uncut</label>
+                        <label><input type="radio" name="visitForestCondition" value="Fresh Stumps"> Fresh Stumps</label>
+                        <label><input type="radio" name="visitForestCondition" value="Rotten Stumps"> Rotten Stumps</label>
+                        <label><input type="radio" name="visitForestCondition" value="Other"> Other</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Adjacent Land Use (select all that apply)</label>
+                    <div class="choice-group">
+                        <label><input type="checkbox" id="visitHabitatDirtRd"> Dirt Roads</label>
+                        <label><input type="checkbox" id="visitHabitatTrails"> Trails</label>
+                        <label><input type="checkbox" id="visitHabitatOther"> Other</label>
+                    </div>
+                    <div class="form-field" style="margin-top:6px;">
+                        <span class="help-label" onclick="showHelp('voice')">Habitat Comments</span> <button type="button" class="voice-btn" data-target="visitHabitatComment" title="Voice input"><i class="fa fa-microphone"></i></button>
+                        <textarea id="visitHabitatComment" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+
+<!--
+    Companion JS notes (relevant snippets from visit_create.html as of 2026-05-05):
+
+    Load (lines ~1860-1869): visitPoolType handled as JSON-array of class-checkboxes.
+        if (v.visitPoolType) {
+            let types = v.visitPoolType;
+            try { types = JSON.parse(types); } catch(e) { types = [types]; }
+            if (!Array.isArray(types)) types = [types];
+            types.forEach(t => {
+                let cb = document.querySelector(`.visitPoolType[value="${t}"]`);
+                if (cb) cb.checked = true;
+            });
+        }
+
+    Save (lines ~1949-1951):
+        let poolTypes = [...document.querySelectorAll('.visitPoolType:checked')].map(cb => cb.value);
+        if (poolTypes.length) body.visitPoolType = JSON.stringify(poolTypes);
+
+    Habitat-checkbox list (lines ~1842-1844, 1934-1936):
+        ['visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
+         'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
+         'visitHabitatTrails']
+
+    visitHabitatOther (line 1851, 1940-1941): treated as text — checked = "Yes" string,
+    unchecked = null. Original markup did not include this checkbox.
+
+    The redesign also DROPPED visitVernalPool (Yes/No/Don't Know radio) and the original
+    "Pool Type" 4-option radio with "Manmade". Both should be restored when this revert
+    is applied.
+-->

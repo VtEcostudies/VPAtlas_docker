@@ -52,6 +52,7 @@ try {
   app.use('/survey', require('./vpSurvey/vpSurvey.routes'));
   app.use('/aws/s3', require('./vpUtil/vp_s3_info.routes'));
   app.use('/parcel', require('./vcgiMapData/vcgiParcel.routes'));
+  app.use('/tracks', require('./vpTrack/vpTrack.routes'));
   app.use('/utils', require('./vpUtil/vpUtils.routes'));
 } catch(err) {
   console.log('attempt to open db failed |', err);

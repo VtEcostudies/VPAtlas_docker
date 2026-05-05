@@ -753,12 +753,12 @@
                 <div id="map" style="position:relative;"></div>
                 <div id="btn_zoom_pool" title="Zoom to pool" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;
                     background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
-                    width:40px; height:40px; align-items:center; justify-content:center;
-                    cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
-                    <i class="fa fa-crosshairs"></i>
+                    height:40px; padding:0 10px; align-items:center; gap:4px; justify-content:center;
+                    cursor:pointer; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
+                    <i class="fa fa-crosshairs" style="font-size:18px;"></i><i class="fa fa-tint" style="font-size:18px;" aria-hidden="true"></i>
                 </div>
-                <button id="btn_use_gps" class="pf-zoom-btn" style="display:none; position:absolute; top:10px; left:56px; z-index:1000;" title="Set visit location to my GPS position">
-                    <i class="fa fa-crosshairs"></i><span>Use GPS</span>
+                <button id="btn_use_gps" class="pf-zoom-btn" style="display:none; position:absolute; top:10px; left:96px; z-index:1000;" title="Set visit location to my GPS position">
+                    <i class="fa fa-crosshairs"></i><i class="fa fa-user" aria-hidden="true"></i>
                 </button>
                 <div class="map-instruction" id="map_instruction">Tap the map to set pool location, or click the "Use GPS" button.</div>
             </div>
@@ -801,47 +801,55 @@
             <!-- VERIFY TAB -->
             <div class="visit-tab" id="tab_verify">
                 <div class="form-section">
-                    <div class="form-section-title">Field Characteristics</div>
-                    <span class="help-label" onclick="showHelp('basin-type')">Basin Type (select all that apply)</span>
+                    <div class="form-section-title">Field Verification</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is this a Vernal Pool?</label>
                     <div class="choice-group">
-                        <label><input type="checkbox" class="visitPoolType" value="Isolated Forest Depression"> Forest Depression</label>
-                        <label><input type="checkbox" class="visitPoolType" value="Floodplain Depression"> Floodplain</label>
-                        <label><input type="checkbox" class="visitPoolType" value="Artificial"> Artificial</label>
-                        <label><input type="checkbox" class="visitPoolType" value="River Outcrop"> River Outcrop</label>
-                        <label><input type="checkbox" class="visitPoolType" value="Other"> Other</label>
+                        <label><input type="radio" name="visitVernalPool" value="Yes"> Yes</label>
+                        <label><input type="radio" name="visitVernalPool" value="No"> No</label>
+                        <label><input type="radio" name="visitVernalPool" value="Don't Know"> Don't Know</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is water flowing in? (Inlet)</label>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Pool Type</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitInletType" value="Yes"> Yes</label>
-                        <label><input type="radio" name="visitInletType" value="No"> No</label>
+                        <label><input type="radio" name="visitPoolType" value="Isolated Forest Depression"> Forest Depression</label>
+                        <label><input type="radio" name="visitPoolType" value="Floodplain Depression"> Floodplain</label>
+                        <label><input type="radio" name="visitPoolType" value="Manmade"> Manmade</label>
+                        <label><input type="radio" name="visitPoolType" value="Other"> Other</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Is water flowing out? (Outlet)</label>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Inlet</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitOutletType" value="Yes"> Yes</label>
-                        <label><input type="radio" name="visitOutletType" value="No"> No</label>
+                        <label><input type="radio" name="visitInletType" value="No Inlet"> None</label>
+                        <label><input type="radio" name="visitInletType" value="Ephemeral"> Ephemeral</label>
+                        <label><input type="radio" name="visitInletType" value="Permanent"> Permanent</label>
+                    </div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Outlet</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="visitOutletType" value="No Outlet"> None</label>
+                        <label><input type="radio" name="visitOutletType" value="Ephemeral"> Ephemeral</label>
+                        <label><input type="radio" name="visitOutletType" value="Permanent"> Permanent</label>
                     </div>
                 </div>
                 <div class="form-section">
                     <div class="form-section-title">Surrounding Habitat</div>
                     <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest/Upland Type</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitForestUpland" value="Open/Field"> Open/Field</label>
-                        <label><input type="radio" name="visitForestUpland" value="New Growth"> New Growth</label>
-                        <label><input type="radio" name="visitForestUpland" value="Forest"> Forest</label>
-                        <label><input type="radio" name="visitForestUpland" value="Other"> Other</label>
+                        <label><input type="radio" name="visitForestUpland" value="Hardwood"> Hardwood</label>
+                        <label><input type="radio" name="visitForestUpland" value="Softwood"> Softwood</label>
+                        <label><input type="radio" name="visitForestUpland" value="Mixed"> Mixed</label>
                     </div>
                     <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Forest Condition</label>
                     <div class="choice-group">
-                        <label><input type="radio" name="visitForestCondition" value="Uncut"> Uncut</label>
-                        <label><input type="radio" name="visitForestCondition" value="Fresh Stumps"> Fresh Stumps</label>
-                        <label><input type="radio" name="visitForestCondition" value="Rotten Stumps"> Rotten Stumps</label>
-                        <label><input type="radio" name="visitForestCondition" value="Other"> Other</label>
+                        <label><input type="radio" name="visitForestCondition" value="Undisturbed"> Undisturbed</label>
+                        <label><input type="radio" name="visitForestCondition" value="Recently Logged"> Logged</label>
+                        <label><input type="radio" name="visitForestCondition" value="Old Growth"> Old Growth</label>
                     </div>
-                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Adjacent Land Use (select all that apply)</label>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Adjacent Land Use</label>
                     <div class="choice-group">
-                        <label><input type="checkbox" id="visitHabitatDirtRd"> Dirt Roads</label>
-                        <label><input type="checkbox" id="visitHabitatTrails"> Trails</label>
-                        <label><input type="checkbox" id="visitHabitatOther"> Other</label>
+                        <label><input type="checkbox" id="visitHabitatAgriculture"> Agriculture</label>
+                        <label><input type="checkbox" id="visitHabitatLightDev"> Light Dev</label>
+                        <label><input type="checkbox" id="visitHabitatHeavyDev"> Heavy Dev</label>
+                        <label><input type="checkbox" id="visitHabitatPavedRd"> Paved Road</label>
+                        <label><input type="checkbox" id="visitHabitatDirtRd"> Dirt Road</label>
+                        <label><input type="checkbox" id="visitHabitatPowerline"> Powerline</label>
                     </div>
                     <div class="form-field" style="margin-top:6px;">
                         <span class="help-label" onclick="showHelp('voice')">Habitat Comments</span> <button type="button" class="voice-btn" data-target="visitHabitatComment" title="Voice input"><i class="fa fa-microphone"></i></button>
@@ -873,7 +881,7 @@
                     <span class="help-label" onclick="showHelp('hydroperiod')">Hydroperiod</span>
                     <div class="choice-group">
                         <label><input type="radio" name="visitHydroPeriod" value="Dries annually"> Dries annually</label>
-                        <label><input type="radio" name="visitHydroPeriod" value="Dries every 5 years"> Dries every 5 yrs</label>
+                        <label><input type="radio" name="visitHydroPeriod" value="Dries some years"> Dries some years</label>
                         <label><input type="radio" name="visitHydroPeriod" value="Never dries"> Never dries</label>
                     </div>
                     <div class="form-row">
@@ -1240,7 +1248,7 @@
         import { fetchVisitById, fetchMappedPoolById, fetchMappedPoolGeoJson, createVisit, createPoolAndVisit, updateVisit } from '/js/api.js';
         import { getPoolById } from '/js/pool_data_cache.js';
         import { requireAuth, getUser } from '/js/auth.js';
-        import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText } from '/js/map_common.js';
+        import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText, wireCombinedTooltip } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { saveVisit, loadVisit, createVisitState } from './js/visit_store.js';
         import { syncVisit } from './js/visit_sync.js';
@@ -1409,17 +1417,17 @@
 
             // Init map
             map = await createMap('map', { center: [43.858297, -72.446594], zoom: 8 });
+            wireCombinedTooltip(map);
 
-            // Set visit location (used by map click, pool marker click, GPS)
+            // Set visit location (used by map click, pool marker click, GPS).
+            // Uses Leaflet's default pin so the user-placed point reads as a
+            // distinct, draggable-looking marker — not a styled status dot.
             function setVisitLocation(lat, lng, label) {
                 document.getElementById('visitLatitude').value = lat.toFixed(6);
                 document.getElementById('visitLongitude').value = lng.toFixed(6);
                 if (marker) map.removeLayer(marker);
-                marker = L.circleMarker([lat, lng], {
-                    radius: 10, fillColor: '#c44100', color: 'white',
-                    weight: 3, fillOpacity: 1, zIndexOffset: 1000
-                }).addTo(map);
-                marker.bindTooltip(label || 'Visit location', { direction: 'top', offset: [0, -10] });
+                marker = L.marker([lat, lng], { zIndexOffset: 1000 }).addTo(map);
+                marker.bindTooltip(label || 'Visit location', { direction: 'top', offset: [0, -36] });
                 let instr = document.getElementById('map_instruction');
                 if (instr) { instr.textContent = label || 'Visit location set'; instr.style.display = 'block'; }
             }
@@ -1537,8 +1545,18 @@
                     // Load all existing pools on the map for orientation
                     loadAllPoolsOnMap(map);
 
-                    // Offer GPS location if available
-                    initGps(true);  // centerOnFix=true for new pool flow
+                    // If lat/lng came from a long-press on the PoolFinder map,
+                    // pre-set the visit location to the dropped pin and skip
+                    // the GPS auto-center. Otherwise fall back to GPS.
+                    let presetLat = parseFloat(params.get('lat'));
+                    let presetLng = parseFloat(params.get('lng'));
+                    if (!isNaN(presetLat) && !isNaN(presetLng)) {
+                        setVisitLocation(presetLat, presetLng, 'Location set from dropped pin');
+                        map.setView([presetLat, presetLng], 17);
+                        initGps(false);
+                    } else {
+                        initGps(true);  // centerOnFix=true for new pool flow
+                    }
                 }
             }
 
@@ -1841,14 +1859,11 @@
             ['visitLandownerPermission',
              'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitHabitatTrails',
              'visitFish'
             ].forEach(f => {
                 let el = document.getElementById(f);
                 if (el && v[f]) el.checked = true;
             });
-            // "Other" is a text column — check if non-empty
-            if (v.visitHabitatOther) document.getElementById('visitHabitatOther').checked = true;
             // Landowner info (JSONB)
             if (v.visitLandowner && typeof v.visitLandowner === 'object') {
                 let lo = v.visitLandowner;
@@ -1857,27 +1872,22 @@
                 if (lo.visitLandownerPhone) document.getElementById('visitLandownerPhone').value = lo.visitLandownerPhone;
                 if (lo.visitLandownerEmail) document.getElementById('visitLandownerEmail').value = lo.visitLandownerEmail;
             }
-            // Pool type multi-select checkboxes
-            if (v.visitPoolType) {
-                let types = v.visitPoolType;
-                try { types = JSON.parse(types); } catch(e) { types = [types]; }
-                if (!Array.isArray(types)) types = [types];
-                types.forEach(t => {
-                    let cb = document.querySelector(`.visitPoolType[value="${t}"]`);
-                    if (cb) cb.checked = true;
-                });
-            }
             // Radio groups
-            ['visitLocatePool',
+            // visitPoolType may have been stored as a JSON array by the redesigned form;
+            // fall back to the first array element when loading into the original radio.
+            ['visitLocatePool','visitVernalPool','visitPoolType',
              'visitInletType','visitOutletType','visitMaxDepth',
              'visitWaterLevelObs','visitHydroPeriod',
              'visitForestUpland','visitForestCondition',
              'visitSubmergedVeg','visitPoolFloatingVeg','visitPoolEmergents','visitPoolShrubs','visitPoolTrees'
             ].forEach(f => {
-                if (v[f] && v[f] !== 'None') {
-                    let radio = document.querySelector(`input[name="${f}"][value="${v[f]}"]`);
-                    if (radio) radio.checked = true;
+                let val = v[f];
+                if (!val || val === 'None') return;
+                if (f === 'visitPoolType' && typeof val === 'string' && val.trim().startsWith('[')) {
+                    try { let arr = JSON.parse(val); val = Array.isArray(arr) && arr.length ? arr[0] : val; } catch(e) {}
                 }
+                let radio = document.querySelector(`input[name="${f}"][value="${val}"]`);
+                if (radio) radio.checked = true;
             });
             // Substrate multi-select
             if (v.visitSubstrate) {
@@ -1933,12 +1943,8 @@
             ['visitLandownerPermission',
              'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitHabitatTrails',
              'visitFish'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.checked; });
-            // "Other" is text in DB — store "Yes" if checked, null if not
-            let otherCb = document.getElementById('visitHabitatOther');
-            if (otherCb) body.visitHabitatOther = otherCb.checked ? 'Yes' : null;
             // Landowner info as JSONB
             body.visitLandowner = {
                 visitLandownerName: document.getElementById('visitLandownerName').value || '',
@@ -1946,10 +1952,7 @@
                 visitLandownerPhone: document.getElementById('visitLandownerPhone').value || '',
                 visitLandownerEmail: document.getElementById('visitLandownerEmail').value || ''
             };
-            // Pool type as JSON array
-            let poolTypes = [...document.querySelectorAll('.visitPoolType:checked')].map(cb => cb.value);
-            if (poolTypes.length) body.visitPoolType = JSON.stringify(poolTypes);
-            ['visitLocatePool',
+            ['visitLocatePool','visitVernalPool','visitPoolType',
              'visitInletType','visitOutletType','visitMaxDepth',
              'visitWaterLevelObs','visitHydroPeriod',
              'visitForestUpland','visitForestCondition',
@@ -2309,7 +2312,7 @@
                         <p>You are making a judgment call here, and that's expected. Use what you can see now plus any past experience with this pool:</p>
                         <ul style="margin:6px 0 6px 16px; font-size:14px;">
                             <li><strong>Dries annually</strong> &mdash; the pool dries up every year, typically by mid-to-late summer. Look for: shallow basin, no fish, thick leaf litter on the bottom, no emergent vegetation rooted in the center. This is the classic vernal pool pattern.</li>
-                            <li><strong>Dries every 5 years</strong> &mdash; holds water most years but occasionally dries in drought years. Deeper basin, may have some aquatic vegetation, but unlikely to support permanent fish populations.</li>
+                            <li><strong>Dries some years</strong> &mdash; holds water most years but occasionally dries in drought years. Deeper basin, may have some aquatic vegetation, but unlikely to support permanent fish populations.</li>
                             <li><strong>Never dries</strong> &mdash; a permanent water body. Deep basin, established aquatic vegetation, likely supports fish. Standing water is present year-round even in severe drought.</li>
                         </ul>
                     </div>

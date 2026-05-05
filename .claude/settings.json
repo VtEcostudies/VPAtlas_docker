@@ -32,7 +32,19 @@
       "Bash(docker exec db_vp psql -U postgres -d vpatlas -c *)",
       "Bash(docker exec api_vp *)",
       "Bash(docker exec ui_vp *)",
-      "Bash(docker logs *)"
+      "Bash(docker logs *)",
+
+      "Bash(curl -s* http://localhost:4010/*)",
+      "Bash(curl -s* 'http://localhost:4010/*)",
+      "Bash(curl -s* \"http://localhost:4010/*)",
+      "Bash(curl -s* http://localhost:8090/*)",
+      "Bash(curl -s* 'http://localhost:8090/*)",
+      "Bash(curl -s* \"http://localhost:8090/*)",
+
+      "Bash(convert -version*)",
+      "Bash(magick -version*)",
+
+      "Bash(for f in /home/jloomis/VPAtlas/VPAtlas_docker/*; do echo *grep*)"
     ]
   }
 }

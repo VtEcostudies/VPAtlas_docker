@@ -1,0 +1,110 @@
+﻿Meeting: VPAtlas v3 Design Review 2 | AI Notes by Fellow
+Summary
+Jason and Kevin conducted an extensive VPAtlas v3 design review following field testing of the mobile application for vernal pool surveying. The discussion covered navigation features, data collection forms, and numerous UI/UX improvements based on real-world usage. Key decisions included implementing an optional compass view (toggle between simple arrow and full compass rose), using icon-based navigation buttons for better mobile usability, and revising the hydroperiod classification to three clearer categories. The team identified several bugs requiring fixes, including monitor visit photo loading issues and registration failures, while also discussing form field modifications such as converting inlet/outlet questions to checkboxes with four options and combining forest/land use categories.
+Additionally, the team addressed offline functionality, map layer preferences (setting Google Satellite Plus as default), and administrative needs like a transmogrify feature for correcting misclassified pool submissions. Kevin will consult with Fish and Wildlife staff about data sheet flexibility, as the team balances maintaining 25-year data continuity with making surveys more accessible to less experienced volunteers. The discussion revealed tension between requiring baseline navigation knowledge versus maximizing accessibility for broader community scientist participation.
+Action items
+* Kevin Tolan: Test adding a new pool using the mobile app when back home 20:10
+* Kevin Tolan: Ask Fish and Wildlife staff about the data sheet questions and their flexibility on changes during upcoming meetings next week. 1:30:45
+* Kevin Tolan: Send additional photos showing different life stages of spotted salamander egg masses (including milky white and greenish specimens with algae). 1:53:27
+* : Jason Loomis to add Google Satellite Plus as a map layer option to VPAtlas and set it as the default base map. 2:12:18
+* : Jason Loomis to fix the bug preventing monitor visit photos from loading in the new VPAtlas app. 2:22:00
+* : Jason Loomis to fix the registration bug on the dev site that's preventing new users from creating accounts. 2:31:33
+Decisions
+* The pool finder will be limited to one pool at a time for navigation, rather than allowing multiple simultaneous pool navigation. 21:53
+* The monitored pool filter will be removed from the mobile app to reduce confusion, as it's not needed for atlas data entry and creates complications with the visited/monitored distinction. 17:35
+* Track recording will be saved per-user without implementing track sharing functionality between users. 25:06
+* VCE abbreviation with the bird logo will be used for the mobile version instead of the full 'VP Center for Ecostudies' name. 33:50
+* Optional compass view will be implemented, allowing users to toggle between a simple green arrow and a full compass rose. 53:17
+* Multi-pool navigation will be simplified to navigate to one pool at a time rather than allowing multiple pool selection. 54:19
+* The arrow will be removed from the bottom navigation element while keeping distance and other information. 54:59
+* The 'Add Visit' button will change to bright green when the user is within 50 meters of a pool to signal proximity. 1:05:47
+* A confirmation popup will appear when users click on a different pool during navigation to prevent accidentally creating multiple targets. 1:09:16
+* A 'transmogrify' button will be added to convert new pool submissions into visits for existing pools when duplicates are discovered. 1:09:56
+* The three navigation buttons will use icons instead of text: a pool icon (or water drop), a person icon for GPS location, and a circle encompassing both for the combined view. 1:13:10
+* Inlet and outlet questions will be changed to checkboxes with four options: flowing inlet, dry inlet, flowing outlet, and dry outlet. 1:22:00
+* Forest upland type and adjacent land use categories will be combined into a single section, with forest condition remaining separate. 1:25:51
+* The hydroperiod classification will use three categories: 'dries every year', 'dries some years', and 'never dries' (replacing the previous ephemeral/semi-permanent/permanent terminology). 1:37:22
+* Help text will clarify that most vernal pools dry annually, to be added either as a comment or in the help guide. 1:38:07
+* Pool size increment/decrement buttons will adjust by 5-foot intervals (not 10) to balance precision with usability on mobile devices. 1:39:07
+* The vegetation section title will be changed to 'vegetative cover' or 'percent of pool covered in vegetation' to clarify it measures pool area coverage. 1:42:05
+* The 'trees canopy cover' field will be retitled to simply 'canopy cover' to match the format of other pool-based measurements. 1:43:08
+* Canopy cover measurements will be assessed at the time of visit (not estimated for full leaf-out conditions), with clarifying language added to the help text. 1:44:22
+* The 'pool characteristics comments' field will be renamed to 'additional comments' to better indicate its purpose. 1:48:53
+* The identification sheet will be revised to remove the full adult salamander section and replace it with content differentiating salamander from frog eggs and more information about egg identification. 1:55:09
+* The first page of the questionnaire will be restored to its original format (reverting recent changes) so field testing can proceed while F&W review is pending. 1:56:09
+* The VPAtlas app icon will be updated to use the Vermont state outline with spotted salamander design (replacing the current placeholder icon). 2:06:38
+* Lidar data will be used for pool boundaries rather than requiring volunteers to walk and map the periphery of each vernal pool. 2:07:47
+* Google Satellite Plus will become the default map layer for VPAtlas, as it's the most commonly used view by volunteers. 2:12:23
+* Observer identification is locked to the logged-in user when entering visit data - users cannot change who the observer is for their own submissions. 2:17:39
+Topics
+Navigation system design
+* The compass functionality is working in the field, with Kevin successfully using it to navigate. The team discussed whether to implement direction-up vs north-up map orientation, noting that most GPS units use direction-up for easier navigation. 02:16
+* A 1km circle (500 meter radius) was added to show nearby pools when using the pool finder, centered on the user's GPS location to help identify other pools in the vicinity. 07:07
+* GPS location functionality was added to the main explorer map to help users find pools near them, addressing the challenge of losing pre-selected pools when in the field. 11:40
+* The pool finder proved critical for woods navigation during field testing, with Jason noting he would have gotten frustrated without the directional guidance when encountering obstacles like impassable shrubbery. 21:27
+* Kevin expressed concern that the compass rose with cardinal directions is confusing and suggested using just a simple arrow instead, arguing it's more intuitive for users unfamiliar with GPS navigation. 30:49
+* They agreed to implement both options - a simple green arrow view and a compass rose view that users can toggle between by clicking on the compass element. 53:17
+Mobile app technical features
+* The app now has extensive mobile-only features including GPS functionality, mobile caching, and offline capabilities that are crucial for field use but difficult to demonstrate on desktop. 01:55
+* A new system info panel with six tabs was added, displaying GPS status, network status, download tests, and storage information. The system has a 10 gigabyte quota with 120 megabytes currently used for caching. 07:55
+* Network connectivity testing revealed inconsistent results (0.37 megabits vs 2.6 megabits on consecutive tests), indicating users may need to run tests multiple times to get accurate network status readings. 08:08
+* Performance concerns were raised about downloading all pools statewide, though Kevin reported it seemed to perform fine when zoomed in. Jason added a wait cursor to indicate when the system is painting large numbers of pools. 14:44
+* Users should cache map tiles before fieldwork by turning on the landowners layer and scrolling around their target area while connected to wifi. The cache persists across app installs but may need to be refreshed if the 'updating cache' message appears. 2:03:58
+* When experiencing connectivity issues in the field, switching to airplane mode can resolve app freezing caused by the app attempting network connections on slow cellular service. Users should save drafts before troubleshooting. 2:05:03
+Track recording and breadcrumbs
+* Kevin requested a breadcrumb trail feature similar to handheld GPS units, allowing users to see where they've walked and easily find their way back, especially useful when navigating around obstacles. 21:58
+* The track recording feature will allow users to see if they've been walking in circles for 10 minutes and have already passed over a pool location, improving navigation efficiency in the field. 24:17
+* Users will need the ability to visit five pools in one trip while maintaining separate tracks for each, requiring individual track management rather than auto-deletion. 25:40
+* Handheld GPS units typically save all paths on an ongoing basis, allowing users to optionally break them up by individual hikes or maintain a continuous record with elevation data available. 28:03
+* Tracks will be stored in PostGIS database format, enabling future features like exporting to KML or shapefiles and providing flexible data management options, though these exports are lower priority for near-term goals. 29:50
+Pool finding workflow
+* Jason found it difficult to relocate pools he had selected at home once in the field, leading to the addition of GPS location functionality in the main explorer to address this workflow issue. 11:08
+* The team discussed adding a 'pools in my vicinity' filter as a geographic constraint option, similar to the bubble feature in the pool finder, to help users identify nearby pools more easily. 13:11
+* The monitored pool filter caused confusion when Kevin went to the field and couldn't find a pool on his map because the monitored checkbox wasn't enabled, leading to the decision to remove this distinction from the mobile app. 16:05
+* There's minimal overlap between monitors and atlassers, so the mobile app will prioritize atlas functionality while keeping monitoring simple with just a data entry portal rather than an all-in-one solution. 18:21
+* A 500-meter radius bubble around the user's location was added to show nearby pools and prevent duplicate pool submissions, with a toggle to reduce map clutter. 1:06:10
+* The team discovered users can now click on multiple pools during navigation, creating a list of three targets, which was deemed useful but needing a confirmation step. 1:09:00
+Data collection form design
+* The classification uses three categories: 'dries every year' (ephemeral, most common), 'dries some years' (semi-permanent), and 'never dries' (permanent), replacing previous 'catchier' terminology with more explicit descriptions. 1:37:22
+* The inlet/outlet questions evolved from yes/no to a checkbox system with four options (flowing inlet, dry inlet, flowing outlet, dry outlet) to capture observed conditions versus permanent features. 1:20:10
+* Surrounding habitat categories (open field, new growth forest, mature forest) were identified as incomplete, with grassland and agriculture needing to be distinguished and added. 1:23:28
+* The distinction was clarified: open field for meadows/hay fields, agriculture for active crops, with all options becoming checkboxes within 250 feet of the pool. 1:25:17
+* Forest condition options (undisturbed, minor logging, major logging) will include inline help with stringent definitions (e.g., minor logging = thinning that left 70%+ canopy intact) from the existing data form instructions. 1:26:41
+* Size input buttons will increment/decrement by 5-foot intervals after Jason field-tested a pool measuring 50ft × 350ft and found 5-foot increments manageable (25 is a common measurement, but fine motor control on phones is limited). 1:39:07
+User interface improvements
+* Three new zoom buttons were added with distinct functions: unlabeled target (zoom to selected pools), labeled target (zoom to GPS), and combined target (zoom to both), establishing a consistent button standard across the app. 09:36
+* The legend was made collapsible to reduce screen real estate usage on mobile devices, with a mouseover feature that may be too intrusive and needs evaluation. 10:21
+* A visual cue solution was proposed where the 'Add Visit' button changes appearance (bright green) when within 50 meters of a pool, solving the clarity issue without changing the language. 1:03:08
+* The three crosshair navigation buttons were deemed unintuitive, prompting a redesign using icons: pool/water drop, person silhouette, and circle encompassing both for zoom functions. 1:12:03
+* The icon-based design was agreed upon because it uses less screen real estate while improving clarity for mobile users on the 360-pixel minimum screen width. 1:13:24
+* The vegetation cover section caused confusion in the field regarding whether percentages refer to pool area or total vegetation. The title will be changed to 'vegetative cover' or 'percent of pool covered in vegetation' to clarify. 1:41:05
+Species identification and documentation
+* Jason questioned why quantity counts are needed when a single wood frog egg mass qualifies a pool. Kevin explained that counts support future 'productivity' metrics, as some states (like Maine) provide different protections based on pool significance (e.g., 300 egg masses vs. 1). 1:49:10
+* Jason encountered greenish-tinted egg masses at multiple pools and couldn't differentiate between spotted salamander and wood frog eggs. The current photos don't show the algae-covered stage clearly, causing field identification issues. 1:50:43
+* The help text mentions that salamander egg masses can be 'clear, opaque white, or greenish from algae', but additional photos showing milky white specimens and different development stages are needed to help volunteers identify them in the field. 1:52:11
+* Jason took 8 photos of a single pool despite initial guidance to take only one, demonstrating that complex pools require multiple angles to document properly (different sections, outlets from multiple perspectives). 1:46:11
+* Kevin will provide additional photos showing spotted salamander egg masses at various stages (milky white, greenish with algae, further development) and egg rafts to improve the identification guide. 1:53:27
+Map layers and visualization
+* The team discussed which map layers to include, with hybrid satellite/street view being the most requested feature. Current options include ESRI street map, satellite imagery, leaf-off imagery, and topographic maps. 2:09:42
+* Map tile servers are used for base layers, and the team debated whether caching works for hybrid maps (requires testing). An offline map option with just roads, trails, and streams exists as a fallback. 2:10:14
+* Lidar slope and hillshade layers were discussed but deemed less useful than topographic maps for fieldwork planning. The team decided to keep multiple topo options to evaluate if having too many choices becomes overwhelming. 2:11:45
+* Google Satellite Plus will become the default map layer as it's the most commonly used view by volunteers, with hybrid satellite/street view being the most requested feature. 2:12:23
+Administrative features and user management
+* The users panel is now functional, showing 21 people in registration status (started but haven't completed registration), plus additional users who were added through monitoring but haven't converted to Atlas accounts. 2:14:45
+* The system revealed duplicate user accounts (e.g., one with uppercase, one without; some with .co vs .fr domains) that need to be addressed. A user merge feature was identified as necessary for the admin panel. 2:16:01
+* Kevin requested a 'transmogrify' feature to reassign submitted pool visit data to different pool IDs when volunteers accidentally create new pools instead of associating visits with existing ones. 2:18:05
+* The ability to add a pool location without an associated visit was requested for cases where volunteers report finding pools but don't submit full survey data. This would prevent dummy visit submissions. 2:19:04
+* Administrative users need the ability to create visits on behalf of other observers for data submitted through alternative channels, though bulk lidar pool additions would still be done via backend processes. 2:19:49
+* A UI improvement was requested to enable long-press on GPS location to add a new pool directly from the map, similar to Google Maps' pin-dropping functionality, making pool submission more intuitive. 2:26:51
+Field testing and stakeholder coordination
+* The microphone feature encountered errors three times during field testing yesterday, though other file-related issues are being addressed. Jason reported having an enjoyable two-hour field session testing the system. 05:04
+* Vermont has 11,266 potential pools that haven't been visited yet, emphasizing the need to expedite data collection by simplifying the survey process rather than adding complexity. 1:35:39
+* Kevin expressed strong hesitation about making major data sheet changes without involving Fish and Wildlife, given their 25-year reliance on consistent questions for wildlife assessments and wetland mapping. 1:28:53
+* Kevin will meet with Fish and Wildlife staff next week to discuss the data sheet and their flexibility on modifications for broader public participation. 1:30:49
+* The team acknowledged a tension between rolling out to a less expert user base (requiring simpler, observation-based questions) while maintaining data continuity for Fish and Wildlife's scientific needs, seeking a compromise that satisfies both requirements. 1:31:33
+Other updates and discussion
+* Jason confirmed that Kevin was able to install the app from Chrome on iPhone (version 16 or 17), indicating a change from the previous Safari-only requirement. 32:15
+* The full 'VP Center for Ecostudies' name doesn't fit on mobile screens, leading to the decision to use 'VCE' abbreviation with the bird logo for the mobile version. 33:36
+* A registration bug was discovered when a user repeatedly got 'registration failed' messages on both the mobile app and website. The dev site and production site are not connected, requiring separate registrations. 2:28:46
+* A bug was identified where monitor visit photos weren't loading in the new app despite being successfully uploaded. The app loaded the survey data but failed to display the attached images. 2:22:03
+* Kevin advised that human impact is dispersed enough across Vermont's vernal pool landscape that individual visits aren't a major concern, especially compared to impacts from farm ponds or groups like school classes visiting single pools repeatedly. 2:08:45

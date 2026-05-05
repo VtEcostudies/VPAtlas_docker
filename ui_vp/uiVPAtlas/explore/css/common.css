@@ -472,6 +472,23 @@ div.controls {
     width: auto;
     flex-shrink: 0;
 }
+/* On narrow phones, replace the full VCE logo image with a small icon plus
+   the acronym "VCE" per Design Review 2 decision 33:50 (refined): full
+   logo on large screens, abbreviated icon + text on small. */
+.header-vce-text {
+    display: none;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--primary-color);
+    letter-spacing: 0.5px;
+    margin-left: 4px;
+}
+.header-vce-icon {
+    display: none;
+    height: 24px;
+    width: auto;
+    vertical-align: middle;
+}
 .header-app-stack {
     display: inline-flex;
     flex-direction: column;
@@ -493,6 +510,11 @@ div.controls {
 @media (max-width: 768px) {
     .header-vce-logo { height: 32px; }
     .header-app-name { font-size: 15px; }
+}
+@media (max-width: 419px) {
+    .header-vce-logo { display: none; }
+    .header-vce-icon { display: inline-block; }
+    .header-vce-text { display: inline-block; }
 }
 hr {
     margin: 0;

@@ -106,11 +106,8 @@
         <!-- Right: Map -->
         <div class="col-lg-6 col-12" style="height:85vh; position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
-            <div id="btn_center" title="Zoom to pool" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;
-                background:white; border:2px solid rgba(0,0,0,0.2); border-radius:4px;
-                width:40px; height:40px; display:flex; align-items:center; justify-content:center;
-                cursor:pointer; font-size:20px; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
-                <i class="fa fa-crosshairs"></i>
+            <div id="btn_center" class="pf-zoom-btn" title="Zoom to pool" style="display:none; position:absolute; top:10px; left:10px; z-index:1000;">
+                <i class="fa fa-crosshairs"></i><i class="fa fa-tint" aria-hidden="true"></i>
             </div>
         </div>
     </div>
@@ -202,9 +199,10 @@
             document.getElementById('mappedLatitude').value = lat.toFixed(6);
             document.getElementById('mappedLongitude').value = lng.toFixed(6);
             if (marker) map.removeLayer(marker);
-            marker = L.circleMarker([lat, lng], {
-                radius: 10, fillColor: '#2c5530', color: '#333', weight: 2, fillOpacity: 0.8
-            }).addTo(map);
+            // Leaflet default pin — distinct from the existing pool-status
+            // circle/triangle/diamond markers so the user clearly sees the
+            // location they're placing.
+            marker = L.marker([lat, lng], { zIndexOffset: 1000 }).addTo(map);
             map.setView([lat, lng], 16);
             // Show center button
             let btn = document.getElementById('btn_center');

@@ -15,6 +15,7 @@ function jwt() {
             '/users/reset',
             '/users/verify',
             '/users/confirm',
+            '/users/confirm_email',
             '/users/routes',
             '/users/test',
 

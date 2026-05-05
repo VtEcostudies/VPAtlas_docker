@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas - Confirm Email Change</title>
+    <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
+    <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/auth.css">
+</head>
+<body>
+    <div class="container-fluid" style="height: 100%; min-height: 100vh;">
+        <div class="row">
+            <div class="col-lg-6 offset-lg-3 col-12">
+                <header>
+                    <div class="row controls">
+                        <div class="col-12 header-title-info">
+                            <h2 class="header-title light-foreground">Confirm Email Change</h2>
+                        </div>
+                    </div>
+                </header>
+                <hr class="divider-header">
+
+                <div id="message" class="auth-message info">Confirming your new email address...</div>
+
+                <div class="auth-links" style="margin-top:20px;">
+                    <a href="./login.html">Sign In</a>
+                    <a href="/explore/">Back to Map</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/config.js"></script>
+    <script src="/js/bootstrap_5.2.3.min.js"></script>
+    <script type="module">
+        import { confirmEmailChange } from '/js/api.js';
+
+        const message = document.getElementById('message');
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        if (!token) {
+            message.textContent = 'Missing confirmation token. Please use the link from your email.';
+            message.className = 'auth-message error';
+        } else {
+            try {
+                const result = await confirmEmailChange({ token });
+                message.textContent = result && result.email
+                    ? `Email updated to ${result.email}. Please sign in with the new address.`
+                    : 'Email change confirmed.';
+                message.className = 'auth-message success';
+            } catch(err) {
+                message.textContent = err.message || 'This confirmation link is invalid or has expired.';
+                message.className = 'auth-message error';
+            }
+        }
+    </script>
+</body>
+</html>

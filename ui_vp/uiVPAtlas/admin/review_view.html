@@ -34,9 +34,10 @@
         .map-center-btn {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
-            width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; font-size: 20px; color: #333; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            height: 40px; padding: 0 10px; display: flex; align-items: center; gap: 4px; justify-content: center;
+            cursor: pointer; color: #333; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         }
+        .map-center-btn i { font-size: 18px; }
         .map-center-btn:hover, .map-center-btn:active { background: #e8f5e9; }
     </style>
     <script src="/js/home_button.js" defer></script>
@@ -68,7 +69,7 @@
         <!-- Right: Map -->
         <div class="col-lg-6 col-12 dv-pane dv-pane-map" style="height:85vh; position:relative;">
             <div id="map" style="height:100%; width:100%; border-radius:var(--border-radius);"></div>
-            <div id="btn_center" class="map-center-btn" title="Zoom to pool"><i class="fa fa-crosshairs"></i></div>
+            <div id="btn_center" class="map-center-btn" title="Zoom to pool"><i class="fa fa-crosshairs"></i><i class="fa fa-tint" aria-hidden="true"></i></div>
         </div>
     </div>
 
