@@ -31,6 +31,52 @@
     color: white;
 }
 
+/* Near-me stepper: full-height +/- buttons inside the filter button so the
+   radius can be tapped on a phone without a fiddly number input. */
+.near-me-stepper {
+    display: flex !important;
+    align-items: stretch !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    overflow: hidden;
+    /* Outer corners stay rounded to match the rest of the filter bar; the
+       inner buttons explicitly zero out their own border-radius below so
+       the internal dividers read as straight vertical lines. */
+}
+.near-me-stepper .near-me-checkbox {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 8px;
+}
+.near-me-stepper .near-me-checkbox span {
+    font-size: 12px;
+}
+.near-me-step {
+    align-self: stretch;
+    border: none;
+    border-left: 1px solid var(--primary-color);
+    border-radius: 0;
+    background: white;
+    color: var(--primary-color);
+    cursor: pointer;
+    padding: 0 9px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+}
+.near-me-step:disabled { color: #ccc; cursor: not-allowed; }
+.near-me-step:not(:disabled):hover { background: var(--primary-light, #e8f5e9); }
+.near-me-step:not(:disabled):active { background: var(--primary-color); color: white; }
+.near-me-stepper .near-me-value {
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 8px;
+    border-left: 1px solid var(--primary-color);
+    border-radius: 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    min-width: 56px;
+    white-space: nowrap;
+}
+
 /* Filter inputs — same height as buttons */
 .filter-input {
     font-size: 14px;
@@ -51,6 +97,18 @@
         padding: 6px 12px;
         height: 40px;
         min-width: 44px;
+    }
+    /* Near-me stepper inherits 40px row height on mobile via .data-type-btn,
+       but its inner pieces use their own padding, so override the parent
+       padding to 0 (the inner span/buttons supply spacing). */
+    .data-type-btn.near-me-stepper { padding: 0; }
+    .near-me-step {
+        font-size: 22px;
+        padding: 0 11px;
+    }
+    .near-me-stepper .near-me-checkbox span,
+    .near-me-stepper .near-me-value {
+        font-size: 14px;
     }
     .filter-input {
         font-size: 16px;

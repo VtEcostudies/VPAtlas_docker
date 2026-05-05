@@ -69,13 +69,16 @@ export function initFilterBar(filterCallback) {
                 <span style="font-size:12px;">Indicator Spp</span>
             </label>
 
-            <!-- Near-me radius filter (uses GPS) -->
-            <label id="near-me-toggle" class="data-type-btn" style="display:flex; align-items:center; gap:4px; cursor:pointer;" title="Show only pools within a radius of your GPS location">
-                <input type="checkbox" id="filter_near_me" style="width:auto; margin:0; accent-color:var(--primary-color);">
-                <span style="font-size:12px;">Near me</span>
-                <input type="number" id="filter_near_me_km" min="0.5" max="200" step="0.5" value="5"
-                    style="width:46px; font-size:12px; padding:1px 3px; margin-left:2px;" disabled>
-                <span style="font-size:11px;">km</span>
+            <!-- Near-me radius filter (uses GPS). Full-height stepper +/-
+                 buttons step the radius by 0.5 km on each tap. -->
+            <label id="near-me-toggle" class="data-type-btn near-me-stepper" title="Show only pools within a radius of your GPS location">
+                <span class="near-me-checkbox">
+                    <input type="checkbox" id="filter_near_me" style="width:auto; margin:0; accent-color:var(--primary-color);">
+                    <span>Near me</span>
+                </span>
+                <button type="button" id="filter_near_me_minus" class="near-me-step" disabled aria-label="Decrease radius">&minus;</button>
+                <span id="filter_near_me_value" class="near-me-value">5 km</span>
+                <button type="button" id="filter_near_me_plus" class="near-me-step" disabled aria-label="Increase radius">+</button>
             </label>
         </div>
 
@@ -127,24 +130,43 @@ export function initFilterBar(filterCallback) {
 
     // Near-me radius toggle. Activating prompts the browser for GPS, captures
     // a one-shot fix as the filter origin, then triggers a refresh. The
-    // radius input is enabled only while the toggle is on.
+    // +/- stepper buttons (0.5 km per tap) are enabled only while the toggle
+    // is on.
     let nearCb = document.getElementById('filter_near_me');
-    let nearKm = document.getElementById('filter_near_me_km');
-    if (nearCb && nearKm) {
-        // Restore from filters state on init
+    let nearMinus = document.getElementById('filter_near_me_minus');
+    let nearPlus = document.getElementById('filter_near_me_plus');
+    let nearValue = document.getElementById('filter_near_me_value');
+    const NEAR_STEP_KM = 0.5;
+    const NEAR_MIN_KM = 0.5;
+    const NEAR_MAX_KM = 200;
+    let pendingKm = filters.nearMeKm > 0 ? filters.nearMeKm : 5;
+
+    function fmtKm(km) {
+        let s = (Math.round(km * 10) / 10).toString();
+        return `${s} km`;
+    }
+    function paintNear() {
+        if (nearValue) nearValue.textContent = fmtKm(pendingKm);
+        let on = !!nearCb.checked;
+        if (nearMinus) nearMinus.disabled = !on || pendingKm <= NEAR_MIN_KM + 1e-6;
+        if (nearPlus)  nearPlus.disabled  = !on || pendingKm >= NEAR_MAX_KM - 1e-6;
+    }
+
+    if (nearCb && nearMinus && nearPlus && nearValue) {
         nearCb.checked = !!(filters.nearMeKm > 0 && filters.nearMeOrigin);
-        if (filters.nearMeKm > 0) nearKm.value = filters.nearMeKm;
-        nearKm.disabled = !nearCb.checked;
+        paintNear();
 
         nearCb.addEventListener('change', async () => {
             if (nearCb.checked) {
                 if (!navigator.geolocation) {
                     alert('Geolocation is not available on this device.');
                     nearCb.checked = false;
+                    paintNear();
                     return;
                 }
-                let prevLabel = nearCb.parentElement.querySelector('span').textContent;
-                nearCb.parentElement.querySelector('span').textContent = 'Locating…';
+                let labelEl = nearCb.parentElement.querySelector('span');
+                let prevLabel = labelEl.textContent;
+                labelEl.textContent = 'Locating…';
                 nearCb.disabled = true;
                 try {
                     let pos = await new Promise((resolve, reject) => {
@@ -153,8 +175,7 @@ export function initFilterBar(filterCallback) {
                         });
                     });
                     filters.nearMeOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                    filters.nearMeKm = parseFloat(nearKm.value) || 5;
-                    nearKm.disabled = false;
+                    filters.nearMeKm = pendingKm;
                     putUserState(1, { nearMeOrigin: filters.nearMeOrigin, nearMeKm: filters.nearMeKm });
                     renderTokens();
                     applyFilters();
@@ -163,28 +184,39 @@ export function initFilterBar(filterCallback) {
                     alert('Could not get your GPS location: ' + (err.message || err.code));
                     nearCb.checked = false;
                 } finally {
-                    nearCb.parentElement.querySelector('span').textContent = prevLabel;
+                    labelEl.textContent = prevLabel;
                     nearCb.disabled = false;
+                    paintNear();
                 }
             } else {
                 filters.nearMeKm = 0;
                 filters.nearMeOrigin = null;
-                nearKm.disabled = true;
                 putUserState(1, { nearMeKm: 0, nearMeOrigin: null });
                 renderTokens();
                 applyFilters();
+                paintNear();
             }
         });
 
-        nearKm.addEventListener('change', () => {
-            if (!nearCb.checked) return;
-            let v = parseFloat(nearKm.value);
-            if (!(v > 0)) return;
-            filters.nearMeKm = v;
-            putUserState(1, { nearMeKm: v });
-            renderTokens();
-            applyFilters();
-        });
+        // Stepper buttons: change radius live (no re-prompt for GPS). The
+        // pendingKm value is what we'll use the next time the toggle activates.
+        function step(delta) {
+            return (e) => {
+                // The stepper buttons live inside a <label>, so a click there
+                // would normally toggle the checkbox. Stop that.
+                e.preventDefault();
+                e.stopPropagation();
+                if (!nearCb.checked) return;
+                pendingKm = Math.max(NEAR_MIN_KM, Math.min(NEAR_MAX_KM, pendingKm + delta));
+                filters.nearMeKm = pendingKm;
+                putUserState(1, { nearMeKm: pendingKm });
+                paintNear();
+                renderTokens();
+                applyFilters();
+            };
+        }
+        nearMinus.addEventListener('click', step(-NEAR_STEP_KM));
+        nearPlus.addEventListener('click', step(+NEAR_STEP_KM));
     }
 
     // Load reference data
@@ -575,9 +607,11 @@ function renderTokens() {
                 filters.nearMeKm = 0;
                 filters.nearMeOrigin = null;
                 let cb = document.getElementById('filter_near_me');
-                let km = document.getElementById('filter_near_me_km');
-                if (cb) cb.checked = false;
-                if (km) km.disabled = true;
+                if (cb) {
+                    cb.checked = false;
+                    // Refresh stepper button enable state via change-event flow.
+                    cb.dispatchEvent(new Event('change'));
+                }
                 putUserState(1, { nearMeKm: 0, nearMeOrigin: null });
             }
             renderTokens();

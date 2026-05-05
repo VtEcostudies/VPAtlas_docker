@@ -87,6 +87,7 @@ appConfig.urlsToCache = [
 '/css/images/layers-2x.png',
 '/images/vce_logo_no_tagline.png',
 '/images/vce_logo_abbrev.png',
+'/images/vce_bird_icon.png',
 
 // === Photo identification aids — species (offline reference) ===
 '/images/species/bluespot-adult.jpg',
