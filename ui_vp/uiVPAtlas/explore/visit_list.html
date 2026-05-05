@@ -411,20 +411,29 @@
             let html = '';
             allTracks.forEach(t => {
                 let statusClass, statusLabel, actions;
+                // Every track row gets a View button that opens it on PoolFinder.
+                // Server-side tracks reach the server by trackId; local-only
+                // tracks (not yet uploaded) reach via the localId so the
+                // PoolFinder reads the points straight from IndexedDB.
+                let viewParam = (t.source === 'local' && !t.remoteId)
+                    ? `localTrackId=${encodeURIComponent(t.localId)}`
+                    : `trackId=${encodeURIComponent(t.remoteId)}`;
+                let viewBtn = `<a class="vq-btn" href="/survey/find_pool.html?${viewParam}" title="View on map"><i class="fa fa-eye"></i></a>`;
                 if (t.source === 'local' && !t.remoteId) {
                     statusClass = 'vl-track-pending';
                     statusLabel = 'queued';
                     actions = `
+                        ${viewBtn}
                         <button class="vq-btn track-upload" data-local="${t.localId}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
                         <button class="vq-btn track-delete-local" data-local="${t.localId}" title="Delete locally"><i class="fa fa-trash"></i></button>`;
                 } else if (t.source === 'local' && t.remoteId) {
                     statusClass = 'vl-track-uploaded';
                     statusLabel = 'uploaded';
-                    actions = `<button class="vq-btn track-delete-local" data-local="${t.localId}" title="Remove from device"><i class="fa fa-trash"></i></button>`;
+                    actions = `${viewBtn} <button class="vq-btn track-delete-local" data-local="${t.localId}" title="Remove from device"><i class="fa fa-trash"></i></button>`;
                 } else {
                     statusClass = 'vl-track-uploaded';
                     statusLabel = 'server';
-                    actions = `<button class="vq-btn track-delete-remote" data-remote="${t.remoteId}" title="Delete from server"><i class="fa fa-trash"></i></button>`;
+                    actions = `${viewBtn} <button class="vq-btn track-delete-remote" data-remote="${t.remoteId}" title="Delete from server"><i class="fa fa-trash"></i></button>`;
                 }
 
                 let dateStr = t.startedAt ? new Date(t.startedAt).toLocaleString() : '';

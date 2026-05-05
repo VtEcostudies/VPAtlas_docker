@@ -37,6 +37,21 @@
 
         /* (search bar removed — pools selected on explore page) */
 
+        /* PoolFinder always shows the ellipsis menu — even on desktop —
+           because Start/Stop Track, View Track, System Info etc. live there.
+           The base common.css hides .action-overflow-btn above 900px and
+           hides .action-button below 900px; on PoolFinder we want both. */
+        .pf-app .action-overflow-btn { display: block; }
+        @media (max-width: 900px) {
+            .pf-app .detail-actions > .action-button { display: none !important; }
+        }
+
+        /* Track polyline: solid blue, distinct from the dashed-red active
+           recording overlay. Used when viewing a saved/server track. */
+        .pf-saved-track {
+            stroke: #1d4ed8; stroke-width: 4; opacity: 0.85;
+        }
+
         /* Selected pools chips — inline in header, fat-thumb friendly */
         .pf-chips {
             display: flex; flex-wrap: wrap; gap: 4px;
@@ -336,7 +351,7 @@
         import { createMap, addPoolMarker, getPoolColor, getSurveyLevel,
                  buildShapeIcon, stateCenter, stateZoom, wireCombinedTooltip } from '/js/map_common.js';
         import { getLocal, setLocal } from '/js/storage.js';
-        import { fetchApiRoute } from '/js/api.js';
+        import { fetchApiRoute, fetchTrackById } from '/js/api.js';
         import { getPoolById } from '/js/pool_data_cache.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { getUser } from '/js/auth.js';
@@ -420,6 +435,17 @@
             let prePoolId = params.get('poolId');
             if (prePoolId && !selectedPools.has(prePoolId)) {
                 await addPoolById(prePoolId);
+            }
+
+            // ?trackId=N → fetch the saved track from the server and plot it
+            // ?localTrackId=tr_xxxx → plot a track that hasn't been uploaded
+            //   yet from the local IndexedDB queue
+            // (See View button on the Tracks tab in /explore/visit_list.html)
+            let trackId = params.get('trackId');
+            let localTrackId = params.get('localTrackId');
+            if (trackId || localTrackId) {
+                try { await displayTrackParam(trackId, localTrackId); }
+                catch(e) { console.warn('PoolFinder: track display failed', e); }
             }
 
             // Restore from user settings if no URL params
@@ -539,6 +565,15 @@
                 menuPanel.appendChild(trackItem);
                 menuPanel.appendChild(trackDiscardItem);
                 refreshTrackMenu();
+
+                let viewTrackItem = document.createElement('button');
+                viewTrackItem.className = 'action-button';
+                viewTrackItem.innerHTML = '<i class="fa fa-route" style="width:20px;"></i> View Track';
+                viewTrackItem.addEventListener('click', () => {
+                    menuPanel.classList.remove('show');
+                    window.location.href = '/explore/visit_list.html?tab=tracks';
+                });
+                menuPanel.appendChild(viewTrackItem);
 
                 let sysInfoItem = document.createElement('button');
                 sysInfoItem.className = 'action-button';
@@ -751,6 +786,43 @@
             if (ids && ids.length) {
                 for (let pid of ids) await addPoolById(pid);
             }
+        }
+
+        // =================================================================
+        // SAVED TRACK DISPLAY (read-only) — driven by ?trackId or ?localTrackId
+        // URL params from the View button on the My Visits and Tracks page.
+        // =================================================================
+        let savedTrackLine = null;
+        async function displayTrackParam(serverTrackId, localTrackId) {
+            // Build an array of [lat, lng] pairs from whichever source.
+            let latlngs = [];
+            let label = '';
+            if (serverTrackId) {
+                let track = await fetchTrackById(serverTrackId);
+                let geom = track && track.geomJson;
+                let parsed = typeof geom === 'string' ? JSON.parse(geom) : geom;
+                if (parsed && Array.isArray(parsed.coordinates)) {
+                    // GeoJSON LineString: [[lng, lat], ...]
+                    latlngs = parsed.coordinates.map(c => [c[1], c[0]]);
+                }
+                label = `Track #${track.trackId}` + (track.name ? ` — ${track.name}` : '');
+            } else if (localTrackId) {
+                let queue = await trackRec.listQueue();
+                let local = queue.find(t => t.localId === localTrackId);
+                if (local && Array.isArray(local.points)) {
+                    // Local track points: [[lng, lat, elev?, ts], ...]
+                    latlngs = local.points.map(p => [p[1], p[0]]);
+                }
+                label = `Track ${localTrackId}` + (local && local.name ? ` — ${local.name}` : '');
+            }
+            if (latlngs.length < 2) return;
+
+            if (savedTrackLine) map.removeLayer(savedTrackLine);
+            savedTrackLine = L.polyline(latlngs, {
+                color: '#1d4ed8', weight: 4, opacity: 0.85, interactive: true
+            }).addTo(map);
+            savedTrackLine.bindTooltip(label, { sticky: true, direction: 'top' });
+            map.fitBounds(savedTrackLine.getBounds(), { padding: [40, 40], maxZoom: 16 });
         }
 
         // =================================================================
