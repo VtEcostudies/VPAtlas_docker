@@ -187,6 +187,29 @@
             wireGpsButton(document.getElementById('map_gps_btn'));
             wireBothButton(document.getElementById('map_both_btn'));
 
+            // Long-press / right-click on the map drops a pin and offers to
+            // start a new pool there (mirrors the PoolFinder behavior).
+            let m = getMap();
+            if (m) {
+                m.on('contextmenu', async (e) => {
+                    let lat = e.latlng.lat;
+                    let lng = e.latlng.lng;
+                    let result = await showModal(
+                        'Add New Pool?',
+                        `Drop a new pool at this location?<br><br>` +
+                        `<strong>Lat:</strong> ${lat.toFixed(6)}<br>` +
+                        `<strong>Lng:</strong> ${lng.toFixed(6)}`,
+                        { buttons: [
+                            { text: 'Cancel', value: false },
+                            { text: 'Add Pool', value: true, isDefault: true }
+                        ]}
+                    );
+                    if (result) {
+                        window.location.href = `/survey/visit_create.html?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`;
+                    }
+                });
+            }
+
             // Map layer toggles → re-filter list + summary (map already updated its own markers)
             document.addEventListener('map:layer-filter', () => {
                 withWait(() => {
