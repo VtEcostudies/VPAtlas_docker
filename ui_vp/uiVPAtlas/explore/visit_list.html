@@ -470,28 +470,97 @@
                 btn.addEventListener('click', async () => {
                     if (!confirm('Permanently delete this track from the server?')) return;
                     try { await deleteTrack(btn.dataset.remote); }
-                    catch(e) { alert('Delete failed: ' + (e.message || e)); }
+                    catch(e) {
+                        console.error('Track delete failed', e);
+                        alert(`Delete failed: ${describeError(e)}\n\nTrack #${btn.dataset.remote}`);
+                    }
                     await loadAllTracks();
                 });
             });
         }
 
+        // Mobile-only debugging means we can't open devtools, so every error
+        // alert needs to surface as much detail as possible. This walks the
+        // common shapes thrown from /js/api.js (parsed JSON bodies, fetch
+        // TypeErrors, hand-thrown {message, status, ...} objects, raw strings)
+        // and ends with a JSON.stringify fallback so no error becomes the
+        // useless "[object Object]".
+        function describeError(e) {
+            if (e == null) return '(no error info)';
+            if (typeof e === 'string') return e;
+            let parts = [];
+            if (e.status) parts.push(`HTTP ${e.status}`);
+            if (e.name && e.name !== 'Error') parts.push(e.name);
+            if (typeof e.message === 'string' && e.message) parts.push(e.message);
+            if (typeof e.error === 'string' && e.error) parts.push(`error=${e.error}`);
+            if (e.detail) parts.push(`detail=${typeof e.detail === 'string' ? e.detail : JSON.stringify(e.detail)}`);
+            if (e.hint) parts.push(`hint=${e.hint}`);
+            if (e.code) parts.push(`code=${e.code}`);
+            if (e.constraint) parts.push(`constraint=${e.constraint}`);
+            if (e.column) parts.push(`column=${e.column}`);
+            if (e.routine) parts.push(`routine=${e.routine}`);
+            if (e.query) parts.push(`url=${e.query}`);
+            if (parts.length === 0) {
+                try {
+                    let s = JSON.stringify(e);
+                    if (s && s !== '{}') return s;
+                } catch(_) {}
+                // Fallback: enumerate own properties
+                try {
+                    let pairs = Object.getOwnPropertyNames(e).map(k => {
+                        let v = e[k];
+                        if (typeof v === 'function') return null;
+                        try { return `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`; }
+                        catch(_) { return `${k}=?`; }
+                    }).filter(Boolean);
+                    if (pairs.length) return pairs.join(' | ');
+                } catch(_) {}
+                return String(e);
+            }
+            return parts.join(' — ');
+        }
+
         async function uploadOneTrack(localId) {
             let local = (await listLocalTracks()).find(t => t.localId === localId);
-            if (!local) return;
+            if (!local) {
+                alert(`Upload failed: track ${localId} not found in local queue (was it already deleted?)`);
+                return;
+            }
+            // Pre-flight sanity check with descriptive errors so we don't
+            // round-trip the server with a known-bad payload.
+            let pts = Array.isArray(local.points) ? local.points : [];
+            if (pts.length < 2) {
+                alert(`Upload failed: track has only ${pts.length} point(s) — need at least 2.`);
+                return;
+            }
+            let bad = pts.findIndex(p =>
+                !Array.isArray(p) || p.length < 2 ||
+                !Number.isFinite(p[0]) || !Number.isFinite(p[1])
+            );
+            if (bad !== -1) {
+                alert(`Upload failed: point #${bad} is not a finite [lng, lat]. Got: ${JSON.stringify(pts[bad])}`);
+                return;
+            }
             try {
                 let result = await createTrack({
                     name: local.name,
                     notes: local.notes,
                     startedAt: local.startedAt,
                     endedAt: local.endedAt,
-                    points: local.points
+                    points: pts
                 });
                 if (result && result.trackId) {
                     await markTrackUploaded(localId, result.trackId);
+                } else {
+                    alert(`Upload returned no trackId. Server response: ${JSON.stringify(result || null)}`);
                 }
             } catch(e) {
-                alert('Upload failed: ' + (e.message || e));
+                console.error('Track upload failed', e);
+                alert(`Upload failed: ${describeError(e)}\n\n` +
+                      `Track: ${localId}\n` +
+                      `Points: ${pts.length}\n` +
+                      `Started: ${local.startedAt}\n` +
+                      `Ended: ${local.endedAt || '(none)'}`);
             }
             await loadAllTracks();
         }
