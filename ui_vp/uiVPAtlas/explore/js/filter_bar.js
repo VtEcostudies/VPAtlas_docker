@@ -136,9 +136,25 @@ export function initFilterBar(filterCallback) {
     let nearMinus = document.getElementById('filter_near_me_minus');
     let nearPlus = document.getElementById('filter_near_me_plus');
     let nearValue = document.getElementById('filter_near_me_value');
-    const NEAR_STEP_KM = 0.5;
+    // Step size is value-dependent so the stepper feels responsive at small
+    // radii and doesn't take 50 taps to get to 50 km:
+    //   below  5 km → 0.5 km steps
+    //    5–15 km    → 1 km steps
+    //   above 15 km → 5 km steps
+    // Asymmetric so a click at a boundary lands in the next band cleanly
+    // (e.g. + at 5 km → 6 km; − at 5 km → 4.5 km).
     const NEAR_MIN_KM = 0.5;
     const NEAR_MAX_KM = 200;
+    function nearStepUpSize(km) {
+        if (km < 5) return 0.5;
+        if (km < 15) return 1;
+        return 5;
+    }
+    function nearStepDownSize(km) {
+        if (km <= 5) return 0.5;
+        if (km <= 15) return 1;
+        return 5;
+    }
     let pendingKm = filters.nearMeKm > 0 ? filters.nearMeKm : 5;
 
     function fmtKm(km) {
@@ -200,14 +216,17 @@ export function initFilterBar(filterCallback) {
 
         // Stepper buttons: change radius live (no re-prompt for GPS). The
         // pendingKm value is what we'll use the next time the toggle activates.
-        function step(delta) {
+        function step(direction) {
             return (e) => {
                 // The stepper buttons live inside a <label>, so a click there
                 // would normally toggle the checkbox. Stop that.
                 e.preventDefault();
                 e.stopPropagation();
                 if (!nearCb.checked) return;
+                let delta = direction > 0 ? nearStepUpSize(pendingKm) : -nearStepDownSize(pendingKm);
                 pendingKm = Math.max(NEAR_MIN_KM, Math.min(NEAR_MAX_KM, pendingKm + delta));
+                // Round to one decimal so floating-point noise doesn't bleed in.
+                pendingKm = Math.round(pendingKm * 10) / 10;
                 filters.nearMeKm = pendingKm;
                 putUserState(1, { nearMeKm: pendingKm });
                 paintNear();
@@ -215,8 +234,8 @@ export function initFilterBar(filterCallback) {
                 applyFilters();
             };
         }
-        nearMinus.addEventListener('click', step(-NEAR_STEP_KM));
-        nearPlus.addEventListener('click', step(+NEAR_STEP_KM));
+        nearMinus.addEventListener('click', step(-1));
+        nearPlus.addEventListener('click', step(+1));
     }
 
     // Load reference data

@@ -28,10 +28,17 @@ function isAdmin(req) {
 // NULL / foreign-key violation deep in PostGIS. Reject up-front instead.
 function requireAuthedUser(req, res) {
     if (!req.user || !req.user.id) {
+        // Include enough server-side telemetry that the iPhone alert can
+        // tell us *why* the check failed. Common causes: stale JWT after
+        // DB restore, JWT minted with sub=0, jwt.js getById returning {}.
+        let userKeys = req.user ? Object.keys(req.user) : null;
+        let userIdValue = req.user ? req.user.id : '(req.user is falsy)';
+        let detail = `req.user keys=[${userKeys ? userKeys.join(',') : 'null'}], req.user.id=${JSON.stringify(userIdValue)}`;
+        console.log('vpTrack.routes::requireAuthedUser BLOCKED |', detail);
         res.status(401).json({
             name: 'UnauthorizedError',
             message: 'Your session has expired or is for an account that no longer exists. Please sign out and sign back in.',
-            detail: 'JWT validated but req.user.id is missing — typical after a DB restore or user-row delete.'
+            detail
         });
         return false;
     }
