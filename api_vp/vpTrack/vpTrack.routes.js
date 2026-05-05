@@ -21,8 +21,25 @@ function isAdmin(req) {
     return req.user && req.user.userrole === 'admin';
 }
 
+// jwt.js sets req.user from the JWT subject. If the JWT references a user id
+// that no longer exists in vpuser (account deleted, DB restored, etc.) the
+// lookup returns an empty object, not null — so a plain `!req.user` check
+// would let the request through with userId=undefined and we'd hit a NOT
+// NULL / foreign-key violation deep in PostGIS. Reject up-front instead.
+function requireAuthedUser(req, res) {
+    if (!req.user || !req.user.id) {
+        res.status(401).json({
+            name: 'UnauthorizedError',
+            message: 'Your session has expired or is for an account that no longer exists. Please sign out and sign back in.',
+            detail: 'JWT validated but req.user.id is missing — typical after a DB restore or user-row delete.'
+        });
+        return false;
+    }
+    return true;
+}
+
 function list(req, res, next) {
-    if (!req.user) return res.sendStatus(401);
+    if (!requireAuthedUser(req, res)) return;
     if (req.query.scope === 'all' && isAdmin(req)) {
         service.listAll(parseInt(req.query.limit) || 500)
             .then(result => res.json({ rowCount: result.rowCount, rows: result.rows }))
@@ -35,7 +52,7 @@ function list(req, res, next) {
 }
 
 function getById(req, res, next) {
-    if (!req.user) return res.sendStatus(401);
+    if (!requireAuthedUser(req, res)) return;
     let trackId = parseInt(req.params.id);
     if (!trackId) return res.status(400).json({ message: 'invalid track id' });
     service.getById(trackId)
@@ -49,7 +66,7 @@ function getById(req, res, next) {
 }
 
 function create(req, res, next) {
-    if (!req.user) return res.sendStatus(401);
+    if (!requireAuthedUser(req, res)) return;
     service.create(req.user.id, req.body)
         .then(result => res.json(result.rows[0]))
         .catch(err => {
@@ -59,7 +76,7 @@ function create(req, res, next) {
 }
 
 function _delete(req, res, next) {
-    if (!req.user) return res.sendStatus(401);
+    if (!requireAuthedUser(req, res)) return;
     let trackId = parseInt(req.params.id);
     if (!trackId) return res.status(400).json({ message: 'invalid track id' });
     service.delete(trackId, req.user.id, isAdmin(req))
