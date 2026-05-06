@@ -96,7 +96,10 @@ function getById(req, res, next) {
     if (req.user.role != 'admin' && req.user.sub != req.params.id) {
         throw(`Requesting User is not authorized to GET Users by ID unless it's their own.`);
     }
-    userService.getById(req.params.id)
+    // getByIdFull adds lastVisitAt / lastSurveyAt / lastTrackAt / lastActiveAt
+    // for the admin user list and profile page. The lighter getById is used
+    // by jwt.js on every authed request — don't switch that one.
+    userService.getByIdFull(req.params.id)
         .then(user => user ? res.json(user) : res.sendStatus(404))
         .catch(err => next(err));
 }

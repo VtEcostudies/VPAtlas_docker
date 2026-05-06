@@ -84,6 +84,8 @@
         .ua-table tbody td[data-label="Status"],
         .ua-table thead th[data-col="joined"],
         .ua-table tbody td[data-label="Joined"],
+        .ua-table thead th[data-col="lastActive"],
+        .ua-table tbody td[data-label="Last Active"],
         .ua-table tbody td[data-label="Actions"] {
             width: 1%;
             white-space: nowrap;
@@ -209,6 +211,7 @@
                 <option value="role">Role</option>
                 <option value="status" selected>Status</option>
                 <option value="joined">Joined</option>
+                <option value="lastActive">Last Active</option>
             </select>
             <button id="ua_sort_dir" title="Toggle direction">↑</button>
         </div>
@@ -319,6 +322,7 @@
                 case 'name':     return ((u.firstname || '') + ' ' + (u.lastname || '')).trim().toLowerCase();
                 case 'role':     return (u.userrole || u.role || '').toLowerCase();
                 case 'joined':   return u.createdAt || '';
+                case 'lastActive': return u.lastActiveAt || '';
                 default:         return '';
             }
         }
@@ -346,7 +350,8 @@
                 { key: 'name',     label: 'Name' },
                 { key: 'role',     label: 'Role' },
                 { key: 'status',   label: 'Status' },
-                { key: 'joined',   label: 'Joined' }
+                { key: 'joined',   label: 'Joined' },
+                { key: 'lastActive', label: 'Last Active' }
             ];
             let arrow = sortAsc ? '↑' : '↓';
             let head = cols.map(c =>
@@ -404,6 +409,7 @@
                 <td data-label="Role"><span class="ua-role">${escapeHtml(role)}</span></td>
                 <td data-label="Status"><span class="ua-status ua-status-${status}">${escapeHtml(status)}</span></td>
                 <td data-label="Joined"><span class="ua-meta">${u.createdAt ? formatDate(u.createdAt) : ''}</span></td>
+                <td data-label="Last Active"><span class="ua-meta">${u.lastActiveAt ? formatDate(u.lastActiveAt) : ''}</span></td>
                 <td data-label="Actions">
                     <div class="ua-actions">
                         <button class="btn ua-edit primary" data-id="${u.id}" title="Edit profile">Edit</button>

@@ -13,6 +13,7 @@ module.exports = {
     getAll,
     getPage,
     getById,
+    getByIdFull,
     getByUserName,
     getRoles,
     register,
@@ -81,6 +82,13 @@ async function authenticate(body) {
               delete user.hash; //never return hash via API
               var signOpts = config.token.ignoreExpiry ? {} : { expiresIn: config.token.loginExpiry };
               token = jwt.sign({ sub: user.id, role: user.userrole }, config.secret, signOpts);
+              // Bump updatedAt to record this login as user activity. Reuses
+              // updatedAt rather than adding a dedicated lastLoginAt column —
+              // see plan: this conflates login with profile-row edits and
+              // the UI labels the field accordingly. Fire-and-forget so a
+              // DB hiccup doesn't block authentication.
+              query('UPDATE vpuser SET "updatedAt" = now() WHERE id = $1', [user.id])
+                .catch(err => console.warn('authenticate: lastLogin bump failed', err && err.message));
               if (body.token) {
                 // Use the resolved user's id so the update works whether they signed in by username or email
                 var update = `update vpuser set token=null,status='confirmed' where id=$1 and token=$2 returning *;`;
@@ -128,8 +136,31 @@ async function check(body) {
     });
 }
 
+// Per-user activity timestamps + a GREATEST roll-up. Computed via correlated
+// scalar subqueries so the existing WHERE clauses (which reference vpuser
+// columns unqualified) keep working unchanged. 'epoch'::timestamp is the
+// COALESCE floor inside GREATEST so a user with no visits/surveys/tracks
+// still gets lastActiveAt = u."updatedAt". Outside GREATEST the columns
+// stay NULL when there's nothing — the UI renders that as "—".
+const ACTIVITY_SUBQUERIES = `
+    (SELECT MAX("updatedAt") FROM vpvisit
+        WHERE "visitUserId" = u.id OR "visitObserverUserId" = u.id) AS "lastVisitAt",
+    (SELECT MAX("updatedAt") FROM vpsurvey
+        WHERE "surveyUserId" = u.id) AS "lastSurveyAt",
+    (SELECT MAX("uploadedAt") FROM vptrack
+        WHERE "userId" = u.id) AS "lastTrackAt",
+    GREATEST(
+        u."updatedAt",
+        COALESCE((SELECT MAX("updatedAt") FROM vpvisit
+            WHERE "visitUserId" = u.id OR "visitObserverUserId" = u.id), 'epoch'::timestamp),
+        COALESCE((SELECT MAX("updatedAt") FROM vpsurvey
+            WHERE "surveyUserId" = u.id), 'epoch'::timestamp),
+        COALESCE((SELECT MAX("uploadedAt") FROM vptrack
+            WHERE "userId" = u.id), 'epoch'::timestamp)
+    ) AS "lastActiveAt"`;
+
 async function getAll(params={}) {
-    var orderClause = 'ORDER BY "updatedAt" DESC';
+    var orderClause = 'ORDER BY u."updatedAt" DESC';
     if (params.orderBy) {
         var col = params.orderBy.split("|")[0];
         var dir = params.orderBy.split("|")[1]; dir = dir ? dir : '';
@@ -137,7 +168,8 @@ async function getAll(params={}) {
     }
     const where = pgUtil.whereClause(params, staticColumns);
     const text = `
-    SELECT * FROM vpuser
+    SELECT u.*, ${ACTIVITY_SUBQUERIES}
+    FROM vpuser u
     ${where.text} ${orderClause};`;
     console.log(`vpUser.service.pg.js getAll`, text, where.values);
     try {
@@ -159,7 +191,7 @@ async function getPage(page, params={}) {
         orderClause = `order by "${col}" ${dir}`;
     }
     var where = pgUtil.whereClause(params, staticColumns); //whereClause filters output against vpuser.columns
-    const text = `select (select count(*) from vpuser ${where.text}),* from vpuser ${where.text} ${orderClause} offset ${offset} limit ${pageSize};`;
+    const text = `select (select count(*) from vpuser ${where.text}), u.*, ${ACTIVITY_SUBQUERIES} from vpuser u ${where.text} ${orderClause} offset ${offset} limit ${pageSize};`;
     console.log(`vpUser.service.pg.js getPage`, text, where.values);
     try {
         var res = await query(text, where.values);
@@ -189,6 +221,26 @@ async function getById(id) {
         }
     } catch(err) {
         console.log(`vpUser.service.pg.js::getByID error`, err);
+        throw err;
+    }
+}
+
+// Same as getById, plus the per-user activity timestamps. Used by the user
+// API routes (admin profile, users list); the lightweight getById above is
+// hit on every authenticated request via jwt.js, where the extra MAX
+// subqueries would be wasted work.
+async function getByIdFull(id) {
+    try {
+        var res = await query(`SELECT u.*, ${ACTIVITY_SUBQUERIES} FROM vpuser u WHERE u."id"=$1;`, [id]);
+        if (res.rowCount == 1) {
+            delete res.rows[0].hash;
+            return res.rows[0];
+        } else {
+            console.log(`vpUser.service.pg.js::getByIdFull ${id} NOT Found`);
+            return {};
+        }
+    } catch(err) {
+        console.log(`vpUser.service.pg.js::getByIdFull error`, err);
         throw err;
     }
 }

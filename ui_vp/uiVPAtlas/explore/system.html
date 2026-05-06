@@ -367,7 +367,9 @@
             setMsg('net_msg', `Measuring (downloading speed-test ${label})…`);
             if (!window.bandwidthMonitor) { setMsg('net_msg', 'bandwidthMonitor not loaded.', 'err'); return; }
             let started = performance.now();
-            let kbps = await window.bandwidthMonitor.measureBandwidth({ size });
+            // Manual button → bypass the session cache and the auto-reprobe so
+            // the user sees a fresh, raw single-shot measurement.
+            let kbps = await window.bandwidthMonitor.measureBandwidth({ size, force: true, allowReprobe: false });
             let elapsed = (performance.now() - started) / 1000;
             if (kbps == null) { setMsg('net_msg', 'Bandwidth test failed (see console).', 'err'); return; }
             let mbps = kbps / 1000;

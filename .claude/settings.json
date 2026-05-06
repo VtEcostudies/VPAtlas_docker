@@ -61,7 +61,12 @@
       "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker status*)",
 
       "Bash(echo \"===*; for sha in*)",
-      "Bash(for sha in *; do *git -C /home/jloomis/VPAtlas/VPAtlas_docker*)"
+      "Bash(for sha in *; do *git -C /home/jloomis/VPAtlas/VPAtlas_docker*)",
+
+      "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker*)",
+      "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker* -exec grep -l *)",
+      "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker/*)",
+      "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker/* -exec grep -l *)"
     ]
   }
 }
