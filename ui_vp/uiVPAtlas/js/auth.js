@@ -30,6 +30,10 @@ export async function getUser() {
             // has already run. Awaited so the rest of the page boots in a
             // post-migration world.
             await migrateLegacyKeysToUser(user.id);
+            // Recover keys that an earlier per-user migration moved into
+            // u<id>: but that we've since decided should be SHARED instead
+            // (user_state, etc.). One-shot, guarded by its own flag.
+            await recoverSharedKeysFromUserScope(user.id);
         }
         return user || null;
     } catch(err) {
@@ -80,6 +84,38 @@ export async function logout() {
     await delLocal('auth_token');
     await delLocal('auth_user');
     setStorageUser(null);
+}
+
+// Keys that the prior per-user migration moved into u<id>: but that we
+// later decided should live in the SHARED namespace (e.g. user_state — UX
+// preference, not PII). On first page load after that decision, copy each
+// such key from the user-scoped slot back to the un-prefixed shared slot
+// (only if shared is empty — current shared writes win), and clean up the
+// scoped copy. Per-user flag prevents repeated work.
+const RECOVER_TO_SHARED_KEYS = ['user_state'];
+async function recoverSharedKeysFromUserScope(userId) {
+    const flag = `u${userId}:_recovered_shared_v1`;
+    try {
+        if (await getRaw(flag)) return;
+        let recovered = 0;
+        for (const k of RECOVER_TO_SHARED_KEYS) {
+            const sharedExisting = await getRaw(k);                   // un-prefixed
+            const scopedExisting = await getRaw(`u${userId}:${k}`);   // scoped
+            if (scopedExisting != null && sharedExisting == null) {
+                await setRaw(k, scopedExisting);
+                recovered++;
+            }
+            // Always drop the orphaned scoped copy so a future change of
+            // mind doesn't bring stale data back.
+            if (scopedExisting != null) {
+                await delRaw(`u${userId}:${k}`);
+            }
+        }
+        await setRaw(flag, { at: new Date().toISOString(), recovered });
+        if (recovered) console.log(`auth.js: recovered ${recovered} keys from u${userId}: → shared`);
+    } catch (err) {
+        console.warn('auth.js: shared-key recovery failed', err);
+    }
 }
 
 // One-time per device: legacy un-prefixed keys (visits, tracks, user_state,

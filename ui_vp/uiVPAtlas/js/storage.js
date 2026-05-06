@@ -30,6 +30,7 @@ export const SHARED_KEYS = new Set([
     'pool_cache', 'visit_cache', 'survey_cache',     // public reference data snapshots
     'parcel_cache',                                   // VCGI parcel boundaries (public)
     'map_settings',                                   // base layer / boundary / parcels — UX pref
+    'user_state',                                     // filter / map-layer prefs — UX pref, no PII concern
 ]);
 
 let _userId = null;
