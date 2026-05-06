@@ -171,7 +171,7 @@
            selected pool, accounting for which way the device is held. */
         .pf-compass {
             position: absolute; bottom: 14px; right: 64px; z-index: 1000;
-            width: 84px; height: 84px;
+            width: 115px; height: 115px;
             background: rgba(255,255,255,0.95);
             border: 2px solid rgba(0,0,0,0.25);
             border-radius: 50%;
@@ -187,7 +187,6 @@
         .pf-compass.simple .pf-compass-arrow svg polygon.pf-compass-head { fill: #16a34a; stroke: #14532d; }
         .pf-compass.simple .pf-compass-arrow svg polygon.pf-compass-tail { display: none; }
         .pf-compass.simple .pf-compass-arrow svg .pf-compass-stem { display: block; }
-        .pf-compass.simple .pf-compass-dist { display: block; }
         .pf-compass-arrow svg .pf-compass-stem { display: none; }
         .pf-compass-rose {
             position: absolute; inset: 0;
@@ -210,22 +209,19 @@
             transition: transform 0.3s ease-out;
         }
         .pf-compass-arrow svg { display: block; }
+        /* Distance-to-mark sits ABOVE the compass dial. Color flips to the
+           green-arrow shade when the compass is in `.simple` mode. */
         .pf-compass-label {
-            position: absolute; left: 0; right: 0; top: -22px;
-            text-align: center; font-size: 13px; font-weight: 700; color: var(--primary-color);
+            position: absolute;
+            left: 0; right: 0; top: -22px;
+            text-align: center;
+            font-size: 13px; font-weight: 700;
+            color: var(--primary-color);
             text-shadow: 0 0 2px white, 0 0 2px white, 0 0 4px white;
             white-space: nowrap;
-        }
-        /* Distance-to-mark for the simple/green compass. Sits ABOVE the
-           compass to match the rose-mode distance label. */
-        .pf-compass-dist {
-            position: absolute; left: 0; right: 0; top: -22px;
-            text-align: center; font-size: 13px; font-weight: 700;
-            color: #14532d;
-            text-shadow: 0 0 2px white, 0 0 2px white, 0 0 4px white;
             pointer-events: none;
-            display: none;
         }
+        .pf-compass.simple .pf-compass-label { color: #14532d; }
         /* Pulsing ring drawn around the compass when motion detection isn't yet enabled */
         .pf-compass.needs-tap {
             animation: pf-compass-pulse 1.6s ease-in-out infinite;
@@ -237,7 +233,7 @@
         /* Speech-bubble prompt pointing at the compass */
         .pf-compass-prompt {
             position: absolute;
-            bottom: 110px; right: 14px;
+            bottom: 141px; right: 14px;
             z-index: 1001;
             max-width: 240px;
             background: var(--selected-color, #c44100);
@@ -316,16 +312,15 @@
                     <span class="pf-compass-w">W</span>
                 </div>
                 <div class="pf-compass-arrow" id="pf_compass_arrow">
-                    <!-- 80px tall ≈ 95% of the 84px compass diameter so the
-                         arrow runs nearly the full width of the dial. -->
-                    <svg width="24" height="80" viewBox="0 0 24 80">
+                    <!-- Arrow shrunk to 23×75 inside the 115px dial — extra
+                         headroom keeps the arrow tip clear of the rim. -->
+                    <svg width="23" height="75" viewBox="0 0 24 80">
                         <rect class="pf-compass-stem" x="10" y="22" width="4" height="56" rx="1.5"
                               fill="#16a34a" stroke="#14532d" stroke-width="1"/>
                         <polygon class="pf-compass-head" points="12,2 22,30 12,22 2,30" fill="#c00" stroke="#600" stroke-width="1"/>
                         <polygon class="pf-compass-tail" points="12,78 22,50 12,58 2,50" fill="#888" stroke="#444" stroke-width="1"/>
                     </svg>
                 </div>
-                <div class="pf-compass-dist" id="pf_compass_dist"></div>
                 <div class="pf-compass-label" id="pf_compass_label"></div>
             </div>
             <!-- Prompt asking the user to tap the compass to enable motion detection -->
@@ -351,7 +346,8 @@
     <script type="module">
         import { GPSMonitor } from './js/gps_monitor.js';
         import { createMap, addPoolMarker, getPoolColor, getSurveyLevel,
-                 buildShapeIcon, stateCenter, stateZoom, wireCombinedTooltip } from '/js/map_common.js';
+                 buildShapeIcon, stateCenter, stateZoom, wireCombinedTooltip,
+                 createUserLocationMarker, createPoolHaloMarker } from '/js/map_common.js';
         import { getLocal, setLocal } from '/js/storage.js';
         import { fetchApiRoute, fetchTrackById } from '/js/api.js';
         import { getPoolById } from '/js/pool_data_cache.js';
@@ -697,6 +693,7 @@
                     let existing = selectedPools.get(existingPid);
                     if (existing) {
                         if (existing.marker) map.removeLayer(existing.marker);
+                        if (existing.halo) map.removeLayer(existing.halo);
                         if (existing.line) map.removeLayer(existing.line);
                         if (existing.lineLabel) map.removeLayer(existing.lineLabel);
                     }
@@ -720,7 +717,11 @@
             });
             marker.on('click', () => zoomToPool(pid));
 
-            selectedPools.set(pid, { row, marker, lat, lng, line: null, lineLabel: null });
+            // Pulsing green halo highlights the active navigation target.
+            // Same visual as the explore page's pinned-pool indicator.
+            let halo = createPoolHaloMarker([lat, lng]).addTo(map);
+
+            selectedPools.set(pid, { row, marker, halo, lat, lng, line: null, lineLabel: null });
             renderChips();
             renderNavPanel();
             updateGpsLines();
@@ -740,6 +741,7 @@
             let entry = selectedPools.get(poolId);
             if (entry) {
                 map.removeLayer(entry.marker);
+                if (entry.halo) map.removeLayer(entry.halo);
                 if (entry.line) map.removeLayer(entry.line);
                 if (entry.lineLabel) map.removeLayer(entry.lineLabel);
                 selectedPools.delete(poolId);
@@ -1015,10 +1017,7 @@
         function updateUserMarker(pos) {
             let ll = [pos.lat, pos.lng];
             if (!userMarker) {
-                userMarker = L.circleMarker(ll, {
-                    radius: 8, fillColor: '#4285F4', color: 'white',
-                    weight: 3, fillOpacity: 1, zIndexOffset: 1000
-                }).addTo(map);
+                userMarker = createUserLocationMarker(ll).addTo(map);
                 accuracyCircle = L.circle(ll, {
                     radius: pos.accuracy, color: '#4285F4', fillColor: '#4285F4',
                     fillOpacity: 0.1, weight: 1, interactive: false
@@ -1170,17 +1169,7 @@
             // Counter-rotate the N/E/S/W rose so N stays at true north when
             // device orientation is available.
             rose.style.transform = `rotate(${-deviceHeading}deg)`;
-            let distStr = GPSMonitor.formatDistance(dist);
-            // Distance always shown inside the simple/green compass face.
-            let distEl = document.getElementById('pf_compass_dist');
-            if (distEl) distEl.textContent = distStr;
-            // Rose mode: distance label above the rose. Simple mode: nothing
-            // here (the on-dial distance covers it).
-            if (compass.classList.contains('simple')) {
-                label.textContent = '';
-            } else {
-                label.textContent = distStr;
-            }
+            label.textContent = GPSMonitor.formatDistance(dist);
         }
 
         // Device orientation \u2014 gives true heading on Android Chrome and iOS

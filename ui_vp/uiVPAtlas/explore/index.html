@@ -127,8 +127,8 @@
 
     <!-- Main app entry point -->
     <script type="module">
-        import { initPoolList, loadPools, refreshPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId } from './js/pool_list.js';
-        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible, wireGpsButton, wireBothButton } from './js/map.js';
+        import { initPoolList, loadPools, refreshPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId, getPinnedPoolId } from './js/pool_list.js';
+        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible, wireGpsButton, wireBothButton, setPoolHalo, clearPoolHalo } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
         import { showWait, hideWait } from './js/utils.js';
@@ -168,7 +168,7 @@
             let user = await getUser();
             currentUser = user;
             let currentUsername = user ? (user.handle || user.username || user.email) : null;
-            initPoolList('list_table', 'list_table_title', onPoolSelect, currentUsername, zoomToFilteredPools, onPoolDeselect);
+            initPoolList('list_table', 'list_table_title', onPoolSelect, currentUsername, zoomToFilteredPools, onPoolDeselect, setPoolHalo, clearPoolHalo);
             initSummary('pool_summary', 'summary_title');
             await initMap({ isAdmin: user && user.userrole === 'admin' });
             initFilterBar(onFilterChange);
@@ -181,6 +181,11 @@
             // All filtering is client-side after this point.
             masterRows = await loadPools(onDataRefresh);
             refreshUI();
+
+            // Restore halo for a previously-pinned pool. Pool_list.js doesn't
+            // import map.js, so we redrive the halo here once markers exist.
+            let pinned = getPinnedPoolId();
+            if (pinned) setPoolHalo(pinned);
 
             // Wire map zoom buttons
             document.getElementById('map_zoom_btn').addEventListener('click', zoomToFilteredPools);

@@ -16,26 +16,37 @@ const STALE_MS = 60 * 1000;            // check freshness after 1 min
 
 var onPoolSelect = null;
 var onPoolDeselect = null;
+var onPinSelect = null;     // fires when a pool is pinned (single-select on the map)
+var onPinDeselect = null;   // fires when the pinned pool is un-pinned
 var listContainer = null;
 var titleContainer = null;
 var currentUsername = null;
 var zoomToFilteredCallback = null;
+// Single-select. Kept as a Set for backwards compat with putUserState
+// (poolFinderPools is persisted as an array) and so existing iteration
+// patterns still work, but only one entry is ever held at a time.
 var selectedPoolIds = new Set();
 var focusedPoolId = null;         // currently viewed pool in summary pane
 
 // =============================================================================
 // INITIALIZE
 // =============================================================================
-export function initPoolList(containerId, titleId, poolSelectCallback, username=null, zoomCallback=null, poolDeselectCallback=null) {
+export function initPoolList(containerId, titleId, poolSelectCallback, username=null, zoomCallback=null, poolDeselectCallback=null, pinSelectCallback=null, pinDeselectCallback=null) {
     listContainer = document.getElementById(containerId);
     titleContainer = document.getElementById(titleId);
     onPoolSelect = poolSelectCallback;
     onPoolDeselect = poolDeselectCallback;
+    onPinSelect = pinSelectCallback;
+    onPinDeselect = pinDeselectCallback;
     currentUsername = username;
     zoomToFilteredCallback = zoomCallback;
-    // Restore saved pool selections (filters loaded from storage before this call)
+    // Restore saved pool selection. Force single-select even if storage
+    // somehow contains multiple ids (legacy multi-select state).
     if (filters.poolFinderPools && filters.poolFinderPools.length) {
-        filters.poolFinderPools.forEach(id => selectedPoolIds.add(id));
+        selectedPoolIds.add(filters.poolFinderPools[0]);
+        if (filters.poolFinderPools.length > 1) {
+            putUserState(0, { poolFinderPools: [...selectedPoolIds] });
+        }
     }
 }
 
@@ -249,20 +260,31 @@ function renderPoolTable(rows) {
         el.style.cursor = 'pointer';
         el.addEventListener('click', function(e) {
             let poolId = this.dataset.poolId;
-            // Pin button → toggle Pool Finder selection
+            // Pin button → single-select. Pinning a new pool clears the prior
+            // pin (and its map halo). Pinning the already-pinned pool clears it.
             let pinBtn = e.target.closest('.pl-pin');
             if (pinBtn) {
                 e.stopPropagation();
-                if (selectedPoolIds.has(poolId)) {
-                    selectedPoolIds.delete(poolId);
-                    pinBtn.classList.remove('pinned');
-                    pinBtn.title = 'Add to Pool Finder';
-                    this.classList.remove('selected');
-                } else {
+                let wasPinned = selectedPoolIds.has(poolId);
+                let priorPinned = [...selectedPoolIds][0] || null;
+
+                // Clear previous pin (visually + state) — there is at most one.
+                if (priorPinned) {
+                    selectedPoolIds.delete(priorPinned);
+                    listContainer.querySelectorAll(`.pool-row[data-pool-id="${CSS.escape(priorPinned)}"]`).forEach(r => {
+                        r.classList.remove('selected');
+                        let pb = r.querySelector('.pl-pin');
+                        if (pb) { pb.classList.remove('pinned'); pb.title = 'Add to Pool Finder'; }
+                    });
+                    if (onPinDeselect) onPinDeselect(priorPinned);
+                }
+
+                if (!wasPinned) {
                     selectedPoolIds.add(poolId);
                     pinBtn.classList.add('pinned');
                     pinBtn.title = 'Remove from Pool Finder';
                     this.classList.add('selected');
+                    if (onPinSelect) onPinSelect(poolId);
                 }
                 putUserState(0, { poolFinderPools: [...selectedPoolIds] });
                 updateSelectionCount();
@@ -353,6 +375,11 @@ export function clearFocus() {
     if (listContainer) {
         listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('focused'));
     }
+}
+
+// Single-select pin id (the pool currently halo'd on the map). null when none.
+export function getPinnedPoolId() {
+    return [...selectedPoolIds][0] || null;
 }
 
 export function getFocusedPoolId() {

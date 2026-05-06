@@ -8,7 +8,8 @@ import {
     createBaseLayers, loadBoundaryOverlays, addBoundaryOverlays, wireCombinedTooltip,
     getPoolColor, getSurveyLevel,
     poolTooltipText, poolPopupHtml,
-    stateBounds
+    stateBounds,
+    createUserLocationMarker, createPoolHaloMarker
 } from '/js/map_common.js';
 import { getLocal, setLocal } from '/js/storage.js';
 import { initParcelLayer, showParcels, hideParcels, parcelsEnabled, parcelMinZoom } from '/js/parcels.js';
@@ -68,6 +69,9 @@ var userMarker = null;
 var accuracyCircle = null;
 var gpsBtn = null;            // anchor element of the leaflet control
 var gpsHasFix = false;
+
+// Halo marker for the currently pinned pool (single-select).
+var haloMarker = null;
 
 // Home button callback
 var homeCallback = null;
@@ -313,10 +317,7 @@ export function wireBothButton(btn) {
 function updateUserMarker(pos) {
     let ll = [pos.lat, pos.lng];
     if (!userMarker) {
-        userMarker = L.circleMarker(ll, {
-            radius: 8, fillColor: '#4285F4', color: 'white',
-            weight: 3, fillOpacity: 1, zIndexOffset: 1000
-        }).addTo(map);
+        userMarker = createUserLocationMarker(ll).addTo(map);
         accuracyCircle = L.circle(ll, {
             radius: pos.accuracy, color: '#4285F4', fillColor: '#4285F4',
             fillOpacity: 0.1, weight: 1, interactive: false
@@ -324,6 +325,26 @@ function updateUserMarker(pos) {
     } else {
         userMarker.setLatLng(ll);
         accuracyCircle.setLatLng(ll).setRadius(pos.accuracy);
+    }
+}
+
+// =============================================================================
+// PULSING GREEN HALO — single-select highlight for the pinned pool
+// =============================================================================
+// Drawn beneath the pool marker; CSS handles the pulse animation. Setting on
+// a poolId that isn't currently plotted is a no-op (e.g. filtered out).
+export function setPoolHalo(poolId) {
+    if (!map) return;
+    clearPoolHalo();
+    let m = markers[poolId];
+    if (!m) return;
+    haloMarker = createPoolHaloMarker(m.getLatLng()).addTo(map);
+}
+
+export function clearPoolHalo() {
+    if (haloMarker) {
+        map.removeLayer(haloMarker);
+        haloMarker = null;
     }
 }
 

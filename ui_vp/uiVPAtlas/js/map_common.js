@@ -256,6 +256,52 @@ export function addPoolMarker(map, latlng, opts = {}) {
 }
 
 // =============================================================================
+// USER LOCATION + POOL HALO — shared visuals
+// =============================================================================
+// Standard user-GPS marker: blue person glyph (matching the GPS button's
+// fa-user) wrapped in a pulsing blue halo. CSS lives in /css/map.css under
+// .user-loc-marker / .user-loc-icon / .user-halo.
+//
+// Caller is responsible for `.addTo(map)` and updating with setLatLng on
+// subsequent fixes. Pass `{ interactive: true }` if you need to bind a
+// tooltip or click handler on the marker. Returns the L.marker.
+export function createUserLocationMarker(latlng, opts = {}) {
+    return L.marker(latlng, {
+        icon: L.divIcon({
+            className: 'user-loc-marker',
+            html:
+                '<div class="user-loc-icon">' +
+                  '<div class="user-halo"></div>' +
+                  '<i class="fa fa-user" aria-hidden="true"></i>' +
+                '</div>',
+            iconSize: [60, 60],
+            iconAnchor: [30, 30]
+        }),
+        interactive: opts.interactive === true,
+        keyboard: false,
+        zIndexOffset: 1000
+    });
+}
+
+// Pulsing green halo placed at a pool's location to highlight a single
+// "selected" or "target" pool. Hollow ring so the underlying pool marker
+// stays visible. Caller adds it to the map and removes it when no longer
+// needed (markers do not auto-clear).
+export function createPoolHaloMarker(latlng) {
+    return L.marker(latlng, {
+        icon: L.divIcon({
+            className: 'pool-halo-marker',
+            html: '<div class="pool-halo"></div>',
+            iconSize: [60, 60],
+            iconAnchor: [30, 30]
+        }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: -100
+    });
+}
+
+// =============================================================================
 // BASE LAYERS
 // =============================================================================
 export function createBaseLayers() {

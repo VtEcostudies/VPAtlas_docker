@@ -1248,7 +1248,7 @@
         import { fetchVisitById, fetchMappedPoolById, fetchMappedPoolGeoJson, createVisit, createPoolAndVisit, updateVisit } from '/js/api.js';
         import { getPoolById } from '/js/pool_data_cache.js';
         import { requireAuth, getUser } from '/js/auth.js';
-        import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText, wireCombinedTooltip } from '/js/map_common.js';
+        import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText, wireCombinedTooltip, createUserLocationMarker } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { saveVisit, loadVisit, createVisitState } from './js/visit_store.js';
         import { syncVisit } from './js/visit_sync.js';
@@ -1449,9 +1449,11 @@
                         let acc = pos.coords.accuracy;
                         gpsPosition = { lat, lng, accuracy: acc };
 
-                        // Blue dot + accuracy circle
-                        L.circleMarker([lat, lng], { radius: 7, fillColor: '#4285f4', color: 'white',
-                            weight: 2, fillOpacity: 0.9 }).addTo(map).bindTooltip('You are here', { direction: 'top', offset: [0, -8] });
+                        // Blue person + pulsing halo + accuracy ring (matches the
+                        // user marker shown elsewhere in the app).
+                        createUserLocationMarker([lat, lng], { interactive: true })
+                            .addTo(map)
+                            .bindTooltip('You are here', { direction: 'top', offset: [0, -22] });
                         L.circle([lat, lng], { radius: acc, color: '#4285f4', fillColor: '#4285f4',
                             fillOpacity: 0.08, weight: 1, dashArray: '4,4', interactive: false }).addTo(map);
 
