@@ -55,6 +55,7 @@
 
       "Bash(/home/jloomis/VPAtlas/VPAtlas_docker/deploy/deploy-dev.sh logs *)",
       "Bash(/home/jloomis/VPAtlas/VPAtlas_docker/deploy/deploy-dev.sh deploy *)",
+      "Bash(/home/jloomis/VPAtlas/VPAtlas_docker/deploy/deploy-dev.sh ui *)",
 
       "Bash(node /home/jloomis/VPAtlas/VPAtlas_docker/ui_vp/uiVPAtlas/sw-build.js*)",
       "Bash(docker compose -f /home/jloomis/VPAtlas/VPAtlas_docker/docker-compose-vpatlas.yml up *)",

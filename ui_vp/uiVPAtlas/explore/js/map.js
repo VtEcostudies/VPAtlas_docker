@@ -12,7 +12,7 @@ import {
     createUserLocationMarker, createPoolHaloMarker
 } from '/js/map_common.js';
 import { getLocal, setLocal } from '/js/storage.js';
-import { initParcelLayer, showParcels, hideParcels, parcelsEnabled, parcelMinZoom, findParcelAt } from '/js/parcels.js';
+import { initParcelLayer, showParcels, hideParcels, parcelsEnabled, parcelMinZoom, findParcelAt, prefetchParcelsNear } from '/js/parcels.js';
 import { GPSMonitor } from '/survey/js/gps_monitor.js';
 
 // =============================================================================
@@ -222,6 +222,20 @@ export function plotPoolRows(rows, onPoolClick=null) {
         // landowner-from-parcel lookup runs against the freshest in-memory
         // parcel cache (parcels stream in as the user pans/zooms).
         marker.bindPopup(() => poolPopupHtml(row, findParcelAt), { maxWidth: 360 });
+
+        // If no parcel is cached at the pool's location when the popup opens,
+        // fetch the parcel for that point on demand (small bbox around the
+        // pool, single VCGI request) and then refresh the popup content so
+        // the landowner block appears without the user having to zoom/pan.
+        marker.on('popupopen', async () => {
+            if (findParcelAt({ lat, lng })) return;          // already have it
+            try {
+                await prefetchParcelsNear(lat, lng);
+            } catch (_) { return; }
+            if (marker.isPopupOpen()) {
+                marker.setPopupContent(poolPopupHtml(row, findParcelAt));
+            }
+        });
 
         if (onPoolClick) {
             marker.on('click', function() { onPoolClick(row); });
