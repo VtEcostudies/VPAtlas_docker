@@ -56,9 +56,12 @@
 <body>
     <header>
         <div class="detail-header">
-            <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
+            <button class="exit-button" id="exit_btn" onclick="window.location.href='/explore/'">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">My Profile</h3>
-            <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px; margin-left:auto;">Save</button>
+            <div style="margin-left:auto; display:flex; gap:8px;">
+                <button id="btn_delete" class="action-button" style="font-size:14px; padding:4px 12px; background:var(--danger-color); color:white; display:none;">Delete</button>
+                <button id="btn_save" class="action-button" style="font-size:14px; padding:4px 12px;">Save</button>
+            </div>
         </div>
     </header>
     <hr class="divider-header">
@@ -97,7 +100,27 @@
 
                 <div class="form-row" style="margin-top:8px;">
                     <div class="form-field"><label for="f_handle">Handle (display name)</label><input type="text" id="f_handle"></div>
-                    <div class="form-field"><label for="f_userrole">Role</label><input type="text" id="f_userrole" disabled></div>
+                    <div class="form-field">
+                        <label for="f_userrole">Role</label>
+                        <select id="f_userrole" disabled>
+                            <option value="user">user</option>
+                            <option value="monitor">monitor</option>
+                            <option value="admin">admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" id="row_status" style="display:none;">
+                    <div class="form-field">
+                        <label for="f_status">Status</label>
+                        <select id="f_status">
+                            <option value="confirmed">confirmed</option>
+                            <option value="registration">registration</option>
+                            <option value="reset">reset</option>
+                            <option value="new_email">new_email</option>
+                            <option value="invalid">invalid</option>
+                            <option value="auto-gen">auto-gen</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -154,30 +177,60 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchUserById, updateUser, requestEmailChange, fetchEmailHistory } from '/js/api.js';
+        import { fetchUserById, updateUser, deleteUser, requestEmailChange, fetchEmailHistory } from '/js/api.js';
         import { getUser, requireAuth } from '/js/auth.js';
         import { setLocal } from '/js/storage.js';
         import { formatDate } from '/explore/js/utils.js';
         // No profile icon on profile page — that would be recursive
 
-        let currentUser = null;
+        let currentUser = null;       // the user being edited (self or other)
+        let viewingUser = null;       // the logged-in user (for permission checks)
+        let adminMode = false;        // true when an admin is editing someone else
 
-        // Fields that map to input IDs
-        const readOnlyFields = ['username', 'email', 'userrole'];
+        // Fields that map to input IDs.
+        // Self-mode: handle/personal/credentials editable; account fields locked.
+        // Admin-mode: everything in `editableFields` PLUS the admin-only set below.
         const editableFields = ['handle', 'firstname', 'middleName', 'lastname', 'userPhone', 'userAddress', 'userCredentials'];
+        const adminOnlyFields = ['username', 'email', 'userrole', 'status'];
+        const allDisplayFields = ['username', 'email', 'userrole', 'status', ...editableFields];
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!(await requireAuth())) return;
 
-            let user = await getUser();
-            if (!user || !user.id) {
+            viewingUser = await getUser();
+            if (!viewingUser || !viewingUser.id) {
                 document.getElementById('profile_loading').innerHTML =
                     '<p style="color:var(--danger-color);">Unable to load user information.</p>';
                 return;
             }
 
+            // Admin mode = ?id=N where N is not the current user, AND the
+            // viewer is an admin. Self mode otherwise.
+            const params = new URLSearchParams(window.location.search);
+            const targetId = params.get('id');
+            const viewerIsAdmin = (viewingUser.role === 'admin' || viewingUser.userrole === 'admin');
+            const editingSelf = !targetId || Number(targetId) === Number(viewingUser.id);
+
+            if (!editingSelf && !viewerIsAdmin) {
+                document.getElementById('profile_loading').innerHTML =
+                    '<p style="color:var(--danger-color);">You do not have permission to view this profile.</p>';
+                return;
+            }
+            adminMode = !editingSelf;
+            const userIdToLoad = editingSelf ? viewingUser.id : Number(targetId);
+
+            // Header tweaks for admin mode: title shows whose profile, X goes
+            // back to the user list, and the Delete button is revealed.
+            if (adminMode) {
+                document.getElementById('page_title').textContent = 'Edit User Profile';
+                document.getElementById('exit_btn').setAttribute('onclick',
+                    "window.location.href='/admin/users_admin.html'");
+                document.getElementById('btn_delete').style.display = '';
+                document.getElementById('row_status').style.display = '';
+            }
+
             try {
-                let data = await fetchUserById(user.id);
+                let data = await fetchUserById(userIdToLoad);
                 currentUser = data.rows ? data.rows[0] : data;
                 renderProfile(currentUser);
             } catch(err) {
@@ -187,9 +240,26 @@
             }
 
             document.getElementById('btn_save').addEventListener('click', saveProfile);
+            document.getElementById('btn_delete').addEventListener('click', deleteThisUser);
             wireEmailChange();
             loadEmailHistory(currentUser.id);
         });
+
+        async function deleteThisUser() {
+            if (!adminMode || !currentUser) return;
+            if (Number(currentUser.id) === Number(viewingUser.id)) {
+                showMsg('You cannot delete your own account from this page.', 'error');
+                return;
+            }
+            const label = currentUser.username || currentUser.email || `#${currentUser.id}`;
+            if (!confirm(`Delete user "${label}" (#${currentUser.id})? This cannot be undone.`)) return;
+            try {
+                await deleteUser(currentUser.id);
+                window.location.href = '/admin/users_admin.html';
+            } catch(err) {
+                showMsg('Could not delete: ' + (err.message || err), 'error');
+            }
+        }
 
         function wireEmailChange() {
             const form = document.getElementById('change_email_form');
@@ -267,17 +337,24 @@
         }
 
         function renderProfile(u) {
-            // Read-only fields
-            readOnlyFields.forEach(f => {
+            // All display fields (read-only AND editable). Admin mode unlocks
+            // username/email/role/status; self mode keeps them disabled.
+            allDisplayFields.forEach(f => {
                 let el = document.getElementById('f_' + f);
-                if (el && u[f] != null) el.value = u[f];
+                if (!el) return;
+                if (u[f] != null) el.value = u[f];
+                if (adminMode && adminOnlyFields.includes(f)) el.disabled = false;
             });
 
-            // Editable fields
-            editableFields.forEach(f => {
-                let el = document.getElementById('f_' + f);
-                if (el && u[f] != null) el.value = u[f];
-            });
+            // In admin mode, the email field becomes a normal editable input —
+            // no confirmation-link round trip. Hide the in-form Change button
+            // and the deferred-swap helpers; admins set the email directly.
+            const emailInput = document.getElementById('f_email');
+            const changeEmailBtn = document.getElementById('btn_change_email');
+            if (adminMode) {
+                if (emailInput) emailInput.disabled = false;
+                if (changeEmailBtn) changeEmailBtn.style.display = 'none';
+            }
 
             // Trained radio
             if (u.userTrained != null) {
@@ -285,12 +362,13 @@
                 if (radio) radio.checked = true;
             }
 
-            // Pending email banner
+            // Pending email banner — still relevant for admins viewing a user
+            // who has a pending self-initiated change.
             const banner = document.getElementById('email_pending_banner');
             if (u.pendingEmail) {
                 banner.textContent =
                     `A confirmation link has been sent to ${u.pendingEmail}. ` +
-                    `The change will not take effect until you click the link in that inbox.`;
+                    `The change will not take effect until ${adminMode ? 'the user clicks' : 'you click'} the link in that inbox.`;
                 banner.style.display = 'block';
             } else {
                 banner.style.display = 'none';
@@ -316,6 +394,18 @@
                 if (el) body[f] = el.value.trim();
             });
 
+            // Admin-only fields — backend already drops these from the body
+            // when the requesting user isn't admin (vpUser.service.pg.update),
+            // so it's safe to always send them when adminMode is true.
+            if (adminMode) {
+                adminOnlyFields.forEach(f => {
+                    let el = document.getElementById('f_' + f);
+                    if (el) body[f] = el.value.trim();
+                });
+                // Backend update accepts both `userrole` (column) and `role`.
+                if (body.userrole) body.role = body.userrole;
+            }
+
             // Trained
             let trainedRadio = document.querySelector('input[name="f_userTrained"]:checked');
             if (trainedRadio) body.userTrained = trainedRadio.value === 'true';
@@ -323,15 +413,17 @@
             showMsg('Saving...', 'info');
             try {
                 await updateUser(currentUser.id, body);
-                // Re-fetch to get the canonical DB record, then update both views
                 let freshData = await fetchUserById(currentUser.id);
                 let freshUser = freshData.rows ? freshData.rows[0] : freshData;
                 if (freshUser) {
                     currentUser = freshUser;
-                    // Update the cached auth_user so profile popup and other pages see changes
-                    let authUser = await getUser();
-                    Object.assign(authUser, freshUser);
-                    await setLocal('auth_user', authUser);
+                    // Only refresh the cached auth_user when editing yourself —
+                    // admin-edit-other should NOT clobber the admin's own cache.
+                    if (!adminMode) {
+                        let authUser = await getUser();
+                        Object.assign(authUser, freshUser);
+                        await setLocal('auth_user', authUser);
+                    }
                     renderProfile(currentUser);
                 }
                 showMsg('Profile updated.', 'success');

@@ -11,33 +11,91 @@
     <link rel="stylesheet" href="/explore/css/pool_list.css">
     <link rel="stylesheet" href="/survey/css/visit_queue.css">
     <style>
-        .ua-container { max-width: 980px; padding: 10px 16px; overflow-x: hidden; }
+        /* Full bleed, no max-width clamp — admin needs to see the whole row. */
+        .ua-container { padding: 10px 16px; }
+
         .ua-search { display: flex; gap: 8px; align-items: center; padding: 6px 0; flex-wrap: wrap; }
         .ua-search input { flex: 1 1 220px; min-width: 0; font-size: 16px; padding: 8px 10px; height: 40px; border: 1px solid var(--primary-color); border-radius: 6px; }
         .ua-search select { font-size: 15px; padding: 6px 10px; height: 40px; border: 1px solid var(--primary-color); border-radius: 6px; color: var(--primary-color); background: white; }
         .ua-search button { font-size: 15px; padding: 8px 16px; height: 40px; }
         .ua-search label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
         .ua-empty { font-size: 14px; color: var(--text-muted, #666); padding: 12px 0; }
         .ua-msg { padding: 8px 12px; font-size: 14px; border-radius: 6px; margin: 4px 0 12px; display: none; }
         .ua-msg.show { display: block; }
         .ua-msg.success { background: #e8f5e9; color: #2e7d32; }
         .ua-msg.error   { background: #fbe9e7; color: #c62828; }
 
-        /* User card — same look as visit queue cards */
-        .ua-card {
-            display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-            padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+        /* Bigger, bolder count chip in the header */
+        #user_count {
+            font-size: 18px; font-weight: 700; color: var(--primary-color);
+            margin-left: 12px;
         }
+
+        /* Sortable table — same shape as pool_list on the explore home page. */
+        .ua-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+        .ua-table thead th {
+            text-align: left; padding: 10px 8px;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color); font-weight: 700;
+            background: var(--primary-light, #fff8f3);
+            cursor: pointer; user-select: none; white-space: nowrap;
+            position: sticky; top: 0; z-index: 1;
+        }
+        .ua-table thead th .arrow { font-size: 12px; opacity: 0.5; margin-left: 4px; }
+        .ua-table thead th.sorted .arrow { opacity: 1; }
+        .ua-table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+        }
+        .ua-table tbody tr:hover { background: #fafafa; }
+        .ua-table td { padding: 10px 8px; vertical-align: middle; }
+
         .ua-avatar {
-            width: 44px; height: 44px; border-radius: 50%;
-            background: var(--primary-color); color: white; font-weight: bold; font-size: 18px;
-            display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--primary-color); color: white; font-weight: bold; font-size: 16px;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
         }
-        .ua-info { flex: 1 1 200px; min-width: 0; }
-        .ua-name { font-weight: 700; font-size: 16px; color: var(--primary-color); }
-        .ua-id { font-size: 12px; color: var(--text-muted); margin-left: 6px; font-weight: normal; }
-        .ua-email { font-size: 14px; color: var(--text-secondary); word-break: break-all; }
-        .ua-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .ua-cell-user { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        /* Avatar holds its size; the text block takes the remaining cell width
+           and is allowed to shrink + wrap so the User column tracks window
+           width instead of forcing the table out. */
+        .ua-cell-user > .ua-avatar { flex: 0 0 auto; }
+        .ua-cell-user > .ua-user-text { flex: 1 1 auto; min-width: 0; }
+        .ua-name { font-weight: 700; font-size: 16px; color: var(--primary-color); overflow-wrap: anywhere; word-break: break-word; }
+        .ua-id   { font-size: 12px; color: var(--text-muted); margin-left: 6px; font-weight: 400; }
+        .ua-realname { font-size: 14px; color: var(--text-secondary); margin-top: 2px; font-weight: 600; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
+
+        /* Column sizing in table mode: User and Name get all the slack and
+           wrap their content; the other columns hug their natural width. */
+        .ua-table thead th[data-col="username"],
+        .ua-table tbody td[data-label="User"],
+        .ua-table thead th[data-col="name"],
+        .ua-table tbody td[data-label="Name"] {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        /* Email keeps its existing break-all (no nowrap) so very long
+           addresses can still wrap if the column gets squeezed. */
+        .ua-table thead th[data-col="role"],
+        .ua-table tbody td[data-label="Role"],
+        .ua-table thead th[data-col="status"],
+        .ua-table tbody td[data-label="Status"],
+        .ua-table thead th[data-col="joined"],
+        .ua-table tbody td[data-label="Joined"],
+        .ua-table tbody td[data-label="Actions"] {
+            width: 1%;
+            white-space: nowrap;
+        }
+
+        .ua-email { font-size: 15px; color: #222; font-weight: 600; word-break: break-all; }
+
+        .ua-role {
+            font-size: 14px; font-weight: 700; text-transform: capitalize;
+            color: var(--primary-color);
+        }
+
         .ua-status {
             display: inline-block; padding: 2px 8px; border-radius: 12px;
             font-size: 12px; font-weight: 600; border: 1.5px solid;
@@ -49,11 +107,9 @@
         .ua-status-invalid     { background: #fbe9e7; color: #c62828; border-color: #c62828; }
         .ua-status-auto-gen    { background: #e3f2fd; color: #1565c0; border-color: #1565c0; }
 
-        .ua-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }
-        .ua-actions select {
-            font-size: 14px; padding: 6px 8px; height: 36px;
-            border: 1px solid var(--primary-color); border-radius: 6px; color: var(--primary-color); background: white;
-        }
+        .ua-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+        .ua-actions { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
         .ua-actions .btn {
             font-size: 14px; font-weight: 600; padding: 6px 12px; height: 36px;
             border: 1px solid var(--primary-color); border-radius: 6px; background: white;
@@ -62,11 +118,46 @@
         .ua-actions .btn:hover { background: var(--primary-light); }
         .ua-actions .btn.primary { background: var(--primary-color); color: white; }
         .ua-actions .btn.primary:hover { background: var(--primary-hover); }
-        .ua-actions .btn.danger { border-color: var(--danger-color); color: var(--danger-color); }
-        .ua-actions .btn.danger:hover { background: var(--danger-color); color: white; }
 
-        @media (max-width: 600px) {
-            .ua-actions { width: 100%; margin-left: 0; }
+        /* Sort bar — visible only in card mode (≤1000 px). Mirrors the
+           sort UI on the explore home page's left-pane list. */
+        .ua-sort-bar {
+            display: none;
+            gap: 8px; align-items: stretch;
+            padding: 6px 0 10px; margin-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .ua-sort-bar label { display: flex; align-items: center; font-weight: 600; font-size: 16px; margin: 0; }
+        .ua-sort-bar select {
+            font-size: 16px; line-height: 1.2; padding: 6px 10px; height: 40px; box-sizing: border-box;
+            border: 1px solid var(--primary-color); border-radius: 6px;
+            color: var(--primary-color); background: white;
+        }
+        .ua-sort-bar button {
+            font-size: 20px; font-weight: bold; line-height: 1; height: 40px; min-width: 44px;
+            padding: 0; box-sizing: border-box; border: 1px solid var(--primary-color);
+            background: white; color: var(--primary-color); border-radius: 6px;
+            cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+        }
+
+        /* Card layout for narrow screens (≤1000 px) — table reflows into a
+           per-row card and the sort bar appears in place of the column headers. */
+        @media (max-width: 1000px) {
+            .ua-sort-bar { display: flex; }
+            .ua-table thead { display: none; }
+            .ua-table, .ua-table tbody, .ua-table tr, .ua-table td { display: block; width: 100%; }
+            .ua-table tr {
+                padding: 10px 4px; border-bottom: 1px solid #eee;
+            }
+            .ua-table td {
+                padding: 4px 0; border: none;
+            }
+            .ua-table td[data-label]::before {
+                content: attr(data-label) ': ';
+                font-size: 11px; font-weight: 700; color: var(--text-muted);
+                margin-right: 6px; text-transform: uppercase;
+            }
+            .ua-cell-user { padding-bottom: 6px; }
         }
     </style>
 </head>
@@ -75,7 +166,7 @@
         <div class="detail-header">
             <button class="exit-button" onclick="window.location.href='/explore/'">&times;</button>
             <h3 class="header-name light-foreground detail-title" id="page_title">User Management</h3>
-            <span id="user_count" style="font-size:14px; color:var(--text-secondary);"></span>
+            <span id="user_count"></span>
             <div id="profile_container" style="margin-left:auto;"></div>
         </div>
     </header>
@@ -107,6 +198,21 @@
             <button id="btn_clear" class="btn">Clear</button>
         </div>
 
+        <!-- Card-mode sort bar. CSS hides it on >1000 px (table mode);
+             the table's column headers handle sorting at that breakpoint. -->
+        <div class="ua-sort-bar" id="sort_bar">
+            <label for="ua_sort_select">Sort:</label>
+            <select id="ua_sort_select">
+                <option value="username">User</option>
+                <option value="email">Email</option>
+                <option value="name">Name</option>
+                <option value="role">Role</option>
+                <option value="status" selected>Status</option>
+                <option value="joined">Joined</option>
+            </select>
+            <button id="ua_sort_dir" title="Toggle direction">↑</button>
+        </div>
+
         <div id="users_list">
             <div class="ua-empty"><i class="fa fa-spinner fa-spin"></i> Loading users…</div>
         </div>
@@ -119,17 +225,18 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchUsers, updateUser, deleteUser, resetPassword } from '/js/api.js';
+        import { fetchUsers, resetPassword } from '/js/api.js';
         import { getUser, requireAuth } from '/js/auth.js';
         import { formatDate } from '/explore/js/utils.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         setupProfileIcon();
 
-        const ROLES = ['user', 'monitor', 'admin'];
-        const STATUSES = ['confirmed', 'registration', 'reset', 'new_email', 'invalid', 'auto-gen'];
-
         let allUsers = [];
         let currentUser = null;
+        // Sortable columns. Default: pending statuses first (so admins see the
+        // accounts that need attention), then most-recently-joined.
+        let sortCol = 'status';
+        let sortAsc = true;
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!(await requireAuth())) return;
@@ -154,6 +261,17 @@
             document.getElementById('filter_role').addEventListener('change', loadUsers);
             document.getElementById('filter_status').addEventListener('change', loadUsers);
 
+            // Card-mode sort bar — same sortCol/sortAsc state as the table headers.
+            document.getElementById('ua_sort_select').addEventListener('change', (e) => {
+                sortCol = e.target.value;
+                sortAsc = true;
+                renderUsers();
+            });
+            document.getElementById('ua_sort_dir').addEventListener('click', () => {
+                sortAsc = !sortAsc;
+                renderUsers();
+            });
+
             await loadUsers();
         });
 
@@ -162,7 +280,6 @@
             let role   = document.getElementById('filter_role').value;
             let status = document.getElementById('filter_status').value;
 
-            // Build server query — uses real DB columns so the API filters server-side.
             let parts = [];
             if (role)   parts.push(`userrole=${encodeURIComponent(role)}`);
             if (status) parts.push(`status=${encodeURIComponent(status)}`);
@@ -171,8 +288,6 @@
             try {
                 let data = await fetchUsers(searchTerm);
                 allUsers = Array.isArray(data) ? data : (data.rows || []);
-                // Client-side text search across multiple fields (the API doesn't honor a
-                // free-text "search" param, so we filter locally after fetching).
                 if (search) {
                     allUsers = allUsers.filter(u =>
                         (u.username || '').toLowerCase().includes(search) ||
@@ -182,82 +297,136 @@
                         (u.lastname || '').toLowerCase().includes(search)
                     );
                 }
-                renderUsers(allUsers);
+                renderUsers();
                 document.getElementById('user_count').textContent =
                     `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''}`;
                 document.getElementById('message').className = 'ua-msg';
             } catch (err) {
                 showMsg(`Error loading users: ${err.message || err}`, 'error');
-                renderUsers([]);
+                document.getElementById('users_list').innerHTML = '';
             }
         }
 
-        function renderUsers(rows) {
+        // Pending statuses bubble to the top in the default order so admins
+        // see the accounts that need attention first.
+        const STATUS_ORDER = { registration: 0, reset: 0, new_email: 0, invalid: 1, confirmed: 2, 'auto-gen': 3 };
+
+        function sortValue(u, col) {
+            switch (col) {
+                case 'status':   return STATUS_ORDER[u.status] ?? 9;
+                case 'username': return (u.username || '').toLowerCase();
+                case 'email':    return (u.email || '').toLowerCase();
+                case 'name':     return ((u.firstname || '') + ' ' + (u.lastname || '')).trim().toLowerCase();
+                case 'role':     return (u.userrole || u.role || '').toLowerCase();
+                case 'joined':   return u.createdAt || '';
+                default:         return '';
+            }
+        }
+
+        function renderUsers() {
             let container = document.getElementById('users_list');
-            if (!rows.length) {
+            if (!allUsers.length) {
                 container.innerHTML = '<div class="ua-empty">No users found.</div>';
                 return;
             }
-            // Sort: pending statuses first, then alphabetical username
-            let order = { registration: 0, reset: 0, new_email: 0, invalid: 1, confirmed: 2, 'auto-gen': 3 };
-            let sorted = [...rows].sort((a, b) => {
-                let ao = order[a.status] ?? 9, bo = order[b.status] ?? 9;
-                if (ao !== bo) return ao - bo;
-                return (a.username || '').localeCompare(b.username || '');
+            let sorted = [...allUsers].sort((a, b) => {
+                let av = sortValue(a, sortCol), bv = sortValue(b, sortCol);
+                let cmp = (av < bv) ? -1 : (av > bv) ? 1 : 0;
+                if (cmp === 0 && sortCol !== 'username') {
+                    // Stable secondary sort by username so equal rows have a
+                    // predictable order across re-sorts.
+                    cmp = (a.username || '').localeCompare(b.username || '');
+                }
+                return sortAsc ? cmp : -cmp;
             });
 
-            let html = '';
-            sorted.forEach(u => html += renderUserCard(u));
-            container.innerHTML = html;
-            wireCardActions(container);
+            const cols = [
+                { key: 'username', label: 'User' },
+                { key: 'email',    label: 'Email' },
+                { key: 'name',     label: 'Name' },
+                { key: 'role',     label: 'Role' },
+                { key: 'status',   label: 'Status' },
+                { key: 'joined',   label: 'Joined' }
+            ];
+            let arrow = sortAsc ? '↑' : '↓';
+            let head = cols.map(c =>
+                `<th data-col="${c.key}" class="${c.key === sortCol ? 'sorted' : ''}">${c.label}<span class="arrow">${c.key === sortCol ? arrow : '↕'}</span></th>`
+            ).join('');
+            head += '<th>Actions</th>';
+
+            let body = sorted.map(u => renderRow(u)).join('');
+            container.innerHTML = `<table class="ua-table">
+                <thead><tr>${head}</tr></thead>
+                <tbody>${body}</tbody>
+            </table>`;
+
+            // Keep the card-mode sort bar in sync with the table-mode headers
+            // so switching breakpoints doesn't reset the user's choice.
+            const sortSelect = document.getElementById('ua_sort_select');
+            const sortDirBtn = document.getElementById('ua_sort_dir');
+            if (sortSelect) sortSelect.value = sortCol;
+            if (sortDirBtn) sortDirBtn.textContent = sortAsc ? '↑' : '↓';
+
+            // Header sort handlers
+            container.querySelectorAll('thead th[data-col]').forEach(th => {
+                th.addEventListener('click', () => {
+                    let col = th.dataset.col;
+                    if (col === sortCol) {
+                        sortAsc = !sortAsc;
+                    } else {
+                        sortCol = col;
+                        sortAsc = true;
+                    }
+                    renderUsers();
+                });
+            });
+            wireRowActions(container);
         }
 
-        function renderUserCard(u) {
+        function renderRow(u) {
             let role = u.userrole || u.role || 'user';
             let status = u.status || 'confirmed';
             let initial = (u.handle || u.username || u.email || 'U')[0].toUpperCase();
-            let name = [u.firstname, u.lastname].filter(Boolean).join(' ');
+            let realName = [u.firstname, u.lastname].filter(Boolean).join(' ');
             let displayName = u.handle || u.username || `(no username)`;
-            let isSelf = currentUser && Number(currentUser.id) === Number(u.id);
 
-            return `<div class="ua-card" data-user-id="${u.id}">
-                <div class="ua-avatar">${initial}</div>
-                <div class="ua-info">
-                    <div>
-                        <span class="ua-name">${displayName}</span>
-                        <span class="ua-id">#${u.id}</span>
-                        <span class="ua-status ua-status-${status}" style="margin-left:6px;">${status}</span>
+            return `<tr data-user-id="${u.id}">
+                <td data-label="User">
+                    <div class="ua-cell-user">
+                        <div class="ua-avatar">${initial}</div>
+                        <div class="ua-user-text">
+                            <div><span class="ua-name">${escapeHtml(displayName)}</span><span class="ua-id">#${u.id}</span></div>
+                        </div>
                     </div>
-                    <div class="ua-email">${u.email || ''}</div>
-                    <div class="ua-meta">${name ? name + ' • ' : ''}${role}${u.createdAt ? ' • joined ' + formatDate(u.createdAt) : ''}</div>
-                </div>
-                <div class="ua-actions">
-                    <select class="ua-role" data-id="${u.id}" title="Role">
-                        ${ROLES.map(r => `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`).join('')}
-                    </select>
-                    <select class="ua-status-select" data-id="${u.id}" title="Status">
-                        ${STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('')}
-                    </select>
-                    <button class="btn primary ua-save" data-id="${u.id}">Save</button>
-                    <button class="btn ua-reset" data-id="${u.id}" data-email="${u.email || ''}" title="Send password-reset email">Reset PW</button>
-                    <button class="btn danger ua-delete" data-id="${u.id}" data-name="${displayName}" ${isSelf ? 'disabled title="You cannot delete yourself"' : ''}>Delete</button>
-                </div>
-            </div>`;
+                </td>
+                <td data-label="Email"><span class="ua-email">${escapeHtml(u.email || '')}</span></td>
+                <td data-label="Name"><span class="ua-realname">${escapeHtml(realName)}</span></td>
+                <td data-label="Role"><span class="ua-role">${escapeHtml(role)}</span></td>
+                <td data-label="Status"><span class="ua-status ua-status-${status}">${escapeHtml(status)}</span></td>
+                <td data-label="Joined"><span class="ua-meta">${u.createdAt ? formatDate(u.createdAt) : ''}</span></td>
+                <td data-label="Actions">
+                    <div class="ua-actions">
+                        <button class="btn ua-edit primary" data-id="${u.id}" title="Edit profile">Edit</button>
+                        <button class="btn ua-reset" data-id="${u.id}" data-email="${escapeHtml(u.email || '')}" title="Send password-reset email">Reset PW</button>
+                    </div>
+                </td>
+            </tr>`;
         }
 
-        function wireCardActions(container) {
-            container.querySelectorAll('.ua-save').forEach(btn => {
-                btn.addEventListener('click', async () => {
+        function wireRowActions(container) {
+            // Click anywhere on the row → edit profile (except action buttons)
+            container.querySelectorAll('tbody tr').forEach(tr => {
+                tr.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    let id = tr.dataset.userId;
+                    if (id) window.location.href = `/admin/profile.html?id=${id}`;
+                });
+            });
+
+            container.querySelectorAll('.ua-edit').forEach(btn => {
+                btn.addEventListener('click', () => {
                     let id = btn.dataset.id;
-                    let role = container.querySelector(`.ua-role[data-id="${id}"]`).value;
-                    let status = container.querySelector(`.ua-status-select[data-id="${id}"]`).value;
-                    try {
-                        await updateUser(id, { userrole: role, role: role, status: status });
-                        showMsg(`User #${id} saved (role=${role}, status=${status}).`, 'success');
-                        await loadUsers();
-                    } catch (err) {
-                        showMsg(`Error saving user #${id}: ${err.message || err}`, 'error');
-                    }
+                    window.location.href = `/admin/profile.html?id=${id}`;
                 });
             });
 
@@ -274,22 +443,11 @@
                     }
                 });
             });
+        }
 
-            container.querySelectorAll('.ua-delete').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    if (btn.disabled) return;
-                    let id = btn.dataset.id;
-                    let name = btn.dataset.name;
-                    if (!confirm(`Delete user "${name}" (#${id})? This cannot be undone.`)) return;
-                    try {
-                        await deleteUser(id);
-                        showMsg(`User #${id} deleted.`, 'success');
-                        await loadUsers();
-                    } catch (err) {
-                        showMsg(`Error deleting user #${id}: ${err.message || err}`, 'error');
-                    }
-                });
-            });
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c =>
+                ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
 
         function showMsg(text, kind) {

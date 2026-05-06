@@ -1175,39 +1175,58 @@
         // Device orientation \u2014 gives true heading on Android Chrome and iOS
         // Safari (with permission). On desktop or denied permission, the arrow
         // still points to true bearing (just doesn't account for device rotation).
-        function startDeviceOrientation() {
-            // iOS 13+ requires explicit permission via tap. Show a prompt + a
-            // pulsing ring on the compass so the user knows they need to tap it.
-            // On Android Chrome (and desktop) permission isn't gated on a tap,
-            // so the events attach immediately and no prompt is shown.
+        //
+        // iOS Safari can't actually persist the permission grant across page
+        // reloads (the system dialog re-appears every load on a fresh
+        // requestPermission call), but we DO persist the user's recorded
+        // intent so our own "Tap the compass to enable" prompt isn't shown
+        // again once they've answered.
+        //   poolfinder_motion_pref: 'granted' | 'denied' | 'dismissed' | null
+        const MOTION_PREF_KEY = 'poolfinder_motion_pref';
+
+        async function startDeviceOrientation() {
             let needsTap = (typeof DeviceOrientationEvent !== 'undefined' &&
                             typeof DeviceOrientationEvent.requestPermission === 'function');
+            if (!needsTap) {
+                // Android / desktop \u2014 no permission gate, no prompt needed.
+                attachOrientation();
+                return;
+            }
+
             let compass = document.getElementById('pf_compass');
             let prompt = document.getElementById('pf_compass_prompt');
             let closeBtn = document.getElementById('pf_compass_prompt_close');
+            let savedPref = await getLocal(MOTION_PREF_KEY);
 
             function dismissPrompt() {
                 if (prompt) prompt.classList.remove('show');
                 if (compass) compass.classList.remove('needs-tap');
             }
 
-            if (needsTap) {
+            // Only show our prompt + pulsing ring when we have no record of
+            // the user's choice yet. After they answer (or dismiss it once),
+            // the compass is still tap-to-request \u2014 but quietly.
+            if (savedPref == null) {
                 if (compass) compass.classList.add('needs-tap');
                 if (prompt) prompt.classList.add('show');
-                if (closeBtn) closeBtn.addEventListener('click', dismissPrompt);
-
-                compass.addEventListener('click', () => {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(state => {
-                            if (state === 'granted') attachOrientation();
-                            // Clear the prompt either way so we don't keep nagging.
-                            dismissPrompt();
-                        })
-                        .catch(() => dismissPrompt());
-                }, { once: true });
-            } else {
-                attachOrientation();
+                if (closeBtn) closeBtn.addEventListener('click', () => {
+                    setLocal(MOTION_PREF_KEY, 'dismissed');
+                    dismissPrompt();
+                });
             }
+
+            // Always wire the tap so an opted-out user can change their mind
+            // by tapping the compass. requestPermission must be called from a
+            // user gesture, so this stays click-driven.
+            compass.addEventListener('click', () => {
+                DeviceOrientationEvent.requestPermission()
+                    .then(state => {
+                        setLocal(MOTION_PREF_KEY, state === 'granted' ? 'granted' : 'denied');
+                        if (state === 'granted') attachOrientation();
+                        dismissPrompt();
+                    })
+                    .catch(() => dismissPrompt());
+            }, { once: true });
         }
         function attachOrientation() {
             // 'deviceorientationabsolute' = true compass heading. Fall back to

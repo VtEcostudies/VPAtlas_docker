@@ -52,7 +52,16 @@
       "Bash(node /home/jloomis/VPAtlas/VPAtlas_docker/ui_vp/uiVPAtlas/sw-build.js*)",
       "Bash(docker compose -f /home/jloomis/VPAtlas/VPAtlas_docker/docker-compose-vpatlas.yml up *)",
 
-      "Bash(echo \"=== GPS button icon ===\";*)"
+      "Bash(echo \"=== GPS button icon ===\";*)",
+
+      "Bash(diff -q /home/jloomis/VPAtlas/VPAtlas_docker/*)",
+
+      "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker log*)",
+      "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker show*)",
+      "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker status*)",
+
+      "Bash(echo \"===*; for sha in*)",
+      "Bash(for sha in *; do *git -C /home/jloomis/VPAtlas/VPAtlas_docker*)"
     ]
   }
 }
