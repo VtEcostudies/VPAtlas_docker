@@ -13,20 +13,31 @@
 }
 /* Chip sizing matches the mobile/touch baseline at every screen size so the
    Near Me stepper (whose inner +/− buttons set their own intrinsic height)
-   doesn't render taller than the plain chips at desktop widths. */
+   doesn't render taller than the plain chips at desktop widths.
+   `!important` here is intentional — we've had reports of this getting
+   overridden somewhere we haven't yet identified, and the chip row visibly
+   broke above 768 px. Lock it in so the filter bar is always 40 px tall. */
 .data-type-btn {
-    font-size: 15px;
+    font-size: 15px !important;
     font-weight: normal;
-    padding: 6px 12px;
-    height: 40px;
-    min-width: 44px;
-    box-sizing: border-box;
+    padding: 6px 12px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    min-width: 44px !important;
+    box-sizing: border-box !important;
     border: 1px solid var(--primary-color);
     border-radius: 6px;
     background: white;
     color: var(--primary-color);
     cursor: pointer;
     white-space: nowrap;
+    line-height: 1.2;
+}
+/* Near-me stepper opts out of `padding: 6px 12px !important` because its
+   inner +/− buttons supply their own padding; without this override the
+   chip's content overflows the 40 px box on the right side. */
+.data-type-btn.near-me-stepper {
+    padding: 0 !important;
 }
 .data-type-btn:hover {
     background: var(--primary-light);
@@ -82,14 +93,16 @@
     white-space: nowrap;
 }
 
-/* Filter inputs — same height as buttons */
+/* Filter inputs — same height as buttons. Same `!important` reasoning as
+   .data-type-btn above. */
 .filter-input {
-    font-size: 15px;
-    padding: 6px 10px;
-    height: 40px;
+    font-size: 15px !important;
+    padding: 6px 10px !important;
+    height: 40px !important;
+    min-height: 40px !important;
     border: 1px solid var(--primary-color);
     border-radius: 6px;
-    box-sizing: border-box;
+    box-sizing: border-box !important;
 }
 
 /* Mobile: tighten the bar gap, raise the input font to 16 px so iOS Safari
@@ -263,18 +276,19 @@
     padding: 2px 8px;
 }
 
-/* Filter dropdown button — same height as other filter elements */
+/* Filter dropdown button — same height as other filter elements. */
 .filter-dropdown-btn {
     cursor: pointer;
-    font-size: 15px;
-    padding: 6px 12px;
-    height: 40px;
-    line-height: 26px;
+    font-size: 15px !important;
+    padding: 6px 12px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    line-height: 26px !important;
     border: 1px solid var(--primary-color);
     border-radius: 6px;
     display: inline-block;
     font-weight: normal;
-    box-sizing: border-box;
+    box-sizing: border-box !important;
 }
 .filter-dropdown-btn:hover {
     background-color: var(--primary-light);
