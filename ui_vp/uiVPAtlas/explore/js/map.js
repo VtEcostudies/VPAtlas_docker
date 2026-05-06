@@ -12,7 +12,7 @@ import {
     createUserLocationMarker, createPoolHaloMarker
 } from '/js/map_common.js';
 import { getLocal, setLocal } from '/js/storage.js';
-import { initParcelLayer, showParcels, hideParcels, parcelsEnabled, parcelMinZoom } from '/js/parcels.js';
+import { initParcelLayer, showParcels, hideParcels, parcelsEnabled, parcelMinZoom, findParcelAt } from '/js/parcels.js';
 import { GPSMonitor } from '/survey/js/gps_monitor.js';
 
 // =============================================================================
@@ -218,7 +218,10 @@ export function plotPoolRows(rows, onPoolClick=null) {
         }
 
         marker.bindTooltip(poolTooltipText(row), tooltipOptions);
-        marker.bindPopup(poolPopupHtml(row), { maxWidth: 280 });
+        // Defer the popup HTML build until the popup actually opens so the
+        // landowner-from-parcel lookup runs against the freshest in-memory
+        // parcel cache (parcels stream in as the user pans/zooms).
+        marker.bindPopup(() => poolPopupHtml(row, findParcelAt), { maxWidth: 360 });
 
         if (onPoolClick) {
             marker.on('click', function() { onPoolClick(row); });

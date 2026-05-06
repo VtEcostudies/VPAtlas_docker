@@ -87,23 +87,65 @@ export function poolTooltipText(row) {
     return `${poolId} — ${status}${town ? ', ' + town : ''}`;
 }
 
-// Detailed popup for click — includes links
-export function poolPopupHtml(row) {
+// Detailed popup for click — includes links.
+//
+// `parcelLookup` is an optional sync function: ({lat, lng}) => parcelFeature|null
+// (i.e. a closure around findParcelAt from /js/parcels.js). When provided AND
+// the pool's lat/lng falls inside a cached parcel polygon, the landowner block
+// is populated from the VCGI parcel (OWNER1 / OWNER2 / E911ADDR / TOWN). When
+// no parcel is loaded for the pool's location, the landowner block is omitted
+// — we deliberately don't fall back to vpmapped's landowner columns here.
+export function poolPopupHtml(row, parcelLookup) {
     let poolId = row.poolId || row.mappedPoolId || '';
     let status = row.poolStatus || row.mappedPoolStatus || '';
     let town = row.townName || '';
     let county = row.countyName || '';
     let observer = row.mappedObserverUserName || '';
 
-    let html = `<div style="font-size:14px; min-width:180px;">`;
-    html += `<strong><a href="pool_view.html?poolId=${poolId}">${poolId}</a></strong>`;
+    // Try to find the parcel under this pool's location in the in-memory
+    // parcel cache. Sync/cheap; no network. Returns null when parcels haven't
+    // been fetched at this zoom yet, in which case we just omit the section.
+    let parcel = null;
+    let lat = row.mappedLatitude ?? row.latitude ?? row.lat;
+    let lng = row.mappedLongitude ?? row.longitude ?? row.lng;
+    if (typeof parcelLookup === 'function' && lat != null && lng != null) {
+        try { parcel = parcelLookup({ lat: Number(lat), lng: Number(lng) }); }
+        catch (_) { parcel = null; }
+    }
+    let p = parcel && parcel.properties ? parcel.properties : null;
+    let owner1 = p ? (p.OWNER1 || '') : '';
+    let owner2 = p ? (p.OWNER2 || '') : '';
+    let parcelAddr = p ? (p.E911ADDR || '') : '';
+    let parcelTown = p ? (p.TOWN || p.TNAME || '') : '';
+
+    // Touch-friendly action links — 40 px tall, full-width row, easy to tap
+    // on phones where the map popup is the user's only interaction surface.
+    const linkStyle =
+        'display:inline-flex; align-items:center; justify-content:center;' +
+        'min-height:40px; padding:8px 14px; font-size:15px; font-weight:600;' +
+        'border:1px solid var(--primary-color, #c44100); border-radius:6px;' +
+        'color:var(--primary-color, #c44100); background:white;' +
+        'text-decoration:none; line-height:1.2; white-space:nowrap;';
+
+    let html = `<div style="font-size:15px; min-width:260px; line-height:1.4;">`;
+    html += `<strong style="font-size:16px;"><a href="pool_view.html?poolId=${poolId}">${poolId}</a></strong>`;
     html += ` — ${status}`;
     if (town) html += `<br>${town}${county ? ' (' + county + ')' : ''}`;
     if (observer) html += `<br>Mapped by ${observer}`;
-    html += `<div style="margin-top:6px; display:flex; gap:8px;">`;
-    html += `<a href="/explore/pool_view.html?poolId=${poolId}" style="font-size:13px;">Detail</a>`;
-    html += `<a href="/survey/visit_create.html?poolId=${poolId}" style="font-size:13px;">+ Atlas Visit</a>`;
-    html += `<a href="/survey/find_pool.html?poolId=${poolId}" style="font-size:13px;">Find Pool</a>`;
+    if (owner1 || owner2 || parcelAddr) {
+        html += `<div style="margin-top:6px; padding-top:6px; border-top:1px solid #eee; font-size:13px;">`;
+        html += `<div style="color:#666; font-size:11px; text-transform:uppercase; letter-spacing:.04em;">Landowner (parcel)</div>`;
+        if (owner1) html += `<div>${owner1}</div>`;
+        if (owner2) html += `<div>${owner2}</div>`;
+        if (parcelAddr || parcelTown) {
+            html += `<div style="color:#444;">${[parcelAddr, parcelTown].filter(Boolean).join(' · ')}</div>`;
+        }
+        html += `</div>`;
+    }
+    html += `<div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">`;
+    html += `<a href="/explore/pool_view.html?poolId=${poolId}" style="${linkStyle}">Full Detail</a>`;
+    html += `<a href="/survey/visit_create.html?poolId=${poolId}" style="${linkStyle}">+ Atlas Visit</a>`;
+    html += `<a href="/survey/find_pool.html?poolId=${poolId}" style="${linkStyle}">Find Pool</a>`;
     html += `</div></div>`;
     return html;
 }

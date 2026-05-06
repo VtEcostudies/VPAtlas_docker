@@ -401,8 +401,10 @@ function parcelPopupHtml(p) {
     return html;
 }
 
-/** Find the first cached parcel whose polygon contains the given latlng */
-function findParcelAt(latlng) {
+/** Find the first cached parcel whose polygon contains the given latlng.
+ *  Exported so other surfaces (e.g. pool popups) can do an offline lookup
+ *  against the in-memory parcel cache without the user having to click. */
+export function findParcelAt(latlng) {
     let lng = latlng.lng, lat = latlng.lat;
     for (let feature of Object.values(parcelCache)) {
         if (pointInFeature(lng, lat, feature)) return feature;

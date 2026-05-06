@@ -1,17 +1,19 @@
 /*
     visit_store.js — IndexedDB storage for offline-first Atlas Visits
 
-    Uses idb-keyval (same as storage.js) to avoid raw IndexedDB version
-    upgrade issues that block in Firefox when multiple connections exist.
+    Goes through /js/storage.js so all reads/writes are auto-scoped to the
+    current user (`u<id>:visit_<uuid>` etc.). Earlier versions imported
+    idb-keyval directly, which let user1's drafts leak to user2 after a
+    logout/login on the same device.
 
-    Storage keys:
+    Storage keys (logical — actual IDB keys are prefix-scoped):
       visit_<uuid>   → individual visit data object
       user_visits    → { uuid: visitObject, ... } collection of all visits
 
     Status flow: draft → complete → uploaded
 */
 
-import { get, set, del } from '/js/idb-keyval_6.esm.js';
+import { getLocal as get, setLocal as set, delLocal as del } from '/js/storage.js';
 
 const ME = 'visit_store.js';
 

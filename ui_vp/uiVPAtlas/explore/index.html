@@ -168,7 +168,17 @@
             let user = await getUser();
             currentUser = user;
             let currentUsername = user ? (user.handle || user.username || user.email) : null;
-            initPoolList('list_table', 'list_table_title', onPoolSelect, currentUsername, zoomToFilteredPools, onPoolDeselect, setPoolHalo, clearPoolHalo);
+            // Wrap the halo callbacks so a pin change also refreshes the
+            // hamburger menu (Find Pool <id> shortcut at the top).
+            const onPinSelect = (poolId) => {
+                setPoolHalo(poolId);
+                setupAppMenu(currentUser);
+            };
+            const onPinDeselect = (poolId) => {
+                clearPoolHalo();
+                setupAppMenu(currentUser);
+            };
+            initPoolList('list_table', 'list_table_title', onPoolSelect, currentUsername, zoomToFilteredPools, onPoolDeselect, onPinSelect, onPinDeselect);
             initSummary('pool_summary', 'summary_title');
             await initMap({ isAdmin: user && user.userrole === 'admin' });
             initFilterBar(onFilterChange);
@@ -302,7 +312,10 @@
             }
             showPoolSummary(poolId, onPoolDeselect);
             setFocusedPoolId(poolId);
-            switchToInfoIfMobile();
+            // Stay on the map tab on mobile so the user can interact with
+            // the marker's popup (Detail / + Atlas Visit / Find Pool buttons).
+            // The right-pane summary still updates and is reachable via the
+            // Info tab button if they want to see it.
         }
 
         // Run heavy synchronous work with the wait overlay visible.
@@ -631,13 +644,28 @@
             window.matchMedia('(max-width: 1150px)').addEventListener('change', syncFilterLocation);
         }
 
-        // App hamburger menu — navigation + admin links
+        // App hamburger menu — navigation + admin links. Idempotent: rebuilds
+        // the panel contents on every call so it can refresh whenever the
+        // pinned pool changes (Find Pool <id> shortcut at the top).
+        let _appMenuListenersWired = false;
         async function setupAppMenu(user) {
             let btn = document.getElementById('app_menu_btn');
             let panel = document.getElementById('app_menu_panel');
             if (!btn || !panel) return;
 
             let items = [];
+            // Find Pool <id> shortcut — appears at the top of the menu when a
+            // pool is pinned in the list. Mobile users can't easily reach the
+            // Pool Finder otherwise once they're zoomed in on the map.
+            let pinned = (typeof getPinnedPoolId === 'function') ? getPinnedPoolId() : null;
+            if (pinned) {
+                items.push({
+                    label: `Find Pool ${pinned}`,
+                    href: `/survey/find_pool.html?pools=${encodeURIComponent(pinned)}`,
+                    icon: 'fa-location-arrow'
+                });
+                items.push({ divider: true });
+            }
             if (user) {
                 let counts = await getLocalVisitCount();
                 let badge = counts.total ? ` (${counts.total})` : '';
@@ -662,6 +690,8 @@
                 items.push({ label: 'Import S123 Monitoring Surveys', href: '/admin/s123_survey_import.html', icon: 'fa-file-import' });
             }
 
+            // Clear and rebuild — safe to call repeatedly (pin changes etc).
+            panel.innerHTML = '';
             items.forEach(item => {
                 if (item.divider) {
                     let hr = document.createElement('hr');
@@ -681,11 +711,15 @@
                 panel.appendChild(el);
             });
 
-            btn.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.toggle('show'); });
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('#app_menu_panel') && !e.target.closest('#app_menu_btn'))
-                    panel.classList.remove('show');
-            });
+            // Toggle / outside-click listeners attach exactly once.
+            if (!_appMenuListenersWired) {
+                btn.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.toggle('show'); });
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#app_menu_panel') && !e.target.closest('#app_menu_btn'))
+                        panel.classList.remove('show');
+                });
+                _appMenuListenersWired = true;
+            }
         }
 
         // If SW is disabled or app.js isn't loaded, init directly
