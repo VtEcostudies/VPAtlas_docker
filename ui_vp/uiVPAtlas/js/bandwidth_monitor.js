@@ -1,7 +1,25 @@
 /*
-    bandwidth_monitor.js — VPAtlas bandwidth monitor (pattern from LoonWeb).
+    bandwidth_monitor.js — drop-in browser bandwidth monitor (pattern from LoonWeb).
 
-    Exposes window.bandwidthMonitor with:
+    Self-contained: no imports, no app dependencies. Uses only standard browser
+    APIs (fetch, performance, sessionStorage, navigator.connection).
+
+    Globals exposed:
+      window.BandwidthMonitor   — constructor, for apps that want to manage
+                                  their own instance.
+      window.bandwidthMonitor   — auto-instantiated default instance, configured
+                                  from window.bandwidthMonitorConfig if set
+                                  BEFORE this script loads.
+
+    Drop-in usage in another app:
+      <script>window.bandwidthMonitorConfig = {
+        testFiles: { small: { url: '/img/probe-s.jpg', bytes: 12345 },
+                     large: { url: '/img/probe.jpg',   bytes: 67890 } },
+        cacheKey: 'myapp_bw'
+      };</script>
+      <script src="/js/bandwidth_monitor.js"></script>
+
+    Instance API:
       .measureBandwidth({ size, force, allowReprobe }) → kbps
           size: 'small' (~35 KB pool photo, default) — fast field probe,
                 used by the SW update gate. Cheap on cellular, ~1.6s at
@@ -14,9 +32,17 @@
       .getStatus()       → object snapshot (connection info + last sample)
       .currentBandwidth  → kbps (most recent sample, or null)
 
-    Both /images/speed-test.jpg and /images/speed-test-small.jpg are
-    excluded from the service worker's static cache, so every measurement
-    hits the network.
+    Config object (all keys optional; defaults shown):
+      testFiles:           { small: {url, bytes}, large: {url, bytes} }
+      cacheKey:            'bandwidth_monitor_last'
+      cacheTtlMs:          5 * 60 * 1000
+      minTransferMs:       30      // below this the math is noisy
+      reprobeThresholdKbps:1500    // only reprobe when result is at/below the gate
+      maxSamples:          5
+
+    Both probe URLs should be excluded from any service-worker static cache so
+    every measurement hits the network. In VPAtlas this is handled by
+    STATIC_NO_CACHE_PATTERNS in sw_template.js for /images/speed-test*.jpg.
 
     Accuracy notes
     --------------
@@ -26,35 +52,30 @@
       raw wall-clock math read "below threshold" on a fast link.
     - We sessionStorage-cache the result with a TTL so subsequent page
       loads in the same session don't reprobe.
-    - If the first probe is suspiciously fast (< MIN_TRANSFER_MS) AND the
+    - If the first probe is suspiciously fast (< minTransferMs) AND the
       result is below the threshold, we run a second probe and average —
       a too-short transfer means the math is unreliable regardless of
       which clock we use.
 */
 (function() {
-    const TEST_FILES = {
-        small: { url: '/images/speed-test-small.jpg', bytes: 35523 },
-        large: { url: '/images/speed-test.jpg',       bytes: 209636 },
+    const DEFAULTS = {
+        testFiles: {
+            small: { url: '/images/speed-test-small.jpg', bytes: 35523 },
+            large: { url: '/images/speed-test.jpg',       bytes: 209636 },
+        },
+        cacheKey: 'bandwidth_monitor_last',
+        cacheTtlMs: 5 * 60 * 1000,
+        minTransferMs: 30,
+        reprobeThresholdKbps: 1500,
+        maxSamples: 5,
     };
-    const MAX_SAMPLES = 5;
-    const CACHE_KEY = 'bandwidth_monitor_last';
-    const CACHE_TTL_MS = 5 * 60 * 1000;       // 5 minutes
-    const MIN_TRANSFER_MS = 30;               // below this the math is noisy
-    const REPROBE_THRESHOLD_KBPS = 1500;      // only reprobe when result is at/below the gate
 
-    function readCache() {
-        try {
-            let raw = sessionStorage.getItem(CACHE_KEY);
-            if (!raw) return null;
-            let obj = JSON.parse(raw);
-            if (!obj || typeof obj.kbps !== 'number' || !obj.ts) return null;
-            if (Date.now() - obj.ts > CACHE_TTL_MS) return null;
-            return obj;
-        } catch (_) { return null; }
-    }
-    function writeCache(kbps) {
-        try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ kbps, ts: Date.now() })); }
-        catch (_) {}
+    function mergeConfig(user) {
+        let c = Object.assign({}, DEFAULTS, user || {});
+        // testFiles is an object; if caller passed it, take theirs verbatim
+        // rather than half-merging keys (avoids partial small/large mismatch).
+        c.testFiles = (user && user.testFiles) ? user.testFiles : DEFAULTS.testFiles;
+        return c;
     }
 
     // Returns { kbps, transferMs, source } or null on failure. `source` is
@@ -86,11 +107,12 @@
         return { kbps, transferMs, source, bytes };
     }
 
-    function BandwidthMonitor() {
+    function BandwidthMonitor(config) {
+        this.config = mergeConfig(config);
         this.currentBandwidth = null;   // kbps
         this.samples = [];              // [{ ts, kbps }]
         // Hydrate from cache so getStatus reads sensibly before the first probe.
-        let cached = readCache();
+        let cached = this._readCache();
         if (cached) {
             this.currentBandwidth = cached.kbps;
             this._addSample(cached.kbps);
@@ -102,6 +124,22 @@
             } catch(_) {}
         }
     }
+
+    BandwidthMonitor.prototype._readCache = function() {
+        try {
+            let raw = sessionStorage.getItem(this.config.cacheKey);
+            if (!raw) return null;
+            let obj = JSON.parse(raw);
+            if (!obj || typeof obj.kbps !== 'number' || !obj.ts) return null;
+            if (Date.now() - obj.ts > this.config.cacheTtlMs) return null;
+            return obj;
+        } catch (_) { return null; }
+    };
+
+    BandwidthMonitor.prototype._writeCache = function(kbps) {
+        try { sessionStorage.setItem(this.config.cacheKey, JSON.stringify({ kbps, ts: Date.now() })); }
+        catch (_) {}
+    };
 
     BandwidthMonitor.prototype._readConnection = function() {
         let conn = navigator.connection;
@@ -116,20 +154,24 @@
 
     BandwidthMonitor.prototype._addSample = function(kbps) {
         this.samples.push({ ts: Date.now(), kbps });
-        if (this.samples.length > MAX_SAMPLES) this.samples.shift();
+        if (this.samples.length > this.config.maxSamples) this.samples.shift();
     };
 
     BandwidthMonitor.prototype.measureBandwidth = async function(opts) {
         opts = opts || {};
         let key = opts.size === 'large' ? 'large' : 'small';
-        let file = TEST_FILES[key];
+        let file = this.config.testFiles[key];
+        if (!file || !file.url) {
+            console.warn('bandwidth_monitor: no testFile configured for size=' + key);
+            return null;
+        }
         let allowReprobe = opts.allowReprobe !== false;
 
         // Cache hit — skip the network probe entirely. The SW gate calls
         // this on every page load; without this every navigation costs a
         // probe.
         if (!opts.force) {
-            let cached = readCache();
+            let cached = this._readCache();
             if (cached) {
                 this.currentBandwidth = cached.kbps;
                 return cached.kbps;
@@ -148,8 +190,8 @@
             // fast first probes are usually an artifact of cold connection
             // overhead being charged against a tiny payload.
             if (allowReprobe &&
-                first.transferMs < MIN_TRANSFER_MS &&
-                kbps < REPROBE_THRESHOLD_KBPS) {
+                first.transferMs < this.config.minTransferMs &&
+                kbps < this.config.reprobeThresholdKbps) {
                 try {
                     let url2 = file.url + '?_bw=' + Date.now();
                     let second = await singleProbe(url2, file.bytes);
@@ -159,7 +201,7 @@
 
             this.currentBandwidth = kbps;
             this._addSample(kbps);
-            writeCache(kbps);
+            this._writeCache(kbps);
             return kbps;
         } catch (err) {
             console.warn('bandwidth_monitor: measurement failed', err);
@@ -175,7 +217,7 @@
 
     BandwidthMonitor.prototype.getStatus = function() {
         let conn = navigator.connection || null;
-        let cached = readCache();
+        let cached = this._readCache();
         return {
             currentBandwidthKbps: this.currentBandwidth,
             averageBandwidthKbps: this.getAverageBandwidth(),
@@ -191,5 +233,6 @@
         };
     };
 
-    window.bandwidthMonitor = new BandwidthMonitor();
+    window.BandwidthMonitor = BandwidthMonitor;
+    window.bandwidthMonitor = new BandwidthMonitor(window.bandwidthMonitorConfig || {});
 })();

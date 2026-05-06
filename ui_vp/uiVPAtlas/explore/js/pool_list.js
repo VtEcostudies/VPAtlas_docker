@@ -422,6 +422,9 @@ export function renderFilteredRows(rows) {
         let pfClear = document.getElementById('poolfinder-clear');
         if (pfClear) {
             pfClear.addEventListener('click', () => {
+                // Capture the previously-pinned pool BEFORE clearing so the
+                // map can drop its halo. Single-select means at most one.
+                let priorPinned = [...selectedPoolIds][0] || null;
                 selectedPoolIds.clear();
                 updateSelectionCount();
                 // Unpin all and remove selected highlight
@@ -432,6 +435,7 @@ export function renderFilteredRows(rows) {
                     });
                     listContainer.querySelectorAll('.pool-row').forEach(r => r.classList.remove('selected'));
                 }
+                if (priorPinned && onPinDeselect) onPinDeselect(priorPinned);
                 // Clear from user_state so pool finder doesn't restore them
                 import('/js/storage.js').then(({ setLocal, getLocal }) => {
                     getLocal('user_state').then(s => {

@@ -63,6 +63,8 @@
       "Bash(echo \"===*; for sha in*)",
       "Bash(for sha in *; do *git -C /home/jloomis/VPAtlas/VPAtlas_docker*)",
 
+      "Bash(grep -nE * /home/jloomis/VPAtlas/VPAtlas_docker/*)",
+
       "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker*)",
       "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker* -exec grep -l *)",
       "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker/*)",
