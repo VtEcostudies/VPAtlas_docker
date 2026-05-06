@@ -14,11 +14,22 @@ const SCOPED_PREFIX_RE = /^(u\d+|anon):/;
 // any subsequent getLocal/setLocal in this page session lands under the
 // right user namespace — this is what makes already-logged-in page loads
 // (refresh of /explore/, navigation between pages, etc.) work.
+//
+// Also kicks off the one-time legacy-key migration on first page load
+// after the per-user-scoping deploy. Returning users (already-valid
+// auth_token, never re-logged-in) would otherwise never trigger the
+// migration in login() and would see their pre-deploy filter / draft /
+// track data as "missing" because their reads land in an empty
+// u<id>: namespace.
 export async function getUser() {
     try {
         let user = await getLocal('auth_user');     // SHARED_KEYS — pre-init safe
-        if (user && user.id != null && getStorageUser() == null) {
-            setStorageUser(user.id);
+        if (user && user.id != null) {
+            if (getStorageUser() == null) setStorageUser(user.id);
+            // Idempotent: per-user flag in the migrator early-returns if it
+            // has already run. Awaited so the rest of the page boots in a
+            // post-migration world.
+            await migrateLegacyKeysToUser(user.id);
         }
         return user || null;
     } catch(err) {
@@ -76,23 +87,41 @@ export async function logout() {
 // user to log in on a pre-deploy device claims the legacy data; subsequent
 // users start clean. Idempotent — guarded by a per-user migration flag so
 // repeated logins are a no-op.
+//
+// Skip-don't-clobber: if the new u<id>: namespace already has a key (the
+// user wrote something earlier this session before the migrator caught up),
+// we keep the new value and just delete the legacy duplicate. This protects
+// against the race where the explore page renders default-empty filters,
+// the user changes one filter (writing u<id>:user_state), then we land on
+// the migration — without this guard we'd overwrite their deliberate change
+// with their pre-deploy state.
 async function migrateLegacyKeysToUser(userId) {
     const flag = `u${userId}:_migrated_v1`;
     try {
         if (await getRaw(flag)) return;
         const all = await rawKeys();
-        let moved = 0;
+        let moved = 0, skipped = 0;
         for (const k of all) {
             if (typeof k !== 'string') continue;
             if (SCOPED_PREFIX_RE.test(k)) continue;       // already scoped
             if (SHARED_KEYS.has(k)) continue;             // intentional global
+            const target = `u${userId}:${k}`;
+            const existing = await getRaw(target);
+            if (existing != null) {
+                // New namespace already has data → drop the legacy copy.
+                await delRaw(k);
+                skipped++;
+                continue;
+            }
             const v = await getRaw(k);
-            await setRaw(`u${userId}:${k}`, v);
+            await setRaw(target, v);
             await delRaw(k);
             moved++;
         }
-        await setRaw(flag, { at: new Date().toISOString(), moved });
-        if (moved) console.log(`auth.js: migrated ${moved} legacy keys → u${userId}:*`);
+        await setRaw(flag, { at: new Date().toISOString(), moved, skipped });
+        if (moved || skipped) {
+            console.log(`auth.js: migrated ${moved} legacy keys → u${userId}:* (skipped ${skipped} that already existed)`);
+        }
     } catch (err) {
         console.warn('auth.js: legacy key migration failed', err);
     }

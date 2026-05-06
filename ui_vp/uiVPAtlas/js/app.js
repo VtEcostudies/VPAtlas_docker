@@ -127,26 +127,46 @@ async function registerAndCheckForUpdates() {
       });
     });
 
-    // Skip update check on slow connections
+    // Skip update check on slow connections.
+    //
+    // navigator.connection.downlink (Network Information API) is bucketed and
+    // notoriously unreliable on cold tabs — Chrome can report 1.5 Mbps on a
+    // 50 Mbps WiFi connection until it has accumulated enough recent traffic
+    // to recompute. We use it only as a fast YES path: when it reports
+    // safely above the threshold, accept it and skip the probe. When it
+    // reports at/below the threshold (or is unavailable), fall through to
+    // the real ResourceTiming-based bandwidth_monitor probe before deciding
+    // to throttle.
     if (navigator.serviceWorker.controller) {
+      const GATE_KBPS = 1500;
       let bandwidthKbps = null;
-      if (navigator.connection?.downlink) {
-        bandwidthKbps = navigator.connection.downlink * 1000;
-        console.log(`app.js: bandwidth via connection API: ${bandwidthKbps} kbps`);
+      let bandwidthSource = null;
+
+      let connKbps = navigator.connection?.downlink ? navigator.connection.downlink * 1000 : null;
+      if (connKbps != null && connKbps > GATE_KBPS) {
+        bandwidthKbps = connKbps;
+        bandwidthSource = 'connection-api';
       } else if (window.bandwidthMonitor) {
         bandwidthKbps = await window.bandwidthMonitor.measureBandwidth();
-        console.log(`app.js: bandwidth via download test: ${bandwidthKbps} kbps`);
+        bandwidthSource = 'download-test';
+        if (connKbps != null) {
+          console.log(`app.js: connection API reported ${connKbps} kbps (≤${GATE_KBPS} gate); confirmed via probe = ${Math.round(bandwidthKbps ?? 0)} kbps`);
+        }
+      } else if (connKbps != null) {
+        // Fallback: connection API said low and we have no probe; trust it.
+        bandwidthKbps = connKbps;
+        bandwidthSource = 'connection-api-low';
       }
 
       if (bandwidthKbps === null) {
         console.log('app.js: Skipping update check - bandwidth unknown (offline?)');
-      } else if (bandwidthKbps < 1500) {
-        console.log(`app.js: Skipping update check - bandwidth too low (${Math.round(bandwidthKbps)} kbps < 1500 kbps)`);
+      } else if (bandwidthKbps < GATE_KBPS) {
+        console.log(`app.js: Skipping update check - bandwidth too low (${Math.round(bandwidthKbps)} kbps < ${GATE_KBPS} kbps; source=${bandwidthSource})`);
         if (typeof showToast === 'function') {
           showToast(`Update skipped: slow connection (${Math.round(bandwidthKbps)} kbps)`, 'warning');
         }
       } else {
-        console.log(`app.js: Bandwidth OK (${Math.round(bandwidthKbps)} kbps), checking for SW updates...`);
+        console.log(`app.js: Bandwidth OK (${Math.round(bandwidthKbps)} kbps; source=${bandwidthSource}), checking for SW updates...`);
         registration.update().catch(err => {
           console.warn('app.js: Update check failed:', err);
         });
