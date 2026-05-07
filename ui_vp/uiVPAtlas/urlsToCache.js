@@ -43,6 +43,7 @@ appConfig.urlsToCache = [
 '/js/photo_lightbox.js',
 '/js/home_button.js',
 '/js/bandwidth_monitor.js',
+'/js/visit_card.js',
 
 // === Explore JS modules ===
 '/explore/js/utils.js',
@@ -65,6 +66,7 @@ appConfig.urlsToCache = [
 '/css/font-awesome_6.6.0.all.min.css',
 '/css/leaflet_1.9.4.css',
 '/css/map.css',
+'/css/visit_card.css',
 
 // === Explore CSS ===
 '/explore/css/common.css',

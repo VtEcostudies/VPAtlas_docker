@@ -54,6 +54,14 @@
             display: inline-block; padding: 2px 8px; border-radius: 10px;
             font-size: 11px; font-weight: 600; margin-right: 6px;
         }
+        /* Inline counts (photos + species) shown next to the date/observer line */
+        .vl-counts { display: inline-flex; gap: 8px; margin-left: 6px; vertical-align: middle; }
+        .vl-count {
+            display: inline-flex; align-items: center; gap: 3px;
+            font-size: 12px; color: var(--text-muted, #666);
+        }
+        .vl-count i { font-size: 11px; }
+        .vl-count.has { color: var(--primary-color); font-weight: 600; }
     </style>
     <script src="/js/home_button.js" defer></script>
 </head>
@@ -134,6 +142,54 @@
         let allTracks = [];  // unified list of local + server tracks
         let currentSort = 'date-desc';
 
+        // Species count = number of indicator species observed (any sign of presence:
+        // adults / egg masses / larvae / boolean flag for fairy shrimp & clams /
+        // a free-form "Other Species" with a count or name). Mirrors the visibility
+        // rules used by the visit_card species cards.
+        function speciesCountFromFields(s) {
+            if (!s) return 0;
+            let n = (k) => {
+                let v = s[k];
+                if (v == null || v === '') return 0;
+                let num = Number(v);
+                return Number.isFinite(num) ? num : (v ? 1 : 0);
+            };
+            let count = 0;
+            if (n('visitWoodFrogAdults') || n('visitWoodFrogEgg') || n('visitWoodFrogLarvae')) count++;
+            if (n('visitSpsAdults')      || n('visitSpsEgg')      || n('visitSpsLarvae'))      count++;
+            if (n('visitJesaAdults')     || n('visitJesaEgg')     || n('visitJesaLarvae'))     count++;
+            if (n('visitBssaAdults')     || n('visitBssaEgg')     || n('visitBssaLarvae'))     count++;
+            if (n('visitFairyShrimp'))      count++;
+            if (n('visitFingerNailClams'))  count++;
+            let otherName = (s.visitSpeciesOtherName || '').toString().trim();
+            if (otherName || n('visitSpeciesOtherCount')) count++;
+            return count;
+        }
+
+        // Local drafts may keep species fields either at the top level or inside
+        // formData (visit_create writes through both paths historically). Check
+        // both so the badge is right whether the visit is a fresh draft or a
+        // resumed one.
+        function speciesCountFromLocal(v) {
+            return speciesCountFromFields({ ...(v.formData || {}), ...v });
+        }
+
+        // Local photos live in `v.photos` keyed by species (woodfrog, pool, etc.)
+        // as an array of base64 entries. Sum across keys.
+        function localPhotoCount(v) {
+            let p = v && v.photos;
+            if (!p || typeof p !== 'object') return 0;
+            return Object.values(p).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0);
+        }
+
+        function renderCountsHtml(photoCount, speciesCount, reviewCount) {
+            return `<span class="vl-counts">
+                <span class="vl-count ${photoCount ? 'has' : ''}" title="${photoCount} photo${photoCount === 1 ? '' : 's'}"><i class="fa fa-camera"></i>${photoCount}</span>
+                <span class="vl-count ${speciesCount ? 'has' : ''}" title="${speciesCount} indicator species"><i class="fa fa-frog"></i>${speciesCount}</span>
+                <span class="vl-count ${reviewCount ? 'has' : ''}" title="${reviewCount} review${reviewCount === 1 ? '' : 's'}"><i class="fa fa-clipboard-check"></i>${reviewCount}</span>
+            </span>`;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await getUser();
 
@@ -202,6 +258,8 @@
                     poolStatus: '',
                     visitLocatePool: '',
                     last_modified: v.last_modified || v.created_at || '',
+                    photoCount: localPhotoCount(v),
+                    speciesCount: speciesCountFromLocal(v),
                 }));
             } catch(e) { console.warn('visit_list: local load failed', e); }
 
@@ -233,7 +291,13 @@
                             visitUserId: v.visitUserId,
                             visitUserName: v.visitUserName || '',
                             visitObserverUserId: v.visitObserverUserId,
-                            isReviewed: !!v.isReviewed,
+                            // reviewCount + photoCount come from per-row
+                            // subqueries on the visits service. isReviewed is
+                            // derived for the delete-gate logic below.
+                            reviewCount: Number(v.reviewCount || 0),
+                            isReviewed: Number(v.reviewCount || 0) > 0,
+                            photoCount: Number(v.photoCount || 0),
+                            speciesCount: speciesCountFromFields(v),
                         }));
                 } catch(e) { console.warn('visit_list: server load failed', e); }
             }
@@ -303,9 +367,11 @@
                 let detail = [dateStr, v.townName].filter(Boolean).join(' — ');
                 let idStr = v.visitId ? `#${v.visitId}` : '';
 
+                let countsHtml = renderCountsHtml(v.photoCount || 0, v.speciesCount || 0, v.reviewCount || 0);
+
                 html += `<div class="vq-item">
                     <div class="vq-info">
-                        <div><span class="vq-status ${statusClass}">${statusLabel}</span> ${poolLink} <span style="color:var(--text-muted); font-size:12px;">${idStr}</span></div>
+                        <div><span class="vq-status ${statusClass}">${statusLabel}</span> ${poolLink} <span style="color:var(--text-muted); font-size:12px;">${idStr}</span>${countsHtml}</div>
                         <div class="vq-date">${detail}${v.visitObserverUserName ? ' — ' + v.visitObserverUserName : ''}</div>
                     </div>
                     <div class="vq-actions">${actions}</div>

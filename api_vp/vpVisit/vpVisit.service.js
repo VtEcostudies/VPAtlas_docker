@@ -133,7 +133,8 @@ vpmapped."createdAt" AS "mappedCreatedAt",
 vpvisit.*,
 vpvisit."updatedAt" AS "visitUpdatedAt",
 vpvisit."createdAt" AS "visitCreatedAt",
-EXISTS (SELECT 1 FROM vpreview WHERE "reviewVisitId" = vpvisit."visitId") AS "isReviewed"
+(SELECT COUNT(*)::int FROM vpreview WHERE "reviewVisitId" = vpvisit."visitId") AS "reviewCount",
+(SELECT COUNT(*)::int FROM vpvisit_photos WHERE "visitPhotoVisitId" = vpvisit."visitId") AS "photoCount"
 from vpmapped
 INNER JOIN vpvisit ON "visitPoolId"="mappedPoolId"
 LEFT JOIN vptown ON "mappedTownId"="townId"
