@@ -353,12 +353,29 @@
                     if (!confirm(`Permanently delete visit #${visitId} from the server?`)) return;
                     btn.disabled = true;
                     btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
-                    try { await deleteVisitById(visitId); }
-                    catch(e) {
+                    let succeeded = false;
+                    let offlineError = false;
+                    try {
+                        await deleteVisitById(visitId);
+                        succeeded = true;
+                    } catch(e) {
                         console.error('Server visit delete failed', e);
-                        alert(`Delete failed: ${describeError(e)}`);
+                        if (isLikelyOfflineError(e)) {
+                            offlineError = true;
+                            alert("Can't reach the server — you appear to be offline. The visit was NOT deleted; try again when you're back online.");
+                        } else {
+                            alert(`Delete failed: ${describeError(e)}`);
+                        }
                     }
-                    await loadAll();
+                    if (offlineError) {
+                        // Skip loadAll() — refetching server visits offline
+                        // would empty the list and make it look like a bunch
+                        // of visits had vanished. Just restore the trash icon.
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa fa-trash"></i>';
+                    } else {
+                        await loadAll();
+                    }
                 });
             });
         }
@@ -526,6 +543,21 @@
                     await loadAllTracks();
                 });
             });
+        }
+
+        // Heuristic: did this failure happen because we're offline? Browsers
+        // throw a plain TypeError ("Failed to fetch" / "Load failed" /
+        // "NetworkError when attempting to fetch resource") for network-down
+        // fetch failures. navigator.onLine is the strongest signal when
+        // available; the message-text fallbacks catch the cases where it's
+        // unreliable (some captive-portal setups).
+        function isLikelyOfflineError(e) {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+            if (e instanceof TypeError) return true;
+            let m = ((e && e.message) || '').toLowerCase();
+            return m.includes('failed to fetch')
+                || m.includes('networkerror')
+                || m.includes('load failed');
         }
 
         // Mobile-only debugging means we can't open devtools, so every error

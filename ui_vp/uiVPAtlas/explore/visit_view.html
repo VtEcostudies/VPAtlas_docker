@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="./css/pool_list.css">
     <link rel="stylesheet" href="./css/modal.css">
     <link rel="stylesheet" href="/css/map.css">
+    <link rel="stylesheet" href="/css/visit_card.css">
     <style>
         .dv-tabs { display: none; }
         @media (max-width: 900px) {
@@ -54,13 +55,7 @@
     <div class="row dv-content" id="dv_content">
         <!-- Left: Visit info -->
         <div class="col-lg-6 col-12 dv-pane dv-pane-detail" style="max-height:85vh; overflow-y:auto; padding:10px;">
-            <div id="visit_info"></div>
-            <div id="habitat_section"></div>
-            <div id="pool_char_section"></div>
-            <div id="species_section"></div>
-            <div id="fish_section"></div>
-            <div id="reviews_section"></div>
-            <div id="photos_section"></div>
+            <div id="visit_card_container"></div>
         </div>
 
         <!-- Right: Map -->
@@ -111,7 +106,7 @@
         import { getUser } from '/js/auth.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
-        import { openPhotoLightbox } from '/js/photo_lightbox.js';
+        import { renderVisitTabs } from '/js/visit_card.js';
         setupProfileIcon();
 
         const params = new URLSearchParams(window.location.search);
@@ -139,7 +134,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!visitId) {
-                document.getElementById('visit_info').innerHTML = '<p>No visit ID specified.</p>';
+                document.getElementById('visit_card_container').innerHTML = '<p>No visit ID specified.</p>';
                 return;
             }
 
@@ -152,7 +147,7 @@
                 let visit = row.both ? row.both.visit : row;
                 let mapped = row.both ? row.both.mapped : row;
                 if (!visit) {
-                    document.getElementById('visit_info').innerHTML = '<p>Visit not found.</p>';
+                    document.getElementById('visit_card_container').innerHTML = '<p>Visit not found.</p>';
                     return;
                 }
 
@@ -170,20 +165,17 @@
                 document.getElementById('page_title').textContent = title;
                 document.title = `VPAtlas - ${title}`;
 
-                renderVisitInfo(visit, mapped);
-                renderHabitat(visit);
-                renderPoolCharacteristics(visit);
-                renderSpecies(visit);
-                renderFish(visit);
+                // Fetch photos & reviews in parallel, then render the tabbed card
+                let [photos, reviews] = await Promise.all([
+                    fetchVisitPhotos(visitId).catch(() => []),
+                    fetchReviewsByVisit(visitId).then(d => d.rows || (Array.isArray(d) ? d : [])).catch(() => [])
+                ]);
+                renderVisitTabs(document.getElementById('visit_card_container'), {
+                    visit, mapped,
+                    photos: Array.isArray(photos) ? photos : [],
+                    reviews
+                });
                 initMap(visit, mapped);
-                loadVisitPhotos(visitId);
-
-                // Reviews for this visit
-                try {
-                    let reviewData = await fetchReviewsByVisit(visitId);
-                    let reviews = reviewData.rows || (Array.isArray(reviewData) ? reviewData : []);
-                    renderReviews(reviews, visit);
-                } catch(err) {}
 
                 // Edit button (owner only), Review button (admins only)
                 let user = await getUser();
@@ -227,6 +219,17 @@
                                     window.location.href = '/explore/visit_list.html';
                                 } catch (e) {
                                     console.error('visit_view: delete failed', e);
+                                    // Offline detection: TypeError from a
+                                    // network-failed fetch, or navigator.onLine
+                                    // false, or a fetch error message we
+                                    // recognize. Server is unchanged.
+                                    let offline = (typeof navigator !== 'undefined' && navigator.onLine === false)
+                                        || (e instanceof TypeError)
+                                        || /failed to fetch|networkerror|load failed/i.test(((e && e.message) || ''));
+                                    if (offline) {
+                                        alert("Can't reach the server — you appear to be offline. The visit was NOT deleted; try again when you're back online.");
+                                        return;
+                                    }
                                     let msg = (e && (e.message || e.detail))
                                         || (typeof e === 'string' ? e : JSON.stringify(e));
                                     alert(`Delete failed: ${msg}`);
@@ -239,243 +242,10 @@
                     initOverflowMenu('action_menu_btn', 'action_menu_panel', menuItems);
                 }
             } catch(err) {
-                document.getElementById('visit_info').innerHTML =
+                document.getElementById('visit_card_container').innerHTML =
                     `<p style="color:var(--danger-color);">Error: ${err.message || JSON.stringify(err)}</p>`;
             }
         });
-
-        // Helper: return value if truthy and not "None", else empty string
-        function val(v) { return (v && v !== 'None' && v !== 'none') ? v : ''; }
-
-        // Helper: render iNat link
-        function inatLink(url) {
-            if (!url) return '';
-            return ` <a href="${url}" target="_blank" title="iNaturalist"><i class="fa fa-external-link-alt" style="font-size:12px;"></i></a>`;
-        }
-
-        function renderVisitInfo(v, m) {
-            let poolId = v.visitPoolId || m.mappedPoolId || '';
-            let html = `<table class="pool-table" style="font-size:15px;">
-                <tr><td><strong>Visit ID</strong></td><td>${v.visitId || ''}</td></tr>
-                <tr><td><strong>Pool ID</strong></td><td><a href="pool_view.html?poolId=${poolId}">${poolId}</a></td></tr>
-                <tr><td><strong>Date</strong></td><td>${formatDate(v.visitDate)}</td></tr>
-                <tr><td><strong>Observer</strong></td><td>${v.visitObserverUserName || v.visitUserName || ''}</td></tr>
-                <tr><td><strong>Town</strong></td><td>${v.townName || m.townName || ''}</td></tr>
-                <tr><td><strong>County</strong></td><td>${v.countyName || m.countyName || ''}</td></tr>
-                <tr><td><strong>Pool Located</strong></td><td>${val(v.visitLocatePool)}</td></tr>`;
-            if (val(v.visitPoolType)) {
-                let poolType = v.visitPoolType;
-                try { let arr = JSON.parse(poolType); if (Array.isArray(arr)) poolType = arr.join(', '); } catch(e) {}
-                html += `<tr><td><strong>Basin Type</strong></td><td>${poolType}${val(v.visitPoolTypeOther) ? ' — ' + v.visitPoolTypeOther : ''}</td></tr>`;
-            }
-            if (val(v.visitCoordSource)) html += `<tr><td><strong>Coord Source</strong></td><td>${v.visitCoordSource}</td></tr>`;
-            if (v.visitLatitude && v.visitLongitude) {
-                html += `<tr><td><strong>Location</strong></td><td>${Number(v.visitLatitude).toFixed(5)}, ${Number(v.visitLongitude).toFixed(5)}</td></tr>`;
-            }
-            if (val(v.visitLocationUncertainty)) html += `<tr><td><strong>Location Uncertainty (m)</strong></td><td>${v.visitLocationUncertainty}</td></tr>`;
-            if (val(v.visitLocationComments)) html += `<tr><td><strong>Location Notes</strong></td><td>${v.visitLocationComments}</td></tr>`;
-            if (val(v.visitInletType)) html += `<tr><td><strong>Inlet</strong></td><td>${v.visitInletType}</td></tr>`;
-            if (val(v.visitOutletType)) html += `<tr><td><strong>Outlet</strong></td><td>${v.visitOutletType}</td></tr>`;
-            if (val(v.visitPoolPhoto)) html += `<tr><td><strong>Pool Photo</strong></td><td>${v.visitPoolPhoto}</td></tr>`;
-            html += `<tr><td><strong>Created</strong></td><td>${formatDate(v.visitCreatedAt || v.createdAt)}</td></tr>`;
-            html += `<tr><td><strong>Updated</strong></td><td>${formatDate(v.visitUpdatedAt || v.updatedAt)}</td></tr>`;
-            html += `</table>`;
-            document.getElementById('visit_info').innerHTML = html;
-        }
-
-        function renderHabitat(v) {
-            let items = [];
-            if (v.visitForestUpland) items.push(['Forest/Upland', v.visitForestUpland]);
-            if (v.visitForestCondition) items.push(['Forest Condition', v.visitForestCondition]);
-            let disturbances = [];
-            if (v.visitDisturbDumping) disturbances.push('Dumping');
-            if (v.visitDisturbSiltation) disturbances.push('Siltation');
-            if (v.visitDisturbVehicleRuts) disturbances.push('Vehicle Ruts');
-            if (v.visitDisturbRunoff) disturbances.push('Runoff');
-            if (v.visitDisturbDitching) disturbances.push('Ditching');
-            if (v.visitDisturbOther) disturbances.push(v.visitDisturbOther);
-            if (disturbances.length) items.push(['Disturbances', disturbances.join(', ')]);
-            let adjacent = [];
-            if (v.visitHabitatAgriculture) adjacent.push('Agriculture');
-            if (v.visitHabitatLightDev) adjacent.push('Light Development');
-            if (v.visitHabitatHeavyDev) adjacent.push('Heavy Development');
-            if (v.visitHabitatPavedRd) adjacent.push('Paved Road');
-            if (v.visitHabitatDirtRd) adjacent.push('Dirt Road');
-            if (v.visitHabitatPowerline) adjacent.push('Powerline');
-            if (v.visitHabitatOther) adjacent.push(v.visitHabitatOther);
-            if (adjacent.length) items.push(['Adjacent Habitat', adjacent.join(', ')]);
-            if (v.visitHabitatComment) items.push(['Habitat Notes', v.visitHabitatComment]);
-
-            if (!items.length) return;
-            let html = `<hr><h5>Habitat</h5><table class="pool-table" style="font-size:14px;">`;
-            items.forEach(([label, val]) => { html += `<tr><td><strong>${label}</strong></td><td>${val}</td></tr>`; });
-            html += `</table>`;
-            document.getElementById('habitat_section').innerHTML = html;
-        }
-
-        function renderPoolCharacteristics(v) {
-            let items = [];
-            if (v.visitMaxDepth) items.push(['Max Depth', v.visitMaxDepth]);
-            if (v.visitWaterLevelObs) items.push(['Water Level', v.visitWaterLevelObs]);
-            if (v.visitHydroPeriod) items.push(['Hydroperiod', v.visitHydroPeriod]);
-            if (v.visitMaxWidth) items.push(['Max Width', v.visitMaxWidth]);
-            if (v.visitMaxLength) items.push(['Max Length', v.visitMaxLength]);
-            if (v.visitSubstrate) items.push(['Substrate', v.visitSubstrate + (v.visitSubstrateOther ? ' — ' + v.visitSubstrateOther : '')]);
-            let veg = [];
-            if (v.visitPoolTrees) veg.push(`Trees: ${v.visitPoolTrees}%`);
-            if (v.visitPoolShrubs) veg.push(`Shrubs: ${v.visitPoolShrubs}%`);
-            if (v.visitPoolEmergents) veg.push(`Emergents: ${v.visitPoolEmergents}%`);
-            if (v.visitPoolFloatingVeg) veg.push(`Floating: ${v.visitPoolFloatingVeg}%`);
-            if (veg.length) items.push(['Canopy/Vegetation', veg.join(', ')]);
-            if (val(v.visitPoolCharComments)) items.push(['Comments', v.visitPoolCharComments]);
-
-            if (!items.length) return;
-            let html = `<hr><h5>Pool Characteristics</h5><table class="pool-table" style="font-size:14px;">`;
-            items.forEach(([label, val]) => { html += `<tr><td><strong>${label}</strong></td><td>${val}</td></tr>`; });
-            html += `</table>`;
-            document.getElementById('pool_char_section').innerHTML = html;
-        }
-
-        function renderSpecies(v) {
-            let species = [];
-
-            function addSpecies(name, eggs, eggHow, adults, larvae, notes, photo, inat) {
-                if (eggs || adults || larvae) {
-                    species.push({ name, eggs, eggHow: val(eggHow), adults, larvae,
-                        notes: val(notes), photo: val(photo), inat: val(inat) });
-                }
-            }
-
-            addSpecies('Wood Frog', v.visitWoodFrogEgg||0, v.visitWoodFrogEggHow,
-                v.visitWoodFrogAdults||0, v.visitWoodFrogLarvae||0,
-                v.visitWoodFrogNotes, v.visitWoodFrogPhoto, v.visitWoodFrogiNat);
-
-            addSpecies('Spotted Salamander', v.visitSpsEgg||0, v.visitSpsEggHow,
-                v.visitSpsAdults||0, v.visitSpsLarvae||0,
-                v.visitSpsNotes, v.visitSpsPhoto, v.visitSpsiNat);
-
-            addSpecies('Jefferson Salamander', v.visitJesaEgg||0, v.visitJesaEggHow,
-                v.visitJesaAdults||0, v.visitJesaLarvae||0,
-                v.visitJesaNotes, v.visitJesaPhoto, v.visitJesaiNat);
-
-            addSpecies('Blue-spotted Salamander', v.visitBssaEgg||0, v.visitBssaEggHow,
-                v.visitBssaAdults||0, v.visitBssaLarvae||0,
-                v.visitBssaNotes, v.visitBssaPhoto, v.visitBssaiNat);
-
-            if (v.visitFairyShrimp) {
-                species.push({ name: 'Fairy Shrimp', eggs: 0, eggHow: '', adults: v.visitFairyShrimp,
-                    larvae: 0, notes: val(v.visitFairyShrimpNotes),
-                    photo: val(v.visitFairyShrimpPhoto), inat: val(v.visitFairyShrimpiNat) });
-            }
-
-            if (v.visitFingerNailClams) {
-                species.push({ name: 'Fingernail Clams', eggs: 0, eggHow: '', adults: v.visitFingerNailClams,
-                    larvae: 0, notes: val(v.visitFingerNailClamsNotes),
-                    photo: val(v.visitFingerNailClamsPhoto), inat: val(v.visitFingerNailClamsiNat) });
-            }
-
-            // Other species
-            if (val(v.visitSpeciesOtherName) || v.visitSpeciesOtherCount) {
-                species.push({ name: val(v.visitSpeciesOtherName) || 'Other Species', eggs: 0, eggHow: '',
-                    adults: v.visitSpeciesOtherCount || 0, larvae: 0,
-                    notes: val(v.visitSpeciesOtherNotes),
-                    photo: val(v.visitSpeciesOtherPhoto), inat: val(v.visitSpeciesOtheriNat) });
-            }
-            if (val(v.visitSpeciesOther1)) species.push({ name: v.visitSpeciesOther1, eggs:0, eggHow:'', adults:0, larvae:0, notes:'', photo:'', inat:'' });
-            if (val(v.visitSpeciesOther2)) species.push({ name: v.visitSpeciesOther2, eggs:0, eggHow:'', adults:0, larvae:0, notes:'', photo:'', inat:'' });
-
-            if (!species.length && !val(v.visitSpeciesComments)) return;
-
-            let html = `<hr><h5>Indicator Species</h5>`;
-            if (species.length) {
-                html += `<table class="pool-table" style="font-size:14px;">
-                    <thead><tr><th>Species</th><th>Egg Masses</th><th>Adults</th><th>Larvae/Tadpoles</th><th>Notes</th></tr></thead><tbody>`;
-                species.forEach(s => {
-                    let eggStr = s.eggs ? `${s.eggs}${s.eggHow ? ' (' + s.eggHow + ')' : ''}` : '';
-                    let nameStr = s.name + inatLink(s.inat);
-                    html += `<tr>
-                        <td>${nameStr}</td>
-                        <td>${eggStr}</td>
-                        <td>${s.adults || ''}</td>
-                        <td>${s.larvae || ''}</td>
-                        <td>${s.notes || ''}</td>
-                    </tr>`;
-                });
-                html += `</tbody></table>`;
-            }
-            if (val(v.visitSpeciesComments)) {
-                html += `<p style="font-size:14px; margin-top:8px;"><strong>Notes:</strong> ${v.visitSpeciesComments}</p>`;
-            }
-            document.getElementById('species_section').innerHTML = html;
-        }
-
-        function renderFish(v) {
-            if (!v.visitFish && !v.visitFishCount) return;
-            let items = [];
-            if (v.visitFish != null) items.push(['Fish Present', v.visitFish ? 'Yes' : 'No']);
-            if (val(v.visitFishCount)) items.push(['Fish Count', v.visitFishCount]);
-            if (val(v.visitFishSize)) items.push(['Fish Size', v.visitFishSize]);
-            if (v.visitFishSizeSmall) items.push(['Small', v.visitFishSizeSmall]);
-            if (v.visitFishSizeMedium) items.push(['Medium', v.visitFishSizeMedium]);
-            if (v.visitFishSizeLarge) items.push(['Large', v.visitFishSizeLarge]);
-            if (!items.length) return;
-            let html = `<hr><h5>Fish</h5><table class="pool-table" style="font-size:14px;">`;
-            items.forEach(([label, v]) => { html += `<tr><td><strong>${label}</strong></td><td>${v}</td></tr>`; });
-            html += `</table>`;
-            document.getElementById('fish_section').innerHTML = html;
-        }
-
-        function renderReviews(reviews, visit) {
-            let container = document.getElementById('reviews_section');
-            if (!reviews.length) {
-                container.innerHTML = `<hr><h5>Reviews</h5><p style="font-size:14px; color:var(--text-muted);">No reviews for this visit.</p>`;
-                return;
-            }
-            let html = `<hr><h5>Reviews (${reviews.length})</h5>`;
-            html += `<table class="pool-table" style="font-size:14px;">
-                <thead><tr><th>Review ID</th><th>Date</th><th>QA Code</th><th>Reviewer</th></tr></thead><tbody>`;
-            reviews.forEach(r => {
-                html += `<tr class="pool-row" style="cursor:pointer;" onclick="window.location.href='/admin/review_view.html?reviewId=${r.reviewId}'">
-                    <td>${r.reviewId || ''}</td>
-                    <td>${formatDate(r.reviewQADate)}</td>
-                    <td>${r.reviewQACode || ''}</td>
-                    <td>${r.reviewUserName || ''}</td>
-                </tr>`;
-            });
-            html += `</tbody></table>`;
-            container.innerHTML = html;
-        }
-
-        // Load all photos for this visit, displayed as a responsive grid
-        async function loadVisitPhotos(vid) {
-            let container = document.getElementById('photos_section');
-            if (!container) return;
-            try {
-                let photos = await fetchVisitPhotos(vid);
-                let arr = Array.isArray(photos) ? photos : [];
-                if (!arr.length) return;
-
-                let apiBase = (typeof appConfig !== 'undefined' && appConfig.api && appConfig.api.fqdn) || '';
-                let html = `<h5 style="margin-top:16px;"><i class="fa fa-camera" style="margin-right:4px;"></i>Photos (${arr.length})</h5>`;
-                html += `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; margin-top:8px;">`;
-                arr.forEach(p => {
-                    let type = p.visitPhotoSpecies || 'Other';
-                    let url = p.visitPhotoUrl.startsWith('http') ? p.visitPhotoUrl : apiBase + p.visitPhotoUrl;
-                    html += `<button type="button" class="visit-photo-thumb" data-src="${url}" data-label="${type}" title="${type}" style="position:relative; display:block; aspect-ratio:1/1; border-radius:6px; overflow:hidden; border:1px solid #ddd; padding:0; background:none; cursor:pointer;">
-                        <img src="${url}" alt="${type}" style="width:100%; height:100%; object-fit:cover; display:block;">
-                        <span style="position:absolute; left:0; right:0; bottom:0; padding:2px 6px; font-size:11px; font-weight:600;
-                            background:rgba(0,0,0,0.55); color:white; text-align:center;">${type}</span>
-                    </button>`;
-                });
-                html += `</div>`;
-                container.innerHTML = html;
-                container.querySelectorAll('.visit-photo-thumb').forEach(el => {
-                    el.addEventListener('click', () => {
-                        openPhotoLightbox({ src: el.dataset.src, label: el.dataset.label });
-                    });
-                });
-            } catch(err) { console.warn('photos load failed', err); }
-        }
 
         async function initMap(v, m) {
             let lat = parseFloat(v.visitLatitude || m.mappedLatitude);
