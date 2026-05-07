@@ -1,98 +1,52 @@
 /*
-    storage.js - per-user-scoped IndexedDB wrapper for VPAtlas.
+    storage.js — IndexedDB wrapper for VPAtlas (idb-keyval).
 
-    Background: idb-keyval gives us a single shared key/value store. Without
-    scoping, user1's drafts/tracks/filter-history were visible to user2 after
-    a logout/login on the same device — see plan
-    /home/jloomis/.claude/plans/design-review-discussion-here-soft-lake.md.
-
-    Behavior:
-      - getLocal/setLocal/delLocal auto-prefix the key with the current user
-        ('u<id>:') or with 'anon:' when nobody is signed in.
-      - SHARED_KEYS (auth, public reference caches, base-layer choice) bypass
-        the prefix and live in the global namespace.
-      - getKeys/getEntries return only the active scope, with prefixes stripped.
-      - Raw helpers expose the unscoped store for the legacy-migration path
-        in auth.js. Almost nothing else should ever touch them.
-
-    Login wires the user with setStorageUser(id); logout clears it via
-    setStorageUser(null). Page entry hooks via getUser() in auth.js.
+    Cross-user isolation strategy: logging out as user1 and in as user2 is
+    treated as a fresh install on this device. wipeUserData() (called by
+    auth.js on logout AND on a login where the user differs from the prior
+    auth_user) clears every IDB key except the explicit keep-list of public
+    reference data + device-level UX prefs. Same isolation guarantee as
+    per-user key prefixing, far less code.
 */
 import { get, set, del, keys, entries } from '/js/idb-keyval_6.esm.js';
 
-const SCOPED_PREFIX_RE = /^(u\d+|anon):/;
+export async function getLocal(key)    { return await get(key); }
+export async function setLocal(key, v) { return await set(key, v); }
+export async function delLocal(key)    { return await del(key); }
+export async function getKeys()        { return await keys(); }
+export async function getEntries()     { return await entries(); }
 
-// Keys that intentionally live in the global namespace. Everything else gets
-// auto-prefixed with the current user. Keep this list small; default to
-// scoped so we don't accidentally leak something new.
-export const SHARED_KEYS = new Set([
-    'auth_token', 'auth_user',                       // auth itself; logout deletes
-    'pool_cache', 'visit_cache', 'survey_cache',     // public reference data snapshots
-    'parcel_cache',                                   // VCGI parcel boundaries (public)
-    'map_settings',                                   // base layer / boundary / parcels — UX pref
-    'user_state',                                     // filter / map-layer prefs — UX pref, no PII concern
+// Keys that survive a user-change wipe. Everything else (drafts, tracks,
+// filter state, last-known location, auth itself) gets cleared.
+//   - *_cache entries: large public reference data; expensive to refetch and
+//     not user-specific.
+//   - map_settings: which base layer / which overlays were on. Device-level
+//     UX, not tied to a user.
+const KEEP_ON_USER_CHANGE = new Set([
+    'pool_cache',
+    'visit_cache',
+    'survey_cache',
+    'parcel_cache',
+    'map_settings',
 ]);
 
-let _userId = null;
-
-// Set by auth.js on login (with the user's id), on logout (with null), and
-// idempotently from getUser() so already-loaded pages init correctly.
-export function setStorageUser(id) {
-    let n = (id == null) ? null : Number(id);
-    _userId = (Number.isFinite(n) && n >= 0) ? n : null;
+// Wipe local-device state on user change. Auth keys (auth_token, auth_user)
+// are NOT in the keep-list — callers wipe first, then write the new auth
+// blob. localStorage and sessionStorage are also cleared of the bits we
+// know are tied to the prior session.
+export async function wipeUserData() {
+    try {
+        const all = await keys();
+        for (const k of all) {
+            if (typeof k === 'string' && KEEP_ON_USER_CHANGE.has(k)) continue;
+            await del(k);
+        }
+    } catch (err) {
+        console.warn('storage.js: wipeUserData (idb) failed', err);
+    }
+    // The only user-level localStorage pref (set by /survey/js/visit_sync.js).
+    try { localStorage.removeItem('allowCellularPhotoUpload'); } catch (_) {}
+    // sessionStorage holds the bandwidth-probe cache, navigation hints, and
+    // admin import scratch state — all transient and cheap to re-derive.
+    try { sessionStorage.clear(); } catch (_) {}
 }
-export function getStorageUser() { return _userId; }
-
-function activePrefix() {
-    return (_userId == null) ? 'anon:' : `u${_userId}:`;
-}
-
-function scope(key) {
-    if (typeof key !== 'string') return key;
-    if (SHARED_KEYS.has(key)) return key;
-    if (SCOPED_PREFIX_RE.test(key)) return key;        // defensive: already scoped
-    return activePrefix() + key;
-}
-
-// =============================================================================
-// Public scoped API — drop-in replacements for the prior helpers.
-// =============================================================================
-
-export async function getLocal(key) {
-    return await get(scope(key));
-}
-
-export async function setLocal(key, val) {
-    return await set(scope(key), val);
-}
-
-export async function delLocal(key) {
-    return await del(scope(key));
-}
-
-// Returns only the keys belonging to the active scope, prefix stripped.
-export async function getKeys() {
-    const all = await keys();
-    const prefix = activePrefix();
-    return all
-        .filter(k => typeof k === 'string' && k.startsWith(prefix))
-        .map(k => k.slice(prefix.length));
-}
-
-// Returns [key, value] pairs for the active scope only, prefix stripped.
-export async function getEntries() {
-    const all = await entries();
-    const prefix = activePrefix();
-    return all
-        .filter(([k]) => typeof k === 'string' && k.startsWith(prefix))
-        .map(([k, v]) => [k.slice(prefix.length), v]);
-}
-
-// =============================================================================
-// Raw passthroughs — unscoped. Used by auth.js legacy migration only.
-// =============================================================================
-
-export async function getRaw(key)    { return await get(key); }
-export async function setRaw(key, v) { return await set(key, v); }
-export async function delRaw(key)    { return await del(key); }
-export async function rawKeys()      { return await keys(); }

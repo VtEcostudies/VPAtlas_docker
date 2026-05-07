@@ -281,10 +281,54 @@ function update(req, res, next) {
         });
 }
 
-function _delete(req, res, next) {
-    service.delete(req.params.id)
-        .then(() => res.json({}))
-        .catch(err => next(err));
+// DELETE /pools/visit/:id — gated to admin OR (owner AND not yet reviewed).
+//
+// req.user is the decoded JWT payload {sub, role, iat} (express-jwt 6.x
+// overwrites whatever isRevoked sets — see vpTrack.routes.js for the same
+// dance). req.dbUser is the looked-up vpuser row. Either is fine for the
+// owner match; we accept whichever has an id.
+async function _delete(req, res, next) {
+    try {
+        let visitId = parseInt(req.params.id);
+        if (!visitId) return res.status(400).json({ message: 'invalid visit id' });
+
+        let userId = (req.user && req.user.sub != null) ? Number(req.user.sub)
+                   : (req.dbUser && req.dbUser.id != null) ? Number(req.dbUser.id)
+                   : null;
+        let isAdmin = (req.user && req.user.role === 'admin')
+                   || (req.dbUser && req.dbUser.userrole === 'admin');
+        if (userId == null && !isAdmin) {
+            return res.status(401).json({
+                name: 'UnauthorizedError',
+                message: 'Sign in to delete a visit.'
+            });
+        }
+
+        let row = await service.getDeleteEligibility(visitId);
+        if (!row) return res.sendStatus(404);
+
+        let isOwner = userId != null && (row.visitUserId === userId || row.visitObserverUserId === userId);
+        if (!isAdmin) {
+            if (!isOwner) {
+                return res.status(403).json({
+                    name: 'ForbiddenError',
+                    message: 'You can only delete visits you submitted.'
+                });
+            }
+            if (row.isReviewed) {
+                return res.status(403).json({
+                    name: 'ForbiddenError',
+                    message: 'This visit has already been reviewed and can no longer be deleted. Contact an admin if you need it removed.'
+                });
+            }
+        }
+
+        await service.delete(visitId);
+        res.json({ visitId });
+    } catch (err) {
+        console.log('vpVisit.routes::_delete error', err && err.message || err);
+        next(err);
+    }
 }
 
 function upload(req, res, next) {

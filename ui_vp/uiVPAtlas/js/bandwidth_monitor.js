@@ -36,8 +36,8 @@
       testFiles:           { small: {url, bytes}, large: {url, bytes} }
       cacheKey:            'bandwidth_monitor_last'
       cacheTtlMs:          5 * 60 * 1000
-      minTransferMs:       30      // below this the math is noisy
-      reprobeThresholdKbps:1500    // only reprobe when result is at/below the gate
+      reprobeThresholdKbps:1500    // reprobe when first reading is below the gate
+      minTransferMs:       30      // (legacy, currently unused) below this the math is noisy
       maxSamples:          5
 
     Both probe URLs should be excluded from any service-worker static cache so
@@ -52,10 +52,16 @@
       raw wall-clock math read "below threshold" on a fast link.
     - We sessionStorage-cache the result with a TTL so subsequent page
       loads in the same session don't reprobe.
-    - If the first probe is suspiciously fast (< minTransferMs) AND the
-      result is below the threshold, we run a second probe and average —
-      a too-short transfer means the math is unreliable regardless of
-      which clock we use.
+    - If the first probe reads below reprobeThresholdKbps, we run a
+      second probe and take max(first, second). The 35 KB small-probe
+      payload spans ~2.5 TCP congestion windows from cold, so the first
+      probe pays slow-start tax and reads systematically low even when
+      the underlying link is fast. The second probe runs on a warm TCP
+      connection (window already open) and is the honest reading.
+      max() rather than average() because slow-start can only depress
+      the reading — averaging would let the tainted first probe drag
+      the cached value back down. If the link is genuinely slow, both
+      probes read similarly low and max stays below the gate.
 */
 (function() {
     const DEFAULTS = {
@@ -184,18 +190,22 @@
             let first = await singleProbe(url, file.bytes);
             let kbps = first.kbps;
 
-            // Belt-and-braces: if the first transfer was too short for the
-            // math to be stable AND the result is below the threshold the SW
-            // gate cares about, run a second probe and average. Suspiciously
-            // fast first probes are usually an artifact of cold connection
-            // overhead being charged against a tiny payload.
-            if (allowReprobe &&
-                first.transferMs < this.config.minTransferMs &&
-                kbps < this.config.reprobeThresholdKbps) {
+            // Reprobe whenever the first reading is below threshold, on a
+            // warm connection. The 35 KB probe spans ~2.5 TCP congestion
+            // windows from cold, so the first probe pays slow-start tax
+            // and reads systematically low (often ~1.4 Mbps on links that
+            // are actually 10+ Mbps). The second probe runs on a warm TCP
+            // connection (window already open) and is the honest reading.
+            // We take max() rather than average() because slow-start can
+            // only depress the measurement — averaging lets the tainted
+            // first probe drag the cached value back down. If the link is
+            // genuinely slow, both probes read similarly low and max
+            // won't lift it above the gate.
+            if (allowReprobe && kbps < this.config.reprobeThresholdKbps) {
                 try {
                     let url2 = file.url + '?_bw=' + Date.now();
                     let second = await singleProbe(url2, file.bytes);
-                    kbps = (first.kbps + second.kbps) / 2;
+                    kbps = Math.max(first.kbps, second.kbps);
                 } catch (_) { /* keep first */ }
             }
 

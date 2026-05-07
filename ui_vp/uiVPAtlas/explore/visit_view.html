@@ -106,7 +106,7 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchVisitById, fetchVisitPhotos, fetchReviewsByVisit } from '/js/api.js';
+        import { fetchVisitById, fetchVisitPhotos, fetchReviewsByVisit, deleteVisitById } from '/js/api.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
@@ -192,6 +192,9 @@
                     let isOwner = (user.id && (user.id === visit.visitUserId || user.id === visit.visitObserverUserId))
                         || user.username === visit.visitUserName
                         || user.username === visit.visitObserverUserName;
+                    // isReviewed comes from the EXISTS subquery on
+                    // vpreview.reviewVisitId added in vpVisit.service.js.
+                    let isReviewed = !!row.isReviewed;
 
                     let poolId = visit.visitPoolId || (mapped && mapped.mappedPoolId) || '';
                     let menuItems = [];
@@ -210,6 +213,26 @@
                         reviewBtn.addEventListener('click', () =>
                             window.location.href = `/admin/review_create.html?visitId=${visitId}&poolId=${poolId}`);
                         menuItems.push({ label: '+ Review', action: () => window.location.href = `/admin/review_create.html?visitId=${visitId}&poolId=${poolId}` });
+                    }
+
+                    // Delete: admins always; owners only if not yet reviewed.
+                    // Server gates the same condition as defense in depth.
+                    if (isAdmin || (isOwner && !isReviewed)) {
+                        menuItems.push({
+                            label: 'Delete Visit',
+                            action: async () => {
+                                if (!confirm(`Permanently delete visit #${visitId} from the server?`)) return;
+                                try {
+                                    await deleteVisitById(visitId);
+                                    window.location.href = '/explore/visit_list.html';
+                                } catch (e) {
+                                    console.error('visit_view: delete failed', e);
+                                    let msg = (e && (e.message || e.detail))
+                                        || (typeof e === 'string' ? e : JSON.stringify(e));
+                                    alert(`Delete failed: ${msg}`);
+                                }
+                            }
+                        });
                     }
 
                     menuItems.push({ label: 'System Info', action: () => window.location.href = '/explore/system.html' });

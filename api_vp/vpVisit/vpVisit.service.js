@@ -17,6 +17,7 @@ module.exports = {
     getCsv,
     getGeoJson,
     getShapeFile,
+    getDeleteEligibility,
     create,
     update,
     delete: _delete
@@ -131,7 +132,8 @@ vpmapped."updatedAt" AS "mappedUpdatedAt",
 vpmapped."createdAt" AS "mappedCreatedAt",
 vpvisit.*,
 vpvisit."updatedAt" AS "visitUpdatedAt",
-vpvisit."createdAt" AS "visitCreatedAt"
+vpvisit."createdAt" AS "visitCreatedAt",
+EXISTS (SELECT 1 FROM vpreview WHERE "reviewVisitId" = vpvisit."visitId") AS "isReviewed"
 from vpmapped
 INNER JOIN vpvisit ON "visitPoolId"="mappedPoolId"
 LEFT JOIN vptown ON "mappedTownId"="townId"
@@ -216,7 +218,8 @@ async function getById(id) {
     		vpvisit."createdAt" AS "visitCreatedAt"
     		) visit)
     ) AS both,
-    "reviewId"
+    "reviewId",
+    EXISTS (SELECT 1 FROM vpreview WHERE "reviewVisitId" = vpvisit."visitId") AS "isReviewed"
     FROM vpmapped
     INNER JOIN vpvisit ON "visitPoolId"="mappedPoolId"
     LEFT JOIN vpreview ON "reviewPoolId"="mappedPoolId"
@@ -375,4 +378,18 @@ async function update(id, body) {
 
 async function _delete(id) {
     return await query(`delete from vpvisit where "visitId"=$1;`, [id]);
+}
+
+// Returns the ownership / review-status fields needed to decide whether the
+// caller is allowed to delete a given visit. NULL row means visit not found;
+// the route layer turns that into a 404. `isReviewed` is computed via EXISTS
+// on vpreview so we don't have to materialise a JOIN.
+async function getDeleteEligibility(id) {
+    const sql = `
+        SELECT "visitId", "visitUserId", "visitObserverUserId",
+               EXISTS (SELECT 1 FROM vpreview WHERE "reviewVisitId" = v."visitId") AS "isReviewed"
+        FROM vpvisit v
+        WHERE "visitId" = $1`;
+    const res = await query(sql, [id]);
+    return res.rowCount ? res.rows[0] : null;
 }

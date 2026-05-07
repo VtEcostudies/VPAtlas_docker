@@ -155,6 +155,7 @@ export async function fetchVisitsByPool(poolId) { return fetchApiRoute(`pools/vi
 export async function fetchVisitPage(page, searchTerm) { return fetchApiRoute(`pools/visit/page/${page}`, searchTerm); }
 export async function createVisit(body) { return postApiRoute('pools/visit', body); }
 export async function createPoolAndVisit(body) { return postApiRoute('pools/visit/new', body); }
+export async function deleteVisitById(id) { return deleteApiRoute(`pools/visit/${id}`); }
 export async function updateVisit(id, body) { return putApiRoute(`pools/visit/${id}`, body); }
 export async function fetchVisitPhotos(visitId) { return fetchApiRoute(`pools/visit/${visitId}/photos`); }
 

@@ -114,7 +114,7 @@
     <script src="/js/app.js"></script>
 
     <script type="module">
-        import { fetchVisits, createTrack, deleteTrack } from '/js/api.js';
+        import { fetchVisits, createTrack, deleteTrack, deleteVisitById } from '/js/api.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
@@ -226,6 +226,14 @@
                             townName: v.townName || '',
                             poolStatus: v.poolStatus || v.mappedPoolStatus || '',
                             visitLocatePool: v.visitLocatePool || '',
+                            // Ownership + review-status fields drive the
+                            // "Delete" button gate. Mirror the visit_view
+                            // owner check (ids preferred, names as fallback
+                            // for legacy rows that pre-date visitUserId).
+                            visitUserId: v.visitUserId,
+                            visitUserName: v.visitUserName || '',
+                            visitObserverUserId: v.visitObserverUserId,
+                            isReviewed: !!v.isReviewed,
                         }));
                 } catch(e) { console.warn('visit_list: server load failed', e); }
             }
@@ -278,7 +286,14 @@
                     // server visit
                     statusClass = 'vq-status-uploaded';
                     statusLabel = 'server';
-                    actions = `<a class="vq-btn" href="visit_view.html?visitId=${v.visitId}" title="View"><i class="fa fa-eye"></i></a>`;
+                    let parts = [`<a class="vq-btn" href="visit_view.html?visitId=${v.visitId}" title="View"><i class="fa fa-eye"></i></a>`];
+                    // Owner-and-unreviewed → render delete. Admin can also
+                    // delete via this same control. Server gates again
+                    // server-side as defense-in-depth.
+                    if (canDeleteServerVisit(v)) {
+                        parts.push(`<button class="vq-btn vq-server-delete" data-visit-id="${v.visitId}" title="Delete this visit"><i class="fa fa-trash"></i></button>`);
+                    }
+                    actions = parts.join('');
                 }
 
                 let poolLink = v.visitPoolId
@@ -328,6 +343,39 @@
                     }
                 });
             });
+
+            // Server-side delete (own + unreviewed). The button is only
+            // rendered when canDeleteServerVisit() said so — but the server
+            // also gates, so worst-case the user gets a clear 403.
+            container.querySelectorAll('.vq-server-delete').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    let visitId = btn.dataset.visitId;
+                    if (!confirm(`Permanently delete visit #${visitId} from the server?`)) return;
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+                    try { await deleteVisitById(visitId); }
+                    catch(e) {
+                        console.error('Server visit delete failed', e);
+                        alert(`Delete failed: ${describeError(e)}`);
+                    }
+                    await loadAll();
+                });
+            });
+        }
+
+        // Owner = matches by id (preferred) or by username (fallback for
+        // legacy rows with no visitUserId). Mirrors visit_view.html.
+        function isOwnServerVisit(v) {
+            if (!currentUser) return false;
+            let uid = currentUser.id;
+            let uname = currentUser.handle || currentUser.username;
+            return (uid != null && (uid === v.visitUserId || uid === v.visitObserverUserId))
+                || (uname && (uname === v.visitUserName || uname === v.visitObserverUserName));
+        }
+        function canDeleteServerVisit(v) {
+            if (!currentUser) return false;
+            if (currentUser.userrole === 'admin') return true;
+            return isOwnServerVisit(v) && !v.isReviewed;
         }
 
         // =====================================================================
