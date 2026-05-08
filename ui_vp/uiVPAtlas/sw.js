@@ -1,7 +1,7 @@
 // sw.js - Service Worker for VPAtlas (unified app)
 // Generated from sw_template.js by sw-build.js — do not edit directly
-const APP_VERSION = '3.5.208';
-const BUILD_TIMESTAMP = '1778176888197';
+const APP_VERSION = '3.5.210';
+const BUILD_TIMESTAMP = '1778214427944';
 const ME = 'sw.js';
 
 const SW_BASE = self.location.pathname.replace(/\/[^\/]*$/, '');
@@ -81,10 +81,13 @@ const DATA_NO_CACHE_PATTERNS = [
 ];
 
 // Static path patterns that must NEVER be cached. The speed-test images must
-// always go to the network so bandwidth measurements are real.
+// always go to the network so bandwidth measurements are real. /sw-reset.html
+// must bypass the SW entirely so users can always reach the recovery page,
+// even when the rest of the app is in a broken/cached state.
 const STATIC_NO_CACHE_PATTERNS = [
   /\/images\/speed-test\.jpg$/,
   /\/images\/speed-test-small\.jpg$/,
+  /^\/sw-reset\.html$/,
 ];
 
 // Tile patterns

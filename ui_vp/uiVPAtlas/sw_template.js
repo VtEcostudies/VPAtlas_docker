@@ -81,10 +81,13 @@ const DATA_NO_CACHE_PATTERNS = [
 ];
 
 // Static path patterns that must NEVER be cached. The speed-test images must
-// always go to the network so bandwidth measurements are real.
+// always go to the network so bandwidth measurements are real. /sw-reset.html
+// must bypass the SW entirely so users can always reach the recovery page,
+// even when the rest of the app is in a broken/cached state.
 const STATIC_NO_CACHE_PATTERNS = [
   /\/images\/speed-test\.jpg$/,
   /\/images\/speed-test-small\.jpg$/,
+  /^\/sw-reset\.html$/,
 ];
 
 // Tile patterns

@@ -22,17 +22,62 @@ let updateInProgress = false;
 console.log(`app.js: SW_PATH=${SW_PATH}`);
 
 // =============================================================================
+// EMERGENCY KILL SWITCH
+// -----------------------------------------------------------------------------
+// If the app is stuck in an SW install loop (e.g. /sw.js bytes change per
+// request because of a misconfigured CDN, or an install fails on every page
+// load), users can navigate to ANY URL with `?nosw=1` to persistently disable
+// the SW for this origin. Re-enable with `?sw=1`. The flag lives in
+// localStorage so it survives across tabs and reloads.
+// =============================================================================
+let SW_KILL = false;
+try {
+  let qp = new URLSearchParams(window.location.search);
+  if (qp.get('nosw') === '1') localStorage.setItem('vpa_disable_sw', '1');
+  if (qp.get('sw')   === '1') localStorage.removeItem('vpa_disable_sw');
+  SW_KILL = localStorage.getItem('vpa_disable_sw') === '1';
+} catch(_) {}
+
+// =============================================================================
+// AUTO-RELOAD LOOP CAP
+// -----------------------------------------------------------------------------
+// We auto-reload after a SW activates so the page picks up new code. If the
+// new SW *also* immediately triggers another install (e.g. /sw.js bytes
+// change per request), that loops forever. Cap auto-reload at once per
+// session; subsequent updates stay in `waiting` until the user manually
+// refreshes.
+// =============================================================================
+const RELOAD_FLAG = 'vpa_sw_reloaded_this_session';
+function alreadyReloadedThisSession() {
+  try { return sessionStorage.getItem(RELOAD_FLAG) === '1'; } catch(_) { return false; }
+}
+function markReloadedThisSession() {
+  try { sessionStorage.setItem(RELOAD_FLAG, '1'); } catch(_) {}
+}
+
+// =============================================================================
 // MAIN ENTRY POINT - Runs immediately on script load
 // =============================================================================
 (async function() {
-  if (typeof appConfig !== 'undefined' && appConfig.useServiceWorker === false) {
-    console.log('app.js: Service Worker disabled in config');
+  let configDisabled = (typeof appConfig !== 'undefined' && appConfig.useServiceWorker === false);
+  if (SW_KILL || configDisabled) {
+    console.log(`app.js: Service Worker disabled (${SW_KILL ? 'kill switch ?nosw=1' : 'config'})`);
     if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.getRegistration(SW_PATH);
-      if (reg) {
-        await reg.unregister();
-        console.log('app.js: Unregistered existing SW');
-      }
+      try {
+        // Unregister ALL SWs at this origin, not just the canonical one — any
+        // legacy or stuck registration could keep intercepting fetches.
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+          console.log('app.js: Unregistered SW at scope', reg.scope);
+        }
+        // Drop all caches too — a stale precache can keep the user broken.
+        if ('caches' in self) {
+          const names = await caches.keys();
+          for (const n of names) await caches.delete(n);
+          console.log('app.js: Cleared', names.length, 'caches');
+        }
+      } catch(e) { console.warn('app.js: kill-switch cleanup error', e); }
     }
     document.addEventListener('DOMContentLoaded', () => callInitApp());
     if (document.readyState !== 'loading') callInitApp();
@@ -58,10 +103,14 @@ console.log(`app.js: SW_PATH=${SW_PATH}`);
   const registration = await navigator.serviceWorker.getRegistration(SW_PATH);
 
   if (registration?.waiting) {
-    console.log('app.js: Found waiting SW, activating...');
-    showUpdateUI('Activating update...');
-    activateWaitingSW(registration.waiting);
-    return;
+    if (alreadyReloadedThisSession()) {
+      console.warn('app.js: SW is waiting but we already reloaded once this session — leaving in waiting state to prevent install loop. Refresh manually to apply.');
+    } else {
+      console.log('app.js: Found waiting SW, activating...');
+      showUpdateUI('Activating update...');
+      activateWaitingSW(registration.waiting);
+      return;
+    }
   }
 
   await registerAndCheckForUpdates();
@@ -114,9 +163,18 @@ async function registerAndCheckForUpdates() {
 
         if (newWorker.state === 'installed') {
           if (navigator.serviceWorker.controller) {
-            console.log('app.js: New SW installed and waiting, activating...');
-            showUpdateUI('Activating update...');
-            activateWaitingSW(newWorker);
+            if (alreadyReloadedThisSession()) {
+              // We already auto-reloaded once. Don't loop. Leave the new SW
+              // in `waiting`; next manual refresh will pick it up.
+              console.warn('app.js: New SW installed but we already reloaded once this session — staying on current version to prevent loop.');
+              updateInProgress = false;
+              hideUpdateUI();
+              callInitApp();
+            } else {
+              console.log('app.js: New SW installed and waiting, activating...');
+              showUpdateUI('Activating update...');
+              activateWaitingSW(newWorker);
+            }
           } else {
             console.log('app.js: First install complete');
             updateInProgress = false;
@@ -161,10 +219,10 @@ async function registerAndCheckForUpdates() {
       if (bandwidthKbps === null) {
         console.log('app.js: Skipping update check - bandwidth unknown (offline?)');
       } else if (bandwidthKbps < GATE_KBPS) {
+        // Bandwidth probe caches in sessionStorage for 5 min. If we surfaced a
+        // toast here, it would re-fire on every navigation for the whole TTL —
+        // which is what users actually see in the field. Console only.
         console.log(`app.js: Skipping update check - bandwidth too low (${Math.round(bandwidthKbps)} kbps < ${GATE_KBPS} kbps; source=${bandwidthSource})`);
-        if (typeof showToast === 'function') {
-          showToast(`Update skipped: slow connection (${Math.round(bandwidthKbps)} kbps)`, 'warning');
-        }
       } else {
         console.log(`app.js: Bandwidth OK (${Math.round(bandwidthKbps)} kbps; source=${bandwidthSource}), checking for SW updates...`);
         registration.update().catch(err => {
@@ -185,6 +243,10 @@ async function registerAndCheckForUpdates() {
 // ACTIVATE WAITING SERVICE WORKER
 // =============================================================================
 function activateWaitingSW(worker) {
+  // Mark the session BEFORE posting skipWaiting. If the activation triggers
+  // another install + reload race, the post-reload code will see this flag
+  // and stay on the current SW instead of cycling again.
+  markReloadedThisSession();
   worker.postMessage({ type: 'SKIP_WAITING' });
   // Safety timeout: if RELOAD message doesn't arrive within 5s, recover
   setTimeout(() => {

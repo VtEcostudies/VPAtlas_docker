@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPAtlas — Reset App Cache</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        body { font-family: Georgia, sans-serif; max-width: 540px; margin: 30px auto; padding: 0 16px; line-height: 1.45; color: #2c5530; }
+        h1 { font-size: 22px; margin-bottom: 12px; }
+        button { font-size: 16px; padding: 10px 20px; border-radius: 6px; border: 1px solid #2c5530; background: #2c5530; color: white; cursor: pointer; }
+        button:hover { background: #3a7040; }
+        button:disabled { background: #aaa; border-color: #aaa; cursor: not-allowed; }
+        pre { background: #f6f8f6; padding: 10px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+        .ok { color: #155724; }
+        .err { color: #721c24; }
+        a { color: #2c5530; }
+    </style>
+</head>
+<body>
+    <h1>Reset VPAtlas App Cache</h1>
+    <p>If the VPAtlas app is stuck reloading, showing stale data, or won't open offline, this page will fully unregister the service worker and clear every cache for this origin. Then reload your page.</p>
+    <p>You can stay offline-disabled by visiting any page with <code>?nosw=1</code> in the URL. To re-enable offline support later, visit any page with <code>?sw=1</code>.</p>
+    <p>
+        <button id="btn_reset">Reset now</button>
+        <button id="btn_disable">Reset + disable offline</button>
+    </p>
+    <pre id="log">Ready.</pre>
+    <p><a href="/explore/">&larr; Back to VPAtlas</a></p>
+
+    <script>
+    const logEl = document.getElementById('log');
+    function log(s, cls) {
+        let line = document.createElement('div');
+        if (cls) line.className = cls;
+        line.textContent = s;
+        logEl.appendChild(line);
+    }
+
+    async function reset(persistDisable) {
+        document.getElementById('btn_reset').disabled = true;
+        document.getElementById('btn_disable').disabled = true;
+        logEl.textContent = '';
+
+        if (persistDisable) {
+            try {
+                localStorage.setItem('vpa_disable_sw', '1');
+                log('Set localStorage vpa_disable_sw=1 (offline disabled until cleared)', 'ok');
+            } catch(e) { log('localStorage failed: ' + e.message, 'err'); }
+        } else {
+            try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
+        }
+
+        try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
+
+        if ('serviceWorker' in navigator) {
+            try {
+                let regs = await navigator.serviceWorker.getRegistrations();
+                log('Found ' + regs.length + ' service worker registration(s).');
+                for (let reg of regs) {
+                    let ok = await reg.unregister();
+                    log((ok ? 'Unregistered: ' : 'Failed to unregister: ') + reg.scope, ok ? 'ok' : 'err');
+                }
+            } catch(e) { log('Unregister error: ' + e.message, 'err'); }
+        } else {
+            log('Service workers not supported in this browser.');
+        }
+
+        if ('caches' in self) {
+            try {
+                let names = await caches.keys();
+                log('Found ' + names.length + ' cache(s): ' + names.join(', '));
+                for (let n of names) {
+                    let ok = await caches.delete(n);
+                    log((ok ? 'Deleted cache: ' : 'Failed to delete cache: ') + n, ok ? 'ok' : 'err');
+                }
+            } catch(e) { log('Cache clear error: ' + e.message, 'err'); }
+        }
+
+        log('');
+        log('Done. Hard-reload (Ctrl+Shift+R / Cmd+Shift+R) and try the app again.', 'ok');
+    }
+
+    document.getElementById('btn_reset').addEventListener('click', () => reset(false));
+    document.getElementById('btn_disable').addEventListener('click', () => reset(true));
+    </script>
+</body>
+</html>
