@@ -240,27 +240,42 @@
             let loading = document.getElementById('visit_loading');
             loading.style.display = 'block';
 
-            // Local visits from IndexedDB
+            // Local visits from IndexedDB. We don't allow editing of an
+            // already-uploaded visit, so once a local copy has BOTH a
+            // server_visit_id AND its photos confirmed uploaded, the
+            // server row is the single source of truth — the local row is
+            // pure redundant cache. Hide it from the list (still kept in
+            // IndexedDB; the server-row dedupe below picks it up by
+            // visitId). Locals with photos still pending stay visible so
+            // the user knows there's outstanding work.
             let localVisits = [];
             try {
                 let raw = await loadAllVisits();
-                localVisits = raw.map(v => ({
-                    source: 'local',
-                    status: v.status || 'draft',
-                    visit_uuid: v.visit_uuid,
-                    server_visit_id: v.server_visit_id || null,
-                    photos_uploaded: v.photos_uploaded,
-                    visitId: v.server_visit_id || null,
-                    visitPoolId: v.visitPoolId || v.formData?.visitPoolId || '',
-                    visitDate: v.visitDate || v.formData?.visitDate || '',
-                    visitObserverUserName: v.visitObserverUserName || v.formData?.visitObserverUserName || '',
-                    townName: '',
-                    poolStatus: '',
-                    visitLocatePool: '',
-                    last_modified: v.last_modified || v.created_at || '',
-                    photoCount: localPhotoCount(v),
-                    speciesCount: speciesCountFromLocal(v),
-                }));
+                localVisits = raw
+                    .filter(v => {
+                        let isUploaded = v.status === 'uploaded' && v.server_visit_id;
+                        let photosPending = v.photos_uploaded === false;
+                        // Hide pure cache; keep drafts, complete, and
+                        // uploaded-but-photos-pending.
+                        return !(isUploaded && !photosPending);
+                    })
+                    .map(v => ({
+                        source: 'local',
+                        status: v.status || 'draft',
+                        visit_uuid: v.visit_uuid,
+                        server_visit_id: v.server_visit_id || null,
+                        photos_uploaded: v.photos_uploaded,
+                        visitId: v.server_visit_id || null,
+                        visitPoolId: v.visitPoolId || v.formData?.visitPoolId || '',
+                        visitDate: v.visitDate || v.formData?.visitDate || '',
+                        visitObserverUserName: v.visitObserverUserName || v.formData?.visitObserverUserName || '',
+                        townName: '',
+                        poolStatus: '',
+                        visitLocatePool: '',
+                        last_modified: v.last_modified || v.created_at || '',
+                        photoCount: localPhotoCount(v),
+                        speciesCount: speciesCountFromLocal(v),
+                    }));
             } catch(e) { console.warn('visit_list: local load failed', e); }
 
             // Server visits
