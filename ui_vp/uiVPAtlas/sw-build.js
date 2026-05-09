@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { validatePrecache, reportAndExit } = require('./sw-validate.js');
 
 function incrementVersion(version, type = 'patch') {
   const parts = version.split('.').map(Number);
@@ -17,6 +18,11 @@ function incrementVersion(version, type = 'patch') {
 
 function buildServiceWorker() {
   try {
+    if (!process.argv.includes('--skip-validate')) {
+      const result = validatePrecache(__dirname);
+      const code = reportAndExit(result);
+      if (code !== 0) process.exit(code);
+    }
     console.log('Reading manifest.json...');
     const manifestPath = path.join(__dirname, 'manifest.json');
     if (!fs.existsSync(manifestPath)) throw new Error('manifest.json not found');

@@ -15,6 +15,11 @@ RUN npm install
 # sw.js is pre-built locally by: node uiVPAtlas/sw-build.js patch
 # Do NOT run sw-build.js here — it would bump the version inside the
 # container without updating local source files, causing version drift.
+#
+# DO run the precache validator: it's read-only (no version bump, no file
+# writes), and it stops a broken cache list from ever shipping. If a HTML
+# page imports a file that's not in urlsToCache.js, this fails the build.
+RUN node uiVPAtlas/sw-validate.js
 
 EXPOSE 8090
 

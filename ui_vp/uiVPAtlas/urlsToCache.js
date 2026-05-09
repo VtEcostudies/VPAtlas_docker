@@ -44,6 +44,8 @@ appConfig.urlsToCache = [
 '/js/home_button.js',
 '/js/bandwidth_monitor.js',
 '/js/visit_card.js',
+'/js/profile_icon.js',
+'/js/parcels.js',
 
 // === Explore JS modules ===
 '/explore/js/utils.js',
@@ -57,6 +59,9 @@ appConfig.urlsToCache = [
 // === Survey JS modules ===
 '/survey/js/gps_monitor.js',
 '/survey/js/track_recorder.js',
+'/survey/js/visit_queue_ui.js',
+'/survey/js/visit_store.js',
+'/survey/js/visit_sync.js',
 
 // === GPS keep-alive silent audio (iOS Safari fallback) ===
 '/survey/silence.wav',
@@ -74,6 +79,9 @@ appConfig.urlsToCache = [
 '/explore/css/modal.css',
 '/explore/css/pool_list.css',
 '/explore/css/filter_bar.css',
+
+// === Survey CSS ===
+'/survey/css/visit_queue.css',
 
 // === Images ===
 '/favicon.ico',
@@ -121,6 +129,8 @@ appConfig.urlsToCache = [
 '/images/vegetation/floating-pondlily.jpg',
 '/images/vegetation/shrub-buttonbush.jpg',
 '/images/vegetation/shrub-winterberry.jpg',
+'/images/vegetation/submerged-bladderwort.jpg',
+'/images/vegetation/submerged-sphagnum.jpg',
 
 // === Boundary GeoJSON (loaded synchronously by createMap — must be cached or maps freeze offline) ===
 '/geojson/Polygon_VT_State_Boundary.geo.json',

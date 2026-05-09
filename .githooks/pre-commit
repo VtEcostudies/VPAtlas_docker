@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# pre-commit — block commits that would ship a broken offline cache list.
+#
+# Runs ui_vp/uiVPAtlas/sw-validate.js whenever any file under
+# ui_vp/uiVPAtlas/ is staged. If the validator reports a HTML page importing
+# a file that isn't in urlsToCache.js, the commit is rejected with a clear
+# list of missing entries.
+#
+# Enable in this repo (one-time):
+#   git config core.hooksPath .githooks
+#
+# Bypass for an emergency commit (rare):
+#   git commit --no-verify
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+VALIDATOR="$REPO_ROOT/ui_vp/uiVPAtlas/sw-validate.js"
+
+# Only run when files under ui_vp/uiVPAtlas/ are part of this commit.
+if ! git diff --cached --name-only | grep -q '^ui_vp/uiVPAtlas/'; then
+    exit 0
+fi
+
+if [ ! -f "$VALIDATOR" ]; then
+    echo "pre-commit: $VALIDATOR not found — skipping precache validation" >&2
+    exit 0
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+    echo "pre-commit: node is not installed — skipping precache validation" >&2
+    exit 0
+fi
+
+if ! node "$VALIDATOR"; then
+    echo "" >&2
+    echo "pre-commit: refusing the commit until urlsToCache.js is updated." >&2
+    echo "  Fix the missing entries above, restage, and commit again." >&2
+    echo "  (Bypass with: git commit --no-verify)" >&2
+    exit 1
+fi
+
+exit 0
