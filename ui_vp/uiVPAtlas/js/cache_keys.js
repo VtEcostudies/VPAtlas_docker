@@ -40,3 +40,14 @@ export const KEEP_ON_USER_CHANGE = [
     PARCEL_CACHE_KEY,
     MAP_SETTINGS_KEY,
 ];
+
+// "UI hint" prefs — one-time onboarding dialogs and similar suppression
+// flags. These are wiped by Reset App so a stuck user gets to see the
+// hints again and doesn't have to reason about IndexedDB. They are NOT
+// wiped on user-change (they're device-level UX, not user-specific).
+//
+// Add to this list when you persist a "don't show again" decision so
+// Reset App keeps doing the right thing.
+export const UI_HINT_PREF_KEYS = [
+    'poolfinder_motion_pref',  // /survey/find_pool.html — compass-permission speech bubble
+];

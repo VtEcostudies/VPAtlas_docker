@@ -4,11 +4,22 @@
     Import and call setupProfileIcon(containerId) after DOMContentLoaded.
 */
 import { getUser, logout } from '/js/auth.js';
+import { delLocal } from '/js/storage.js';
+import { UI_HINT_PREF_KEYS } from '/js/cache_keys.js';
 
 // In-app cache reset. Replicates /sw-reset.html so users running the
 // standalone PWA on iOS — where there is no address bar — can still
-// recover from a stuck cache or wedged service worker. Inlined (no new
-// imports) so it works even if much of the app's JS failed to load.
+// recover from a stuck cache or wedged service worker.
+//
+// What gets cleared:
+//   - SW registrations and the Cache Storage API (offline assets)
+//   - localStorage SW-disable flag
+//   - sessionStorage reload-loop flag
+//   - IndexedDB UI hint prefs (e.g. compass dialog "don't show again")
+// What gets KEPT:
+//   - IndexedDB caches (pool/visit/survey/parcel)
+//   - Local visit drafts and recorded tracks (user data!)
+//   - Auth (so the user stays signed in after the reset)
 async function resetAppCacheAndReload(persistDisable) {
     if (persistDisable) {
         try { localStorage.setItem('vpa_disable_sw', '1'); } catch(_) {}
@@ -28,6 +39,13 @@ async function resetAppCacheAndReload(persistDisable) {
             let names = await caches.keys();
             for (let n of names) await caches.delete(n);
         } catch(_) {}
+    }
+    // Wipe one-time-onboarding flags so the user can see hint dialogs
+    // again. iOS standalone PWAs persist IndexedDB across PWA-delete-
+    // and-reinstall, so without this a user who once tapped "dismiss"
+    // can never re-trigger the hint without diving into Safari Settings.
+    for (let key of UI_HINT_PREF_KEYS) {
+        try { await delLocal(key); } catch(_) {}
     }
     // Bypass HTTP cache too — a fresh start_url load gets the latest.
     window.location.href = '/explore/?_reset=' + Date.now();
@@ -138,11 +156,14 @@ async function handleResetAppMenu() {
         `<div style="padding:4px 0;">
             <div style="font-size:17px; font-weight:600; margin-bottom:6px; color:#7c2d12;">Reset App?</div>
             <div style="font-size:14px; line-height:1.4;">
-                This unregisters the offline service worker and clears every
-                cached file. Local drafts and saved visits are kept.
+                Clears the offline service worker, every cached file, and
+                one-time onboarding hints (so the compass tip will show
+                again next time you open Pool Finder).
                 <br><br>
-                The app will reload. <strong>Use it online once</strong> after
-                the reset so the offline cache can repopulate.
+                Your local drafts, recorded tracks, and sign-in are kept.
+                <br><br>
+                The app will reload. <strong>Use it online once</strong>
+                after the reset so the offline cache can repopulate.
             </div>
         </div>`,
         [
