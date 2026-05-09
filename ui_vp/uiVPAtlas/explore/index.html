@@ -99,10 +99,12 @@
         </div>
     </div>
 
-    <!-- Mobile tab bar (hidden on desktop via CSS) -->
+    <!-- Mobile tab bar (hidden on desktop via CSS).
+         Default-active tab is Map — most users on phones come back to see
+         what's around them, not to scroll a list. -->
     <div class="explore-tabs" id="explore_tabs">
-        <button class="explore-tab-btn active" data-tab="list"><i class="fa fa-list"></i>List</button>
-        <button class="explore-tab-btn" data-tab="map"><i class="fa fa-map"></i>Map</button>
+        <button class="explore-tab-btn" data-tab="list"><i class="fa fa-list"></i>List</button>
+        <button class="explore-tab-btn active" data-tab="map"><i class="fa fa-map"></i>Map</button>
         <button class="explore-tab-btn" data-tab="info"><i class="fa fa-info-circle"></i>Info</button>
     </div>
 
@@ -198,6 +200,19 @@
             wireGpsButton(document.getElementById('map_gps_btn'));
             wireBothButton(document.getElementById('map_both_btn'));
 
+            // Auto-activate GPS tracking on load if the user previously had
+            // the "Near Me" filter on. Re-uses the GPS button's own click
+            // handler so the system permission dialog fires the same way as
+            // a manual tap. iOS will re-prompt for geolocation on each
+            // session if the user hadn't chosen "Allow on every visit",
+            // which is the expected OS-level UX. If the user denied at the
+            // OS level, the button class flips to gps-denied and we don't
+            // get a fix — same outcome as a manual tap.
+            if (filters.nearMeKm > 0) {
+                let gpsBtn = document.getElementById('map_gps_btn');
+                if (gpsBtn) gpsBtn.click();
+            }
+
             // Long-press / right-click on the map drops a pin and offers to
             // start a new pool there (mirrors the PoolFinder behavior).
             let m = getMap();
@@ -271,7 +286,7 @@
             let contentRow = document.getElementById('content_row');
             if (!contentRow) return;
             if (e.matches) {
-                if (!contentRow.dataset.activeTab) contentRow.dataset.activeTab = 'list';
+                if (!contentRow.dataset.activeTab) contentRow.dataset.activeTab = 'map';
             } else {
                 delete contentRow.dataset.activeTab;
             }
@@ -279,10 +294,11 @@
             if (m) setTimeout(() => m.invalidateSize(), 150);
         });
 
-        // Set initial mobile state
+        // Set initial mobile state — default to Map (matches the active
+        // class on the tab bar above).
         if (mobileQuery.matches) {
             let cr = document.getElementById('content_row');
-            if (cr) cr.dataset.activeTab = 'list';
+            if (cr) cr.dataset.activeTab = 'map';
         }
 
         // =================================================================
