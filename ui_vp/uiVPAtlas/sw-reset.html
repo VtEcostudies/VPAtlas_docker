@@ -21,11 +21,9 @@
 </head>
 <body>
     <h1>Reset VPAtlas App Cache</h1>
-    <p>If the VPAtlas app is stuck reloading, showing stale data, or won't open offline, this page will fully unregister the service worker and clear every cache for this origin. Then reload your page.</p>
-    <p>You can stay offline-disabled by visiting any page with <code>?nosw=1</code> in the URL. To re-enable offline support later, visit any page with <code>?sw=1</code>.</p>
+    <p>If the VPAtlas app is stuck reloading, showing stale data, or won't open offline, this page will fully unregister the service worker and clear every cache for this origin. Reload the app afterwards.</p>
     <p>
         <button id="btn_reset">Reset now</button>
-        <button id="btn_disable">Reset + disable offline</button>
     </p>
     <pre id="log">Ready.</pre>
     <p><a href="/explore/">&larr; Back to VPAtlas</a></p>
@@ -39,20 +37,13 @@
         logEl.appendChild(line);
     }
 
-    async function reset(persistDisable) {
+    async function reset() {
         document.getElementById('btn_reset').disabled = true;
-        document.getElementById('btn_disable').disabled = true;
         logEl.textContent = '';
 
-        if (persistDisable) {
-            try {
-                localStorage.setItem('vpa_disable_sw', '1');
-                log('Set localStorage vpa_disable_sw=1 (offline disabled until cleared)', 'ok');
-            } catch(e) { log('localStorage failed: ' + e.message, 'err'); }
-        } else {
-            try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
-        }
-
+        // Scrub legacy flags from earlier debug builds — these were the
+        // root cause of the "offline always shows network error" bug.
+        try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
         try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
 
         if ('serviceWorker' in navigator) {
@@ -83,8 +74,7 @@
         log('Done. Hard-reload (Ctrl+Shift+R / Cmd+Shift+R) and try the app again.', 'ok');
     }
 
-    document.getElementById('btn_reset').addEventListener('click', () => reset(false));
-    document.getElementById('btn_disable').addEventListener('click', () => reset(true));
+    document.getElementById('btn_reset').addEventListener('click', () => reset());
     </script>
 </body>
 </html>

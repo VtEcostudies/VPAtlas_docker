@@ -13,19 +13,16 @@ import { UI_HINT_PREF_KEYS } from '/js/cache_keys.js';
 //
 // What gets cleared:
 //   - SW registrations and the Cache Storage API (offline assets)
-//   - localStorage SW-disable flag
-//   - sessionStorage reload-loop flag
-//   - IndexedDB UI hint prefs (e.g. compass dialog "don't show again")
+//   - Legacy debug flags from earlier builds (vpa_disable_sw,
+//     vpa_sw_reloaded_this_session) — these used to silently disable
+//     offline support and we scrub them on every reset.
+//   - IndexedDB UI hint prefs
 // What gets KEPT:
 //   - IndexedDB caches (pool/visit/survey/parcel)
 //   - Local visit drafts and recorded tracks (user data!)
 //   - Auth (so the user stays signed in after the reset)
-async function resetAppCacheAndReload(persistDisable) {
-    if (persistDisable) {
-        try { localStorage.setItem('vpa_disable_sw', '1'); } catch(_) {}
-    } else {
-        try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
-    }
+async function resetAppCacheAndReload() {
+    try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
     try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
 
     if ('serviceWorker' in navigator) {
@@ -169,6 +166,6 @@ async function handleResetAppMenu() {
         ]
     );
     if (result === 'go') {
-        await resetAppCacheAndReload(false);
+        await resetAppCacheAndReload();
     }
 }

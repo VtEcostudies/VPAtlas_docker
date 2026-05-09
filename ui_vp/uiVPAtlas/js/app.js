@@ -22,21 +22,19 @@ let updateInProgress = false;
 console.log(`app.js: SW_PATH=${SW_PATH}`);
 
 // =============================================================================
-// EMERGENCY KILL SWITCH
+// LEGACY KILL-SWITCH CLEANUP
 // -----------------------------------------------------------------------------
-// If the app is stuck in an SW install loop (e.g. /sw.js bytes change per
-// request because of a misconfigured CDN, or an install fails on every page
-// load), users can navigate to ANY URL with `?nosw=1` to persistently disable
-// the SW for this origin. Re-enable with `?sw=1`. The flag lives in
-// localStorage so it survives across tabs and reloads.
+// app.js < 3.5.224 had a "?nosw=1" kill switch that persisted a localStorage
+// flag (`vpa_disable_sw`) and, on every subsequent load, unregistered every
+// SW and wiped every cache. It was meant for the install-loop bug but ended
+// up silently disabling offline support for any user who tripped it once —
+// the SW was never re-registered, so cache-first fallback never ran and
+// every offline open hit the browser's network-failure page. The cooldown
+// fix in 3.5.222 made the kill switch unnecessary; we now always register
+// the SW. Defensively scrub the flag here so any device that still has it
+// set unsticks itself the moment it loads this build.
 // =============================================================================
-let SW_KILL = false;
-try {
-  let qp = new URLSearchParams(window.location.search);
-  if (qp.get('nosw') === '1') localStorage.setItem('vpa_disable_sw', '1');
-  if (qp.get('sw')   === '1') localStorage.removeItem('vpa_disable_sw');
-  SW_KILL = localStorage.getItem('vpa_disable_sw') === '1';
-} catch(_) {}
+try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
 
 // =============================================================================
 // AUTO-RELOAD LOOP CAP
@@ -77,25 +75,14 @@ try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
 // MAIN ENTRY POINT - Runs immediately on script load
 // =============================================================================
 (async function() {
-  let configDisabled = (typeof appConfig !== 'undefined' && appConfig.useServiceWorker === false);
-  if (SW_KILL || configDisabled) {
-    console.log(`app.js: Service Worker disabled (${SW_KILL ? 'kill switch ?nosw=1' : 'config'})`);
+  // Per-page opt-out (used by /explore/login.html and a few other pages
+  // that set `appConfig.useServiceWorker = false`). Everything else gets
+  // the SW unconditionally — offline support is a hard requirement.
+  if (typeof appConfig !== 'undefined' && appConfig.useServiceWorker === false) {
+    console.log('app.js: Service Worker disabled by config on this page');
     if ('serviceWorker' in navigator) {
-      try {
-        // Unregister ALL SWs at this origin, not just the canonical one — any
-        // legacy or stuck registration could keep intercepting fetches.
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for (const reg of regs) {
-          await reg.unregister();
-          console.log('app.js: Unregistered SW at scope', reg.scope);
-        }
-        // Drop all caches too — a stale precache can keep the user broken.
-        if ('caches' in self) {
-          const names = await caches.keys();
-          for (const n of names) await caches.delete(n);
-          console.log('app.js: Cleared', names.length, 'caches');
-        }
-      } catch(e) { console.warn('app.js: kill-switch cleanup error', e); }
+      const reg = await navigator.serviceWorker.getRegistration(SW_PATH);
+      if (reg) await reg.unregister();
     }
     document.addEventListener('DOMContentLoaded', () => callInitApp());
     if (document.readyState !== 'loading') callInitApp();
