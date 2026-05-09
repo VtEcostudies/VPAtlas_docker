@@ -230,38 +230,62 @@
             0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 0 0 rgba(196, 65, 0, 0.5); }
             50%      { box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 0 12px rgba(196, 65, 0, 0); }
         }
-        /* Speech-bubble prompt pointing at the compass */
+        /* Tap-to-enable card pointing at the compass. The whole card is a
+           button — tap anywhere on it (except the X) to fire the iOS
+           DeviceOrientationEvent.requestPermission() flow. The compass itself
+           handles a separate concern (mode toggle) and must not be a tap
+           target for the permission prompt. */
         .pf-compass-prompt {
             position: absolute;
             bottom: 141px; right: 14px;
             z-index: 1001;
-            max-width: 240px;
+            width: min(360px, calc(100vw - 28px));
             background: var(--selected-color, #c44100);
             color: white;
-            padding: 10px 36px 10px 14px;
-            border-radius: 8px;
-            font-size: 14px;
+            padding: 14px 44px 14px 16px;
+            border-radius: 10px;
+            font-size: 15px;
             font-weight: 600;
             line-height: 1.35;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
             display: none;
+            cursor: pointer;
+            -webkit-tap-highlight-color: rgba(255,255,255,0.18);
+            user-select: none;
+            border: 2px solid rgba(255,255,255,0.18);
         }
         .pf-compass-prompt.show { display: block; }
+        .pf-compass-prompt:active { transform: scale(0.98); }
         .pf-compass-prompt::after {
+            /* Tail pointing at the compass (compass sits 14px from right
+               edge of the map, ~58px wide; tail aim ~57px from prompt's
+               right edge so it lines up with the compass center). */
             content: '';
             position: absolute;
-            right: 36px; bottom: -8px;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-top: 8px solid var(--selected-color, #c44100);
+            right: 50px; bottom: -10px;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 10px solid var(--selected-color, #c44100);
+        }
+        .pf-compass-prompt-title {
+            font-size: 16px;
+            margin-bottom: 4px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .pf-compass-prompt-title i { font-size: 16px; }
+        .pf-compass-prompt-sub {
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.92;
         }
         .pf-compass-prompt-close {
-            position: absolute; top: 4px; right: 4px;
-            width: 28px; height: 28px;
-            border: none; background: none; color: white;
-            font-size: 20px; line-height: 1; cursor: pointer; opacity: 0.85;
+            position: absolute; top: 6px; right: 6px;
+            width: 32px; height: 32px;
+            border: none; background: rgba(0,0,0,0.18); color: white;
+            font-size: 20px; line-height: 1; cursor: pointer; opacity: 0.9;
+            border-radius: 50%;
         }
-        .pf-compass-prompt-close:hover { opacity: 1; }
+        .pf-compass-prompt-close:hover { opacity: 1; background: rgba(0,0,0,0.32); }
 
     </style>
 </head>
@@ -323,10 +347,21 @@
                 </div>
                 <div class="pf-compass-label" id="pf_compass_label"></div>
             </div>
-            <!-- Prompt asking the user to tap the compass to enable motion detection -->
-            <div class="pf-compass-prompt" id="pf_compass_prompt">
-                <button class="pf-compass-prompt-close" id="pf_compass_prompt_close" title="Dismiss">&times;</button>
-                Tap the compass to enable motion-based navigation.
+            <!-- Tap card asking the user to enable device-orientation
+                 permission. The whole card (minus the X) is the tap target —
+                 we used to fire requestPermission() from the compass tap,
+                 but the compass tap also toggles simple/rose appearance, so
+                 every page load was silently flipping the user's preferred
+                 compass style. Now the two actions are fully separated. -->
+            <div class="pf-compass-prompt" id="pf_compass_prompt" role="button" tabindex="0" aria-label="Enable compass orientation">
+                <button class="pf-compass-prompt-close" id="pf_compass_prompt_close" title="Dismiss" aria-label="Dismiss">&times;</button>
+                <div class="pf-compass-prompt-title">
+                    <i class="fa fa-hand-pointer" aria-hidden="true"></i>
+                    Tap this dialog to enable compass orientation
+                </div>
+                <div class="pf-compass-prompt-sub">
+                    Tap the compass to change its appearance to a green arrow or a traditional compass.
+                </div>
             </div>
         </div>
 
@@ -1176,14 +1211,19 @@
         // Safari (with permission). On desktop or denied permission, the arrow
         // still points to true bearing (just doesn't account for device rotation).
         //
-        // iOS Safari can't actually persist the permission grant across page
-        // reloads (the system dialog re-appears every load on a fresh
-        // requestPermission call), but we DO persist the user's recorded
-        // intent so our own "Tap the compass to enable" prompt isn't shown
-        // again once they've answered.
-        //   poolfinder_motion_pref: 'granted' | 'denied' | 'dismissed' | null
-        const MOTION_PREF_KEY = 'poolfinder_motion_pref';
-
+        // iOS Safari does NOT persist the DeviceOrientationEvent permission
+        // across page loads. Every fresh navigation needs a new
+        // requestPermission() call, and that call must originate from a
+        // user gesture (a tap). So on iOS we show the speech-bubble + pulsing
+        // ring on every load until the user either taps the compass (triggers
+        // the permission flow) or dismisses the bubble.
+        //
+        // We previously persisted the user's choice in IndexedDB and
+        // suppressed the bubble on subsequent loads when they had said
+        // "granted" \u2014 but that left iOS users with a static compass they
+        // had no way to re-enable, since the permission grant itself didn't
+        // persist. The prompt has to show every time or the compass silently
+        // breaks.
         async function startDeviceOrientation() {
             let needsTap = (typeof DeviceOrientationEvent !== 'undefined' &&
                             typeof DeviceOrientationEvent.requestPermission === 'function');
@@ -1196,32 +1236,35 @@
             let compass = document.getElementById('pf_compass');
             let prompt = document.getElementById('pf_compass_prompt');
             let closeBtn = document.getElementById('pf_compass_prompt_close');
-            let savedPref = await getLocal(MOTION_PREF_KEY);
 
             function dismissPrompt() {
                 if (prompt) prompt.classList.remove('show');
                 if (compass) compass.classList.remove('needs-tap');
             }
 
-            // Only show our prompt + pulsing ring when we have no record of
-            // the user's choice yet. After they answer (or dismiss it once),
-            // the compass is still tap-to-request \u2014 but quietly.
-            if (savedPref == null) {
-                if (compass) compass.classList.add('needs-tap');
-                if (prompt) prompt.classList.add('show');
-                if (closeBtn) closeBtn.addEventListener('click', () => {
-                    setLocal(MOTION_PREF_KEY, 'dismissed');
-                    dismissPrompt();
-                });
-            }
+            // Always show the bubble + pulsing ring on iOS \u2014 see comment
+            // block above for why persistence doesn't work here.
+            if (compass) compass.classList.add('needs-tap');
+            if (prompt) prompt.classList.add('show');
 
-            // Always wire the tap so an opted-out user can change their mind
-            // by tapping the compass. requestPermission must be called from a
-            // user gesture, so this stays click-driven.
-            compass.addEventListener('click', () => {
+            // The X dismisses without firing the permission flow. Stop the
+            // event from bubbling to the prompt's own click handler below,
+            // otherwise tapping X would also trigger requestPermission().
+            if (closeBtn) closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dismissPrompt();
+            });
+
+            // The PROMPT is the tap target for permission \u2014 not the compass.
+            // The compass itself owns the simple/rose mode toggle, which used
+            // to fire on the same tap and silently flip the user's preferred
+            // appearance every page load. Now the two actions are separated:
+            // tap the prompt \u2192 enable orientation, tap the compass \u2192 switch
+            // appearance. requestPermission still has to fire from a real
+            // user gesture, which a click handler satisfies.
+            if (prompt) prompt.addEventListener('click', () => {
                 DeviceOrientationEvent.requestPermission()
                     .then(state => {
-                        setLocal(MOTION_PREF_KEY, state === 'granted' ? 'granted' : 'denied');
                         if (state === 'granted') attachOrientation();
                         dismissPrompt();
                     })
@@ -1250,12 +1293,16 @@
         // Kick it off \u2014 safe no-op on desktop without permission flow.
         startDeviceOrientation();
 
-        // Compass mode toggle (decision 53:17): tap to switch between simple
-        // green-arrow and full compass-rose. Default for first-time users is
-        // 'simple'; subsequent loads remember the user's last choice.
-        // The compass element also fires the iOS device-orientation permission
-        // flow on first tap (see startDeviceOrientation), so we wire the mode
-        // toggle as a separate listener that runs every tap.
+        // Compass mode toggle (decision 53:17): tap the compass to switch
+        // between simple green-arrow and full compass-rose. Default for
+        // first-time users is 'simple'; subsequent loads remember the user's
+        // last choice via IndexedDB.
+        //
+        // This listener fires only on compass taps. The iOS device-orientation
+        // permission prompt has its own tap target — the speech-bubble card —
+        // so the two concerns no longer collide. Previously both listeners
+        // were on the compass element, which silently flipped the appearance
+        // every time the user enabled orientation.
         async function applyCompassMode(mode) {
             let compass = document.getElementById('pf_compass');
             if (!compass) return;

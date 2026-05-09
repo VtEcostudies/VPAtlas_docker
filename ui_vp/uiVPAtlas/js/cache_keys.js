@@ -47,7 +47,11 @@ export const KEEP_ON_USER_CHANGE = [
 // wiped on user-change (they're device-level UX, not user-specific).
 //
 // Add to this list when you persist a "don't show again" decision so
-// Reset App keeps doing the right thing.
-export const UI_HINT_PREF_KEYS = [
-    'poolfinder_motion_pref',  // /survey/find_pool.html — compass-permission speech bubble
-];
+// Reset App keeps doing the right thing. Currently empty: the compass
+// permission prompt previously lived here but iOS doesn't persist the
+// DeviceOrientationEvent grant across page loads, so suppressing the
+// prompt on later loads left the compass silently broken — see the
+// comment block in startDeviceOrientation() in find_pool.html. The
+// prompt now shows every time on iOS, which is the only way to keep
+// the compass actually working.
+export const UI_HINT_PREF_KEYS = [];

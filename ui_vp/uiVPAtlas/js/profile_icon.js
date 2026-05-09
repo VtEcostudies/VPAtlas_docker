@@ -156,10 +156,7 @@ async function handleResetAppMenu() {
         `<div style="padding:4px 0;">
             <div style="font-size:17px; font-weight:600; margin-bottom:6px; color:#7c2d12;">Reset App?</div>
             <div style="font-size:14px; line-height:1.4;">
-                Clears the offline service worker, every cached file, and
-                one-time onboarding hints (so the compass tip will show
-                again next time you open Pool Finder).
-                <br><br>
+                Clears the offline service worker and every cached file.
                 Your local drafts, recorded tracks, and sign-in are kept.
                 <br><br>
                 The app will reload. <strong>Use it online once</strong>
