@@ -43,17 +43,35 @@ try {
 // -----------------------------------------------------------------------------
 // We auto-reload after a SW activates so the page picks up new code. If the
 // new SW *also* immediately triggers another install (e.g. /sw.js bytes
-// change per request), that loops forever. Cap auto-reload at once per
-// session; subsequent updates stay in `waiting` until the user manually
-// refreshes.
+// change per request from a misbehaving CDN), that loops forever. Cap auto-
+// reload at once per cooldown window: an actual loop fires reloads sub-
+// second, so 30s is more than enough to break it, while normal user-driven
+// updates (deploy + reopen) sail through.
+//
+// Why a timestamp instead of a session flag: an iOS PWA in standalone mode
+// keeps the same `sessionStorage` across backgrounding/foregrounding for as
+// long as iOS keeps the process alive. A session flag locked users on their
+// first auto-reloaded version forever (or until force-quit), blocking every
+// subsequent deploy. A short cooldown is the right tool — long enough to
+// stop pathological loops, short enough to never feel sticky.
 // =============================================================================
-const RELOAD_FLAG = 'vpa_sw_reloaded_this_session';
-function alreadyReloadedThisSession() {
-  try { return sessionStorage.getItem(RELOAD_FLAG) === '1'; } catch(_) { return false; }
+const RELOAD_TS_KEY = 'vpa_sw_last_reload_ts';
+const RELOAD_COOLDOWN_MS = 30 * 1000;
+
+function alreadyReloadedRecently() {
+  try {
+    let ts = Number(sessionStorage.getItem(RELOAD_TS_KEY) || 0);
+    return ts > 0 && (Date.now() - ts) < RELOAD_COOLDOWN_MS;
+  } catch(_) { return false; }
 }
-function markReloadedThisSession() {
-  try { sessionStorage.setItem(RELOAD_FLAG, '1'); } catch(_) {}
+function markReloadedNow() {
+  try { sessionStorage.setItem(RELOAD_TS_KEY, String(Date.now())); } catch(_) {}
 }
+
+// Clean up the legacy session-lock flag from app.js < 3.5.222 in case
+// IndexedDB/sessionStorage on an existing PWA install still has it. With
+// the flag still set, the new logic would never let an auto-reload run.
+try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
 
 // =============================================================================
 // MAIN ENTRY POINT - Runs immediately on script load
@@ -103,8 +121,8 @@ function markReloadedThisSession() {
   const registration = await navigator.serviceWorker.getRegistration(SW_PATH);
 
   if (registration?.waiting) {
-    if (alreadyReloadedThisSession()) {
-      console.warn('app.js: SW is waiting but we already reloaded once this session — leaving in waiting state to prevent install loop. Refresh manually to apply.');
+    if (alreadyReloadedRecently()) {
+      console.warn('app.js: SW is waiting but we auto-reloaded within the last ' + (RELOAD_COOLDOWN_MS/1000) + 's — leaving in waiting state to prevent install loop. Will pick up on next page load after the cooldown.');
     } else {
       console.log('app.js: Found waiting SW, activating...');
       showUpdateUI('Activating update...');
@@ -163,10 +181,11 @@ async function registerAndCheckForUpdates() {
 
         if (newWorker.state === 'installed') {
           if (navigator.serviceWorker.controller) {
-            if (alreadyReloadedThisSession()) {
-              // We already auto-reloaded once. Don't loop. Leave the new SW
-              // in `waiting`; next manual refresh will pick it up.
-              console.warn('app.js: New SW installed but we already reloaded once this session — staying on current version to prevent loop.');
+            if (alreadyReloadedRecently()) {
+              // We auto-reloaded within the cooldown window — don't loop.
+              // Leave the new SW in `waiting`; the NEXT page load past the
+              // cooldown will pick it up automatically.
+              console.warn('app.js: New SW installed but we auto-reloaded within the last ' + (RELOAD_COOLDOWN_MS/1000) + 's — staying on current version to prevent loop. Will activate on next page load after the cooldown.');
               updateInProgress = false;
               hideUpdateUI();
               callInitApp();
@@ -243,10 +262,10 @@ async function registerAndCheckForUpdates() {
 // ACTIVATE WAITING SERVICE WORKER
 // =============================================================================
 function activateWaitingSW(worker) {
-  // Mark the session BEFORE posting skipWaiting. If the activation triggers
-  // another install + reload race, the post-reload code will see this flag
-  // and stay on the current SW instead of cycling again.
-  markReloadedThisSession();
+  // Stamp the cooldown BEFORE posting skipWaiting. If the activation triggers
+  // another install + reload race, the post-reload code will see the recent
+  // timestamp and refuse to cycle again until the cooldown expires.
+  markReloadedNow();
   worker.postMessage({ type: 'SKIP_WAITING' });
   // Safety timeout: if RELOAD message doesn't arrive within 5s, recover
   setTimeout(() => {
