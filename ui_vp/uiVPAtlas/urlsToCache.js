@@ -25,6 +25,16 @@ appConfig.urlsToCache = [
 '/survey/survey_create.html',
 '/survey/visit_create.html',
 
+// === Admin pages ===
+// Precached so offline navigation doesn't dump users on a generic
+// network-error page. Each page calls ensureOnline() at the top of its
+// init and shows a friendly "Unavailable Offline" panel instead of
+// trying to fetch.
+'/admin/profile.html',
+'/admin/users_admin.html',
+'/admin/s123_visit_import.html',
+'/admin/s123_survey_import.html',
+
 // === Shared JS ===
 '/js/app.js',
 '/js/app_messaging.js',
@@ -47,6 +57,7 @@ appConfig.urlsToCache = [
 '/js/profile_icon.js',
 '/js/parcels.js',
 '/js/cache_keys.js',
+'/js/require_online.js',
 
 // === Explore JS modules ===
 '/explore/js/utils.js',

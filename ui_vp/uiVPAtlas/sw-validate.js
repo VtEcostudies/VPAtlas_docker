@@ -25,7 +25,14 @@ const path = require('path');
 
 function validatePrecache(rootDir) {
     const ROOT = rootDir || __dirname;
-    const cacheTxt = fs.readFileSync(path.join(ROOT, 'urlsToCache.js'), 'utf8');
+    let cacheTxt = fs.readFileSync(path.join(ROOT, 'urlsToCache.js'), 'utf8');
+    // Strip JS comments before parsing — an apostrophe inside a comment
+    // ("doesn't") otherwise opens a fake string literal and the regex
+    // happily eats everything up to the next quote in actual code,
+    // silently truncating the parsed URL list.
+    cacheTxt = cacheTxt
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
     const cacheUrls = new Set();
     for (const m of cacheTxt.matchAll(/['"]([^'"]+)['"]/g)) {
         if (m[1].startsWith('/')) cacheUrls.add(m[1]);

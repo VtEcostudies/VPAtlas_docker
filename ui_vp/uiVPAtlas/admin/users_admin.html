@@ -232,6 +232,7 @@
         import { getUser, requireAuth } from '/js/auth.js';
         import { formatDate } from '/explore/js/utils.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { ensureOnline } from '/js/require_online.js';
         setupProfileIcon();
 
         let allUsers = [];
@@ -242,6 +243,7 @@
         let sortAsc = true;
 
         document.addEventListener('DOMContentLoaded', async () => {
+            if (!ensureOnline({ pageName: 'User Administration' })) return;
             if (!(await requireAuth())) return;
             currentUser = await getUser();
             if (!currentUser || (currentUser.role !== 'admin' && currentUser.userrole !== 'admin')) {

@@ -148,6 +148,7 @@
         import { fetchVisitS123Services, fetchVisitS123Uploads, postVisitS123All } from '/js/api.js';
         import { getUser, requireAuth } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
+        import { ensureOnline } from '/js/require_online.js';
         setupProfileIcon();
 
         const STORAGE_KEY = 's123_visit_import_state';
@@ -157,6 +158,7 @@
         const MAX_LIMIT = 100;
 
         document.addEventListener('DOMContentLoaded', async () => {
+            if (!ensureOnline({ pageName: 'Survey123 Visit Import' })) return;
             let authOk = await requireAuth();
             if (!authOk) return;
 
