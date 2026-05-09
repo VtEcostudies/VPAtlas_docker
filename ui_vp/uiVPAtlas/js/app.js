@@ -75,15 +75,17 @@ try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
 // MAIN ENTRY POINT - Runs immediately on script load
 // =============================================================================
 (async function() {
-  // Per-page opt-out (used by /explore/login.html and a few other pages
-  // that set `appConfig.useServiceWorker = false`). Everything else gets
-  // the SW unconditionally — offline support is a hard requirement.
+  // Per-page opt-out: a few pages historically set
+  // `appConfig.useServiceWorker = false` to skip the SW update check on
+  // their own load. We honor that by skipping the update check here, BUT
+  // we never unregister the existing SW — doing so killed offline support
+  // for every other page on the device, which broke find_pool, the home
+  // page, and everything else as soon as the user touched one of those
+  // pages. The SW already serves admin API endpoints network-first via
+  // DATA_NO_CACHE_PATTERNS / isApiRequest, so leaving it registered does
+  // not introduce stale-data issues for the opting-out page.
   if (typeof appConfig !== 'undefined' && appConfig.useServiceWorker === false) {
-    console.log('app.js: Service Worker disabled by config on this page');
-    if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.getRegistration(SW_PATH);
-      if (reg) await reg.unregister();
-    }
+    console.log('app.js: SW update check skipped on this page (config opt-out); existing registration left intact');
     document.addEventListener('DOMContentLoaded', () => callInitApp());
     if (document.readyState !== 'loading') callInitApp();
     return;
