@@ -46,6 +46,7 @@ appConfig.urlsToCache = [
 '/js/visit_card.js',
 '/js/profile_icon.js',
 '/js/parcels.js',
+'/js/cache_keys.js',
 
 // === Explore JS modules ===
 '/explore/js/utils.js',

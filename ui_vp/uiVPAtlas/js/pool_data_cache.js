@@ -17,10 +17,9 @@
 */
 import { getLocal, setLocal } from './storage.js';
 import { fetchVisitSummary, fetchSurveySummary, fetchMappedPoolStats } from './api.js';
-
-const VISIT_CACHE_KEY = 'visit_cache';
-const SURVEY_CACHE_KEY = 'survey_cache';
-const POOL_CACHE_KEY = 'pool_cache';   // read-only — written by pool_list.js
+import { POOL_CACHE_KEY, VISIT_CACHE_KEY, SURVEY_CACHE_KEY } from './cache_keys.js';
+// All three keys live in /js/cache_keys.js — single source of truth so
+// the writers in pool_list.js / this file can never drift.
 const STALE_MS = 60 * 1000;
 
 // In-memory indexes (built on first access)

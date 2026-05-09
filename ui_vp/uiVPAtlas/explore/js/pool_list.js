@@ -8,10 +8,9 @@ import { ensureCachesLoaded } from '/js/pool_data_cache.js';
 import { showWait, hideWait } from './utils.js';
 import { filters, putUserState } from './url_state.js';
 import { getLocal, setLocal } from '/js/storage.js';
-
-// Bump the version suffix when adding/changing fields the UI depends on
-// so existing client caches are abandoned and a fresh fetch is triggered.
-const CACHE_KEY = 'pool_cache_v2';      // { rows: [...], fingerprint: 'total:visited:monitored:review', ts: epoch }
+import { POOL_CACHE_KEY as CACHE_KEY } from '/js/cache_keys.js';
+// CACHE_KEY: see /js/cache_keys.js — bump the suffix there to invalidate
+// existing client caches after schema changes. { rows, fingerprint, ts }
 const STALE_MS = 60 * 1000;            // check freshness after 1 min
 
 var onPoolSelect = null;

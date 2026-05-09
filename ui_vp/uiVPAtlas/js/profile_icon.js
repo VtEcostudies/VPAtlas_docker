@@ -5,6 +5,34 @@
 */
 import { getUser, logout } from '/js/auth.js';
 
+// In-app cache reset. Replicates /sw-reset.html so users running the
+// standalone PWA on iOS — where there is no address bar — can still
+// recover from a stuck cache or wedged service worker. Inlined (no new
+// imports) so it works even if much of the app's JS failed to load.
+async function resetAppCacheAndReload(persistDisable) {
+    if (persistDisable) {
+        try { localStorage.setItem('vpa_disable_sw', '1'); } catch(_) {}
+    } else {
+        try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
+    }
+    try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
+
+    if ('serviceWorker' in navigator) {
+        try {
+            let regs = await navigator.serviceWorker.getRegistrations();
+            for (let reg of regs) await reg.unregister();
+        } catch(_) {}
+    }
+    if ('caches' in self) {
+        try {
+            let names = await caches.keys();
+            for (let n of names) await caches.delete(n);
+        } catch(_) {}
+    }
+    // Bypass HTTP cache too — a fresh start_url load gets the latest.
+    window.location.href = '/explore/?_reset=' + Date.now();
+}
+
 // Inline modal (avoid dependency on explore/js/modal.js)
 function showProfileModal(html, buttons) {
     return new Promise(resolve => {
@@ -65,6 +93,7 @@ export async function setupProfileIcon(containerId = 'profile_container') {
                 [
                     { text: '\u{1F464} My Profile', value: 'profile' },
                     { text: '\u{1F4E5} My Visits and Tracks', value: 'visits' },
+                    { text: '\u{1F504} Reset App', value: 'reset' },
                     { text: '\u{1F6AA} Sign Out', value: 'signout' },
                 ]
             );
@@ -75,11 +104,53 @@ export async function setupProfileIcon(containerId = 'profile_container') {
                 window.location.href = '/admin/profile.html';
             } else if (result === 'visits') {
                 window.location.href = '/explore/visit_list.html';
+            } else if (result === 'reset') {
+                await handleResetAppMenu();
             }
         } else {
-            window.location.href = '/explore/login.html';
+            // Signed-out users still need a way to recover from a wedged PWA.
+            let result = await showProfileModal(
+                `<div style="text-align:center; padding:8px 0;">
+                    <div style="font-size:17px; font-weight:600; margin-bottom:4px;">Not signed in</div>
+                    <div style="font-size:14px; color:var(--text-secondary);">Sign in to record visits, or reset the app if it's stuck.</div>
+                </div>`,
+                [
+                    { text: '\u{1F511} Sign In', value: 'signin' },
+                    { text: '\u{1F504} Reset App', value: 'reset' },
+                ]
+            );
+            if (result === 'signin') {
+                window.location.href = '/explore/login.html';
+            } else if (result === 'reset') {
+                await handleResetAppMenu();
+            }
         }
     });
 
     container.appendChild(icon);
+}
+
+// Confirmation + execution wrapper for the Reset App menu item. Reachable
+// from the profile dropdown on every page so iOS standalone PWA users
+// (no address bar) have a way out of a wedged cache.
+async function handleResetAppMenu() {
+    let result = await showProfileModal(
+        `<div style="padding:4px 0;">
+            <div style="font-size:17px; font-weight:600; margin-bottom:6px; color:#7c2d12;">Reset App?</div>
+            <div style="font-size:14px; line-height:1.4;">
+                This unregisters the offline service worker and clears every
+                cached file. Local drafts and saved visits are kept.
+                <br><br>
+                The app will reload. <strong>Use it online once</strong> after
+                the reset so the offline cache can repopulate.
+            </div>
+        </div>`,
+        [
+            { text: 'Cancel', value: null },
+            { text: 'Reset', value: 'go' },
+        ]
+    );
+    if (result === 'go') {
+        await resetAppCacheAndReload(false);
+    }
 }

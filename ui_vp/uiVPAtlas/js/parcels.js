@@ -9,6 +9,8 @@
         await initParcelLayer(map);
 */
 import { getLocal, setLocal } from '/js/storage.js';
+import { PARCEL_CACHE_KEY as CACHE_KEY } from '/js/cache_keys.js';
+// CACHE_KEY: single source of truth in /js/cache_keys.js.
 
 // VCGI Parcel FeatureServer — active parcels (layer 1)
 const PARCEL_URL = 'https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_VTPARCELS_WM_NOCACHE_v2/FeatureServer/1/query';
@@ -18,9 +20,6 @@ const OUT_FIELDS = [
     'SPAN', 'OWNER1', 'OWNER2', 'E911ADDR', 'TOWN', 'TNAME',
     'ACRESGL', 'DESCPROP', 'REAL_FLV', 'LOCAPROP', 'PARCID'
 ].join(',');
-
-// IndexedDB cache key
-const CACHE_KEY = 'parcel_cache';
 
 // Min zoom to fetch/show parcels (too dense at lower zooms)
 const MIN_ZOOM = 14;

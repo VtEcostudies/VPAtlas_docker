@@ -9,6 +9,7 @@
     per-user key prefixing, far less code.
 */
 import { get, set, del, keys, entries } from '/js/idb-keyval_6.esm.js';
+import { KEEP_ON_USER_CHANGE as KEEP_LIST } from '/js/cache_keys.js';
 
 export async function getLocal(key)    { return await get(key); }
 export async function setLocal(key, v) { return await set(key, v); }
@@ -16,19 +17,11 @@ export async function delLocal(key)    { return await del(key); }
 export async function getKeys()        { return await keys(); }
 export async function getEntries()     { return await entries(); }
 
-// Keys that survive a user-change wipe. Everything else (drafts, tracks,
-// filter state, last-known location, auth itself) gets cleared.
-//   - *_cache entries: large public reference data; expensive to refetch and
-//     not user-specific.
-//   - map_settings: which base layer / which overlays were on. Device-level
-//     UX, not tied to a user.
-const KEEP_ON_USER_CHANGE = new Set([
-    'pool_cache',
-    'visit_cache',
-    'survey_cache',
-    'parcel_cache',
-    'map_settings',
-]);
+// Keys that survive a user-change wipe. Sourced from /js/cache_keys.js so
+// the keep-list can never drift from the actual cache key constants.
+// Anything NOT in this list gets cleared on logout / user-change login —
+// drafts, tracks, filter state, last-known location, auth itself.
+const KEEP_ON_USER_CHANGE = new Set(KEEP_LIST);
 
 // Wipe local-device state on user change. Auth keys (auth_token, auth_user)
 // are NOT in the keep-list — callers wipe first, then write the new auth
