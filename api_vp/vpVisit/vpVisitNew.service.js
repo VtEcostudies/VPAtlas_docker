@@ -102,6 +102,16 @@ async function createPoolAndVisit(body, user) {
       }
     }
     visitBody.visitPoolId = createdPoolId;
+    // Stamp the authenticated user's stable id onto the visit when the
+    // body didn't supply one. Same fallback as vpVisit.routes.injectAuthUserId,
+    // applied here because createPoolAndVisit takes its own service path.
+    if (user && user.sub != null) {
+      const uid = Number(user.sub);
+      if (Number.isFinite(uid)) {
+        if (visitBody.visitUserId == null)         visitBody.visitUserId = uid;
+        if (visitBody.visitObserverUserId == null) visitBody.visitObserverUserId = uid;
+      }
+    }
 
     const visitCols = pgUtil.parseColumns(visitBody, 1, [], visitColumns);
     const visitText = `INSERT INTO vpvisit (${visitCols.named}) VALUES (${visitCols.numbered}) RETURNING "visitId", "visitPoolId"`;

@@ -252,7 +252,23 @@ function createPoolAndVisit(req, res, next) {
         });
 }
 
+// Stamp the authenticated user's stable id onto every write that didn't
+// already include one. Without this, rows can land with NULL ownership
+// and end up orphaned from "My Visits" — which used to happen on every
+// app upload before the frontend started sending these fields. Names
+// (visitUserName, visitObserverUserName) are mutable and have drifted
+// over the years; ids are forever.
+function injectAuthUserId(body, jwtUser) {
+    if (!jwtUser || jwtUser.sub == null) return body;
+    let uid = Number(jwtUser.sub);
+    if (!Number.isFinite(uid)) return body;
+    if (body.visitUserId == null)         body.visitUserId = uid;
+    if (body.visitObserverUserId == null) body.visitObserverUserId = uid;
+    return body;
+}
+
 function create(req, res, next) {
+    injectAuthUserId(req.body, req.user);
     console.log(`create req.body:`);
     console.dir(req.body);
     service.create(req.body)
@@ -268,6 +284,7 @@ function create(req, res, next) {
 }
 
 function update(req, res, next) {
+    injectAuthUserId(req.body, req.user);
     console.log('vpVisit.routes.update', req.body);
     service.update(req.params.id, req.body)
         .then((item) => res.json(item))

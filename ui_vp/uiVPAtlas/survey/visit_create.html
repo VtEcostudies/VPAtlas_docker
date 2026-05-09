@@ -1512,7 +1512,12 @@
                 document.title = `VPAtlas - ${newTitle}`;
                 if (poolId) document.getElementById('visitPoolId').value = poolId;
                 document.getElementById('visitDate').value = new Date().toLocaleDateString('sv-SE');
-                if (user) document.getElementById('visitObserverUserName').value = user.handle || user.username || '';
+                // Store the user's PERMANENT identifier here, not their
+                // handle. Handles are display names and the user can change
+                // them; username is the stable unique identifier. Past use
+                // of handle here meant a user who renamed their handle saw
+                // their old visits orphaned from "My Visits and Tracks".
+                if (user) document.getElementById('visitObserverUserName').value = user.username || user.email || '';
 
                 if (poolId) {
                     try {
@@ -1678,6 +1683,16 @@
             // Save & Upload — local + server
             document.getElementById('btn_save_upload').addEventListener('click', async () => {
                 let body = getVisitFormData();
+                // Stamp the auth user's STABLE id on every upload — this is
+                // what My Visits / ownership checks should key off of, not
+                // the mutable name string. Both fields are set: visitUserId
+                // is the uploader (always us for app uploads), visitObserverUserId
+                // is the observer (also us — the app doesn't support
+                // submitting on behalf of another user; S123 import does).
+                if (user && user.id != null) {
+                    body.visitUserId = user.id;
+                    body.visitObserverUserId = user.id;
+                }
                 let isNewPool = !isEdit && !poolId;
                 if (!isNewPool && !body.visitPoolId) { showMsg('Pool ID is required', 'error'); return; }
                 if (!body.visitDate) { showMsg('Date is required', 'error'); return; }
