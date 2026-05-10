@@ -35,6 +35,21 @@ appConfig.urlsToCache = [
 '/admin/s123_visit_import.html',
 '/admin/s123_survey_import.html',
 
+// === Documentation / changelog ===
+// The hamburger Changelog link is reachable from any precached page,
+// so the docs index + every daily changelog must be precached too.
+// When you add a new CHANGELOG-YYYY-MM-DD(-partial).md, add it here.
+'/docs/',
+'/docs/index.html',
+'/docs/CHANGELOG-2026-05-01.md',
+'/docs/CHANGELOG-2026-05-02.md',
+'/docs/CHANGELOG-2026-05-03.md',
+'/docs/CHANGELOG-2026-05-04.md',
+'/docs/CHANGELOG-2026-05-05.md',
+'/docs/CHANGELOG-2026-05-06.md',
+'/docs/CHANGELOG-2026-05-09.md',
+'/docs/CHANGELOG-2026-05-10-partial.md',
+
 // === Shared JS ===
 '/js/app.js',
 '/js/app_messaging.js',

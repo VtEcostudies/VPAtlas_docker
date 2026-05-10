@@ -1,6 +1,6 @@
 # Changelog — Snapshot 2026-05-10 (partial)
 
-## v3.5.232 – v3.5.237
+## v3.5.232 – v3.5.238
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-10 changelog.
@@ -37,6 +37,17 @@ Partial day's work; additional changes may land later under a follow-up
 - **Change.** All HTML pages under [ui_vp/uiVPAtlas/](ui_vp/uiVPAtlas/) now use `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">`. Four pages already had this (`survey/find_pool.html`, `survey/visit_create.html`, `survey/survey_create.html`, `admin/review_create.html`); the remaining 23 were brought into alignment with one `sed` pass.
 - **Map zoom unaffected.** Leaflet handles its own pinch-zoom on the map's touch events independently of the page-level viewport meta, so the in-map gesture still works as expected. The viewport restriction only blocks the *browser's* pinch from rescaling the page chrome.
 
+### Sign in — block attempts when offline, clearer error message
+
+- **The misleading message.** Submitting the login form offline used to fall through the SW's 503 translation into the generic catch block, which surfaced "Login failed. Check your credentials." — making users think their password was wrong when actually their phone had no signal.
+- **The fix.** [explore/login.html](ui_vp/uiVPAtlas/explore/login.html) — the page now reads `navigator.onLine` at load time and on `online`/`offline` events, disables the Sign In button while offline, and shows "You're offline. Sign in needs a network connection — try again once you reconnect." in place of the form's status line. The submit handler also short-circuits on offline before calling the API. The catch block now distinguishes a network failure (SW 503, "Failed to fetch", `navigator.onLine === false`) from a real auth error and renders "Couldn't reach the server. Check your connection and try again." for the network case. Real credential errors keep the existing message.
+
+### Changelog — works offline now
+
+- **The gap.** The hamburger Changelog link sends users to `/docs/`, which routes through the SW's navigation handler. `/docs/index.html` and the `CHANGELOG-*.md` files weren't precached, so a user clicking Changelog offline got a 503 from the SW (the file wasn't in any cache).
+- **The fix.** [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) — new `// === Documentation / changelog ===` block adds `/docs/`, `/docs/index.html`, and every existing daily changelog (`CHANGELOG-2026-05-01.md` through `CHANGELOG-2026-05-10-partial.md`). The docs page's runtime fetches now hit the precache instead of the network when offline.
+- **Workflow rule extended.** The "Changelog — REQUIRED workflow" section in [CLAUDE.md](CLAUDE.md) and the matching memory entry now say: when adding a new daily changelog file, add it to BOTH `docs/index.html` `DOCS` array AND `urlsToCache.js`. When a `-partial` rolls into its final form, update both lists.
+
 ### Documentation — single canonical changelog location + workflow rule
 
 - **Repo-root duplicates removed.** Daily `CHANGELOG-2026-05-*.md` files were being maintained in two places: the repo root and [ui_vp/uiVPAtlas/docs/](ui_vp/uiVPAtlas/docs/). Only the latter is served by the app (`/docs/` resolves there via `app.use('/', express.static('uiVPAtlas'))` in `ui_vp/server.js`). The root copies were byte-identical duplicates with no consumer; deleted.
@@ -45,4 +56,5 @@ Partial day's work; additional changes may land later under a follow-up
 
 ### Service worker / build
 
-- **Six patch versions** — `manifest.json` 3.5.231 → 3.5.237 via `node sw-build.js` (one bump per deploy: near-me live tracking, docs cleanup, pinned-pool visibility, changelog + workflow rule, cold-load fit-both + viewport pinch lockdown, zoom-to-both ignores hidden markers). No new files in `urlsToCache.js` (the docs folder isn't precached; the changelog page is online-only).
+- **Seven patch versions** — `manifest.json` 3.5.231 → 3.5.238 via `node sw-build.js` (one bump per deploy: near-me live tracking, docs cleanup, pinned-pool visibility, changelog + workflow rule, cold-load fit-both + viewport pinch lockdown, zoom-to-both ignores hidden markers, offline sign-in + offline changelog).
+- **`urlsToCache.js` grew by 10 entries** — `/docs/`, `/docs/index.html`, and the eight existing changelog `.md` files. Validator unaffected (the docs index has no static `<script>`/`<link>` deps the validator would walk).

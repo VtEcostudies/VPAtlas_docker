@@ -170,7 +170,9 @@ Naming and location:
 - Daily file format: `CHANGELOG-YYYY-MM-DD.md` (use today's local date).
 - Until the day is "closed" (work continues), name it `CHANGELOG-YYYY-MM-DD-partial.md` and title the H1 `# Changelog — Snapshot YYYY-MM-DD (partial)`. Drop the `-partial` suffix and the `(partial)` qualifier when the day's work is finalized.
 - File lives ONLY in [`ui_vp/uiVPAtlas/docs/`](ui_vp/uiVPAtlas/docs/) — never duplicate at the repo root.
-- After creating a new daily file, add it to the `DOCS` array (newest first) in [`ui_vp/uiVPAtlas/docs/index.html`](ui_vp/uiVPAtlas/docs/index.html) so it shows up in the in-app changelog menu.
+- After creating a new daily file, add it to **two** lists (both — missing either one breaks the offline experience):
+  1. The `DOCS` array (newest first) in [`ui_vp/uiVPAtlas/docs/index.html`](ui_vp/uiVPAtlas/docs/index.html) — controls what appears in the in-app changelog menu.
+  2. The `// === Documentation / changelog ===` block in [`ui_vp/uiVPAtlas/urlsToCache.js`](ui_vp/uiVPAtlas/urlsToCache.js) — without this the file isn't precached, so users navigating to the changelog page offline get a 503. When a `-partial` is renamed to its final form, update both lists.
 
 Entry style (match the existing format in nearby files):
 - Top of file: `# Changelog — Snapshot YYYY-MM-DD` (or `(partial)`), blank line, `## v3.5.NNN` (or `v3.5.NNN – v3.5.MMM` for a span), blank line.

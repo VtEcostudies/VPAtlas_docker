@@ -62,6 +62,7 @@
 
         const form = document.getElementById('login_form');
         const message = document.getElementById('message');
+        const submitBtn = document.getElementById('btn_login');
         const params = new URLSearchParams(window.location.search);
         const confirmToken = params.get('token');
 
@@ -70,8 +71,36 @@
             message.className = 'auth-message info';
         }
 
+        // Sign-in needs a working API round-trip — there's no offline auth.
+        // Block the form and show a clear message instead of letting the
+        // submit fall into a 503-from-SW path that surfaces as a misleading
+        // "invalid credentials" error.
+        function applyOfflineState(isOffline) {
+            if (isOffline) {
+                message.textContent = "You're offline. Sign in needs a network connection — try again once you reconnect.";
+                message.className = 'auth-message error';
+                submitBtn.disabled = true;
+            } else if (message.classList.contains('error') &&
+                       message.textContent.startsWith("You're offline")) {
+                // Connection came back; clear the offline warning so the user
+                // can sign in. Other errors stay on screen.
+                message.textContent = '';
+                message.className = 'auth-message';
+                submitBtn.disabled = false;
+            } else {
+                submitBtn.disabled = false;
+            }
+        }
+        applyOfflineState(!navigator.onLine);
+        window.addEventListener('online',  () => applyOfflineState(false));
+        window.addEventListener('offline', () => applyOfflineState(true));
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!navigator.onLine) {
+                applyOfflineState(true);
+                return;
+            }
             message.textContent = 'Signing in...';
             message.className = 'auth-message info';
 
@@ -86,7 +115,19 @@
                 let returnUrl = params.get('returnUrl') || '/explore/';
                 setTimeout(() => window.location.href = decodeURIComponent(returnUrl), 500);
             } catch(err) {
-                message.textContent = err.message || 'Login failed. Check your credentials.';
+                // Errors come in two shapes: API-style { message } from a real
+                // 4xx/5xx response, or SW offline shape { status: 503, error }
+                // from a network failure that the SW translated. Distinguish
+                // so the user gets a useful message either way.
+                let isNetworkErr = !navigator.onLine
+                    || err?.status === 503
+                    || (typeof err?.error === 'string' && /network/i.test(err.error))
+                    || /failed to fetch|networkerror/i.test(String(err?.message || ''));
+                if (isNetworkErr) {
+                    message.textContent = "Couldn't reach the server. Check your connection and try again.";
+                } else {
+                    message.textContent = err.message || 'Login failed. Check your credentials.';
+                }
                 message.className = 'auth-message error';
             }
         });
