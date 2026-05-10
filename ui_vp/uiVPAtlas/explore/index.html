@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VPAtlas - Vernal Pool Atlas</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2c5530">
@@ -130,7 +130,7 @@
     <!-- Main app entry point -->
     <script type="module">
         import { initPoolList, loadPools, refreshPools, renderFilteredRows, clearFocus, getFocusedPoolId, setFocusedPoolId, getPinnedPoolId } from './js/pool_list.js';
-        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible, wireGpsButton, wireBothButton, setPoolHalo, clearPoolHalo } from './js/map.js';
+        import { initMap, plotPoolRows, zoomToPool, zoomToState, zoomToFilteredPools, getMap, getMapFilters, setStatusVisible, setLevelVisible, wireGpsButton, wireBothButton, zoomToBoth, setPoolHalo, clearPoolHalo } from './js/map.js';
         import { initFilterBar } from './js/filter_bar.js';
         import { initSummary, showPoolSummary, showScopeSummary } from './js/pool_summary.js';
         import { showWait, hideWait } from './js/utils.js';
@@ -195,9 +195,16 @@
             masterRows = await loadPools(onDataRefresh);
             refreshUI();
 
-            // Wire map zoom buttons
+            // Wire map zoom buttons. When near-me is on at cold load, the
+            // first GPS fix should fit pools + user (not just user) — that's
+            // the natural framing for "where am I relative to what's
+            // around me?". Subsequent manual GPS clicks still recenter on
+            // the user, same as before.
             document.getElementById('map_zoom_btn').addEventListener('click', zoomToFilteredPools);
-            wireGpsButton(document.getElementById('map_gps_btn'));
+            wireGpsButton(
+                document.getElementById('map_gps_btn'),
+                { onFirstFix: filters.nearMeKm > 0 ? () => zoomToBoth() : null }
+            );
             wireBothButton(document.getElementById('map_both_btn'));
 
             // Auto-activate GPS tracking on load if the user previously had

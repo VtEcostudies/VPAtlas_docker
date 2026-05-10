@@ -277,8 +277,9 @@ function onZoomResizeMarkers() {
 // Tracks "both" button so we can show/hide it as GPS state changes.
 let bothBtnRef = null;
 
-export function wireGpsButton(btn) {
+export function wireGpsButton(btn, opts = {}) {
     if (!btn) return;
+    let onFirstFix = opts.onFirstFix; // optional override for the very first fix
     btn.addEventListener('click', () => {
         if (gps && gps.position && gpsHasFix) {
             map.setView([gps.position.lat, gps.position.lng], Math.max(map.getZoom(), 14));
@@ -293,7 +294,14 @@ export function wireGpsButton(btn) {
                     btn.classList.remove('gps-acquiring');
                     btn.classList.add('gps-tracking');
                     btn.title = 'Recenter on my location';
-                    map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 14));
+                    if (onFirstFix) {
+                        // Defer so other position listeners (e.g. filter_bar's
+                        // own GPSMonitor that may also re-render and zoom) finish
+                        // first; the override gets the last word on the zoom.
+                        setTimeout(() => onFirstFix(pos), 0);
+                    } else {
+                        map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 14));
+                    }
                     if (bothBtnRef) bothBtnRef.style.display = '';
                 }
             });
@@ -313,22 +321,30 @@ export function wireGpsButton(btn) {
 }
 
 // Zoom to fit both the filtered pool markers AND the user GPS marker.
-// The button stays hidden until GPS has a fix.
+// Exported so callers (e.g. cold-load auto-zoom with near-me on) can
+// invoke without simulating a button click.
+//
+// Uses poolLayer (visible markers only), NOT the `markers` dict — the dict
+// includes everything plotted, even rows hidden by status/level chips. With
+// Eliminated/Duplicate hidden by default and the occasional bad-coords row,
+// iterating `markers` would blow the bounds out to the Atlantic.
+export function zoomToBoth() {
+    if (!map) return;
+    let layers = [];
+    if (poolLayer) layers.push(...poolLayer.getLayers());
+    if (userMarker) layers.push(userMarker);
+    if (!layers.length) return;
+    let group = L.featureGroup(layers);
+    let b = group.getBounds();
+    if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 16 });
+}
+
+// Zoom-both button — stays hidden until GPS has a fix.
 export function wireBothButton(btn) {
     if (!btn) return;
     bothBtnRef = btn;
     btn.style.display = (gps && gpsHasFix) ? '' : 'none';
-    btn.addEventListener('click', () => {
-        if (!map) return;
-        let layers = [];
-        // Visible pool markers (markers is the module-level dict of plotted circleMarkers)
-        Object.values(markers).forEach(m => layers.push(m));
-        if (userMarker) layers.push(userMarker);
-        if (!layers.length) return;
-        let group = L.featureGroup(layers);
-        let b = group.getBounds();
-        if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 16 });
-    });
+    btn.addEventListener('click', zoomToBoth);
 }
 
 function updateUserMarker(pos) {

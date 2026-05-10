@@ -1,6 +1,6 @@
 # Changelog — Snapshot 2026-05-10 (partial)
 
-## v3.5.232 – v3.5.235
+## v3.5.232 – v3.5.237
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-10 changelog.
@@ -19,6 +19,24 @@ Partial day's work; additional changes may land later under a follow-up
 - **The fix.** [explore/index.html](ui_vp/uiVPAtlas/explore/index.html) `refreshUI()` and the `map:layer-filter` listener wrap their filter outputs in a new `ensurePinnedVisible()` helper. If a pool is pinned but the filtered rows don't contain it, the pinned row is prepended back from `masterRows` so the map, list, and summary all see it. The user can unpin via the row's pin icon again, and the halo stays attached. No-op when nothing's pinned.
 - **Caveat.** The map's internal status/level visibility filter inside `plotPoolRows` still hides the marker if the pinned pool's status is toggled off via the layer chips — but the row stays in the list, so the unpin path is preserved either way.
 
+### Explore — cold-load with Near Me fits both pools and user
+
+- **The gap.** On cold app-open with Near Me on, the map zoom landed on either the filtered pools or the user (whichever async event ran last) — not on a fit-both that frames "where am I relative to what's around me?". Manual GPS clicks and the dedicated zoom-both button worked fine; only the cold-load case was wrong.
+- **The fix.** [explore/js/map.js](ui_vp/uiVPAtlas/explore/js/map.js) — the inner zoom-fit logic was extracted from the both-button click into an exported `zoomToBoth()` function. `wireGpsButton(btn, opts)` now accepts `opts.onFirstFix`, a callback that overrides the default user-recenter on the very first GPS fix; deferred via `setTimeout(0)` so any other position listeners (filter_bar's own `GPSMonitor`, refreshUI's `zoomToFilteredPools`) finish first and the override gets the last word.
+- **Wired in [explore/index.html](ui_vp/uiVPAtlas/explore/index.html).** When `filters.nearMeKm > 0` at init time, the GPS button is wired with `onFirstFix: () => zoomToBoth()`. Subsequent manual clicks still recenter on the user (existing behavior). When Near Me is off, no override — the GPS button behaves exactly as before.
+
+### Explore — zoom-to-both ignores hidden markers
+
+- **The bug.** With only Pool Status filters changed (Eliminated hidden by default), the zoom-to-both button — and the new cold-load auto-fit — was framing pools that weren't on the map. One Eliminated pool had bad coords near the Atlantic, so the bounds ballooned out to include Greenland and South America.
+- **The cause.** `zoomToBoth()` was iterating the module-level `markers` dict, which holds every plotted marker including ones currently hidden by status/level chips. `zoomToFilteredPools()` had been doing the right thing all along by reading `poolLayer.getBounds()` (the FeatureGroup of visible markers only).
+- **The fix.** [explore/js/map.js](ui_vp/uiVPAtlas/explore/js/map.js) — `zoomToBoth()` now pushes `poolLayer.getLayers()` (visible only) into its bounds calc instead of `Object.values(markers)`. The Eliminated/Duplicate-hidden bad-coords rows no longer participate. Plus a comment so the next person reaching for `markers` here knows why not.
+
+### App-wide — disable page pinch-zoom
+
+- **Why.** Pinch-zooming the page on a phone shifts the layout horizontally/vertically and toolbar buttons can scroll off-screen with no obvious way back. The PWA's UI is already mobile-tuned at native scale; user-zoom of the page provides no benefit and routinely breaks the layout for volunteers in the field.
+- **Change.** All HTML pages under [ui_vp/uiVPAtlas/](ui_vp/uiVPAtlas/) now use `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">`. Four pages already had this (`survey/find_pool.html`, `survey/visit_create.html`, `survey/survey_create.html`, `admin/review_create.html`); the remaining 23 were brought into alignment with one `sed` pass.
+- **Map zoom unaffected.** Leaflet handles its own pinch-zoom on the map's touch events independently of the page-level viewport meta, so the in-map gesture still works as expected. The viewport restriction only blocks the *browser's* pinch from rescaling the page chrome.
+
 ### Documentation — single canonical changelog location + workflow rule
 
 - **Repo-root duplicates removed.** Daily `CHANGELOG-2026-05-*.md` files were being maintained in two places: the repo root and [ui_vp/uiVPAtlas/docs/](ui_vp/uiVPAtlas/docs/). Only the latter is served by the app (`/docs/` resolves there via `app.use('/', express.static('uiVPAtlas'))` in `ui_vp/server.js`). The root copies were byte-identical duplicates with no consumer; deleted.
@@ -27,4 +45,4 @@ Partial day's work; additional changes may land later under a follow-up
 
 ### Service worker / build
 
-- **Four patch versions** — `manifest.json` 3.5.231 → 3.5.235 via `node sw-build.js` (one bump per deploy: near-me live tracking, docs cleanup, pinned-pool visibility, this changelog + workflow rule deploy). No new files in `urlsToCache.js` (the docs folder isn't precached; the changelog page is online-only).
+- **Six patch versions** — `manifest.json` 3.5.231 → 3.5.237 via `node sw-build.js` (one bump per deploy: near-me live tracking, docs cleanup, pinned-pool visibility, changelog + workflow rule, cold-load fit-both + viewport pinch lockdown, zoom-to-both ignores hidden markers). No new files in `urlsToCache.js` (the docs folder isn't precached; the changelog page is online-only).
