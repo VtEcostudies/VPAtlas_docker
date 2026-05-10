@@ -10,11 +10,28 @@
 import { filters, putUserState, buildSearchTerm, DEFAULT_STATUSES, DATA_TYPES } from './url_state.js';
 import { fetchTowns, fetchCounties, fetchPools, fetchMappedPoolStats } from '/js/api.js';
 import { getUser } from '/js/auth.js';
+import { GPSMonitor } from '/survey/js/gps_monitor.js';
 
 var onFilterChange = null;
 var typeaheadTimer = null;
 var allTowns = [];
 var allCounties = [];
+
+// "Near me" live tracking — single GPSMonitor instance, lifecycle tied to the
+// near-me checkbox. Coordinates with the map's GPSMonitor via the shared
+// BroadcastChannel, so only one tab actually calls watchPosition.
+var nearMeGps = null;
+const NEAR_ME_MOVE_THRESHOLD_M = 15;
+
+function distMeters(a, b) {
+    const R = 6371000;
+    const toRad = (d) => d * Math.PI / 180;
+    let dLat = toRad(b.lat - a.lat);
+    let dLng = toRad(b.lng - a.lng);
+    let s = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+}
 
 // =============================================================================
 // INIT
@@ -172,6 +189,64 @@ export function initFilterBar(filterCallback) {
         nearCb.checked = !!(filters.nearMeKm > 0 && filters.nearMeOrigin);
         paintNear();
 
+        // Start live GPS tracking. Resolves on the first fix; rejects on
+        // permission denial or timeout. Subsequent fixes update the origin
+        // in-place and re-apply filters when the user has moved past the
+        // jitter threshold.
+        function startNearMeTracking({ silent = false } = {}) {
+            return new Promise((resolve, reject) => {
+                if (nearMeGps) { resolve(); return; }
+                nearMeGps = new GPSMonitor();
+                let firstFix = true;
+                let timeoutId = silent ? null : setTimeout(() => {
+                    stopNearMeTracking();
+                    reject(new Error('Timed out waiting for GPS fix.'));
+                }, 20000);
+
+                nearMeGps.on('position', (pos) => {
+                    let newOrigin = { lat: pos.lat, lng: pos.lng };
+                    if (firstFix) {
+                        firstFix = false;
+                        if (timeoutId) clearTimeout(timeoutId);
+                        filters.nearMeOrigin = newOrigin;
+                        filters.nearMeKm = pendingKm;
+                        putUserState(1, { nearMeOrigin: filters.nearMeOrigin, nearMeKm: filters.nearMeKm });
+                        renderTokens();
+                        applyFilters();
+                        resolve();
+                        return;
+                    }
+                    if (!filters.nearMeOrigin) return;
+                    if (distMeters(filters.nearMeOrigin, newOrigin) < NEAR_ME_MOVE_THRESHOLD_M) return;
+                    filters.nearMeOrigin = newOrigin;
+                    applyFilters();
+                });
+                nearMeGps.on('status', (s) => {
+                    if (s.denied) {
+                        if (timeoutId) clearTimeout(timeoutId);
+                        stopNearMeTracking();
+                        if (firstFix) reject(new Error('GPS permission denied.'));
+                    }
+                });
+                nearMeGps.on('error', (err) => {
+                    console.warn('Near-me GPS error:', err && err.message);
+                    if (firstFix) {
+                        if (timeoutId) clearTimeout(timeoutId);
+                        stopNearMeTracking();
+                        reject(new Error(err && err.message || 'GPS error'));
+                    }
+                });
+                nearMeGps.start();
+            });
+        }
+
+        function stopNearMeTracking() {
+            if (nearMeGps) {
+                try { nearMeGps.stop(); } catch (_) {}
+                nearMeGps = null;
+            }
+        }
+
         nearCb.addEventListener('change', async () => {
             if (nearCb.checked) {
                 if (!navigator.geolocation) {
@@ -185,16 +260,7 @@ export function initFilterBar(filterCallback) {
                 labelEl.textContent = 'Locating…';
                 nearCb.disabled = true;
                 try {
-                    let pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, {
-                            enableHighAccuracy: true, timeout: 15000, maximumAge: 60000
-                        });
-                    });
-                    filters.nearMeOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                    filters.nearMeKm = pendingKm;
-                    putUserState(1, { nearMeOrigin: filters.nearMeOrigin, nearMeKm: filters.nearMeKm });
-                    renderTokens();
-                    applyFilters();
+                    await startNearMeTracking();
                 } catch (err) {
                     console.warn('Near-me GPS failed:', err);
                     alert('Could not get your GPS location: ' + (err.message || err.code));
@@ -205,6 +271,7 @@ export function initFilterBar(filterCallback) {
                     paintNear();
                 }
             } else {
+                stopNearMeTracking();
                 filters.nearMeKm = 0;
                 filters.nearMeOrigin = null;
                 putUserState(1, { nearMeKm: 0, nearMeOrigin: null });
@@ -213,6 +280,16 @@ export function initFilterBar(filterCallback) {
                 paintNear();
             }
         });
+
+        // Auto-resume live tracking when near-me was persisted on from a
+        // previous session. The map's GPS button is also auto-clicked from
+        // index.html in that case; both GPSMonitor instances coordinate via
+        // the shared BroadcastChannel, so only one watchPosition runs.
+        if (nearCb.checked) {
+            startNearMeTracking({ silent: true }).catch((err) => {
+                console.warn('Near-me auto-resume failed:', err && err.message);
+            });
+        }
 
         // Stepper buttons: change radius live (no re-prompt for GPS). The
         // pendingKm value is what we'll use the next time the toggle activates.
