@@ -161,6 +161,26 @@ docker compose -f docker-compose-vpatlas.yml up -d --build ui_vp
 
 When you delete or rename a file under `ui_vp/uiVPAtlas/`, also remove/rename its entry in `urlsToCache.js` — a stale entry causes precache install to fail with a 404 and the SW won't update.
 
+## Changelog — REQUIRED workflow
+Every user-visible change ships with a changelog entry. This is the only record we keep of *why* a change happened, since commit messages on this repo are uniformly `deploy vunknown`.
+
+**When you make any user-visible change** — bug fix, feature, UI tweak, behavior change, new page, API change, migration — **add an entry to today's running changelog under [`ui_vp/uiVPAtlas/docs/`](ui_vp/uiVPAtlas/docs/) in the same change.** Don't batch entries for later; you'll forget the context.
+
+Naming and location:
+- Daily file format: `CHANGELOG-YYYY-MM-DD.md` (use today's local date).
+- Until the day is "closed" (work continues), name it `CHANGELOG-YYYY-MM-DD-partial.md` and title the H1 `# Changelog — Snapshot YYYY-MM-DD (partial)`. Drop the `-partial` suffix and the `(partial)` qualifier when the day's work is finalized.
+- File lives ONLY in [`ui_vp/uiVPAtlas/docs/`](ui_vp/uiVPAtlas/docs/) — never duplicate at the repo root.
+- After creating a new daily file, add it to the `DOCS` array (newest first) in [`ui_vp/uiVPAtlas/docs/index.html`](ui_vp/uiVPAtlas/docs/index.html) so it shows up in the in-app changelog menu.
+
+Entry style (match the existing format in nearby files):
+- Top of file: `# Changelog — Snapshot YYYY-MM-DD` (or `(partial)`), blank line, `## v3.5.NNN` (or `v3.5.NNN – v3.5.MMM` for a span), blank line.
+- Group changes under `### Section heading` (e.g. "Explore — Pools near me", "Service worker / build", "Documentation").
+- Lead each bullet with a bold one-line claim (`**The gap.**`, `**The fix.**`, `**Why.**`), then a sentence or two of detail. Cite the file(s) you touched as markdown links: `[explore/js/filter_bar.js](ui_vp/uiVPAtlas/explore/js/filter_bar.js)`.
+- Always include a `### Service worker / build` section noting the version bump (e.g. `manifest.json 3.5.NNN → 3.5.MMM`) and any `urlsToCache.js` changes.
+- Don't write entries for purely internal changes (writing a memory file, asking the user a clarifying question, doc-only tweaks the user wouldn't see). Do write entries for anything a user could observe in the running app.
+
+If today's file doesn't exist yet, create it with the `-partial` naming and title, add to the index, and add your entry. Don't append today's entry to yesterday's file.
+
 ## Reference Projects
 - **VPAtlas_orig**: `/home/jloomis/VPAtlas/VPAtlas_orig/` — Angular 14 source (being replaced)
 - **LoonWeb**: `/home/jloomis/LoonWeb/` or `/home/jloomis/Docker/VCE_db_docker/ui_csup/uiLoonWeb/` — reference implementation for PWA, survey GPS, ES6 module patterns

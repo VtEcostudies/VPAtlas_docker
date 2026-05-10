@@ -240,7 +240,7 @@
             document.addEventListener('map:layer-filter', () => {
                 withWait(() => {
                     let poolRows = applyClientFilters(masterRows);
-                    let visibleRows = applyMapVisibility(poolRows);
+                    let visibleRows = ensurePinnedVisible(applyMapVisibility(poolRows));
                     renderFilteredRows(visibleRows);
                     showScopeSummary(visibleRows);
                     renderStatusChips();
@@ -372,12 +372,24 @@
             }
         }
 
+        // If a pool is pinned but filters/layer-toggles would hide it, splice
+        // it back into rows so the user has a visible unpin path (row pin
+        // icon + map halo). Without this the only escape hatch is the small
+        // × on the "Find 1" chip, which is easy to miss.
+        function ensurePinnedVisible(rows) {
+            let pinned = getPinnedPoolId();
+            if (!pinned) return rows;
+            if (rows.some(r => (r.mappedPoolId || r.poolId) === pinned)) return rows;
+            let pinnedRow = masterRows.find(r => (r.mappedPoolId || r.poolId) === pinned);
+            return pinnedRow ? [pinnedRow, ...rows] : rows;
+        }
+
         // Render all three panes from masterRows through all filters.
         function refreshUI() {
             withWait(() => {
-                let poolRows = applyClientFilters(masterRows);
+                let poolRows = ensurePinnedVisible(applyClientFilters(masterRows));
                 plotPoolRows(poolRows, onMapPoolClick);       // map creates ALL markers, handles status/level visibility internally
-                let visibleRows = applyMapVisibility(poolRows);
+                let visibleRows = ensurePinnedVisible(applyMapVisibility(poolRows));
                 renderFilteredRows(visibleRows);
                 showScopeSummary(visibleRows);
                 renderStatusChips();
