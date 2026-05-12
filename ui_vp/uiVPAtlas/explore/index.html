@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/css/bootstrap_5.2.3.min.css">
     <link rel="stylesheet" href="/css/font-awesome_6.6.0.all.min.css">
     <link rel="stylesheet" href="/css/leaflet_1.9.4.css">
+    <link rel="stylesheet" href="/css/common.css">
     <link rel="stylesheet" href="./css/common.css">
     <link rel="stylesheet" href="./css/modal.css">
     <link rel="stylesheet" href="./css/pool_list.css">
@@ -30,7 +31,7 @@
                     <span class="header-vce-text" aria-hidden="true">VCE</span>
                 </a>
                 <a id="logo_link" href="/explore/" class="header-app-stack" style="text-decoration:none;">
-                    <span class="header-name light-foreground header-app-name">VPAtlas</span>
+                    <h3 class="header-name light-foreground header-app-name">VPAtlas</h3>
                     <span id="app_version" class="app-version"></span>
                 </a>
             </span>
@@ -392,7 +393,11 @@
         }
 
         // Render all three panes from masterRows through all filters.
-        function refreshUI() {
+        // opts.noZoom = true keeps the map at its current view (used when
+        // the change shouldn't force a re-fit, e.g. clearing a pool ID
+        // filter — the user is probably still focused on the same area).
+        function refreshUI(opts) {
+            opts = opts || {};
             withWait(() => {
                 let poolRows = ensurePinnedVisible(applyClientFilters(masterRows));
                 plotPoolRows(poolRows, onMapPoolClick);       // map creates ALL markers, handles status/level visibility internally
@@ -400,7 +405,7 @@
                 renderFilteredRows(visibleRows);
                 showScopeSummary(visibleRows);
                 renderStatusChips();
-                zoomToFilteredPools();
+                if (!opts.noZoom) zoomToFilteredPools();
                 // Re-apply the pinned-pool halo: markers were just (re)created
                 // by plotPoolRows, so any existing halo is now visually orphaned.
                 // setPoolHalo internally clears its own previous instance.
@@ -410,8 +415,8 @@
         }
 
         // Called when top-bar filters change — filter cached data, no DB reload
-        function onFilterChange(updatedFilters) {
-            refreshUI();
+        function onFilterChange(updatedFilters, opts) {
+            refreshUI(opts);
         }
 
         // Called if background freshness check finds stale data and re-fetches
@@ -682,6 +687,90 @@
         // App hamburger menu — navigation + admin links. Idempotent: rebuilds
         // the panel contents on every call so it can refresh whenever the
         // pinned pool changes (Find Pool <id> shortcut at the top).
+        // Inline lat/lon prompt. showModal() from ./js/modal.js is button-
+        // only — it doesn't surface input values — so we build a small
+        // dialog directly here that reads from two text fields. Re-uses
+        // the existing .vp-modal / .vp-modal-content styling so it looks
+        // like every other dialog on the page.
+        //
+        // Accepts either two separate fields OR a single combined paste
+        // like "44.4759, -73.2121" / "44.4759 -73.2121" into the lat
+        // field — handy on mobile where the user is probably copying from
+        // a maps app.
+        function promptLatLng() {
+            return new Promise((resolve) => {
+                let overlay = document.createElement('div');
+                overlay.className = 'vp-modal';
+                overlay.innerHTML = `
+                    <div class="vp-modal-content">
+                        <h2 class="vp-modal-header">Zoom to Lat/Lon</h2>
+                        <div class="vp-modal-message">
+                            <div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">
+                                Decimal degrees (WGS84). You can also paste both values into the latitude field.
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <label style="flex:1; font-size:13px; font-weight:600;">Latitude
+                                    <input id="ll_lat" type="text" inputmode="decimal" placeholder="44.4759"
+                                        style="width:100%; padding:8px; font-size:16px; border:1px solid var(--primary-color); border-radius:6px; margin-top:2px;">
+                                </label>
+                                <label style="flex:1; font-size:13px; font-weight:600;">Longitude
+                                    <input id="ll_lng" type="text" inputmode="decimal" placeholder="-73.2121"
+                                        style="width:100%; padding:8px; font-size:16px; border:1px solid var(--primary-color); border-radius:6px; margin-top:2px;">
+                                </label>
+                            </div>
+                            <div id="ll_err" style="color:var(--danger-color); font-size:13px; margin-top:8px; min-height:18px;"></div>
+                        </div>
+                        <div class="vp-modal-buttons">
+                            <button id="ll_cancel">Cancel</button>
+                            <button id="ll_ok" class="default-button">Zoom</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+                let latIn = overlay.querySelector('#ll_lat');
+                let lngIn = overlay.querySelector('#ll_lng');
+                let errEl = overlay.querySelector('#ll_err');
+                setTimeout(() => latIn.focus(), 0);
+
+                function close(result) { overlay.remove(); resolve(result); }
+
+                // Detect "lat, lon" pasted as a single value and split it
+                // across both fields. Works for ", " separated and for
+                // whitespace-only separated (paste from Apple Maps,
+                // Google Maps "What's here", etc.).
+                latIn.addEventListener('input', () => {
+                    let v = latIn.value;
+                    let m = v.match(/^\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*$/);
+                    if (m) {
+                        latIn.value = m[1];
+                        lngIn.value = m[2];
+                        lngIn.focus();
+                        lngIn.select();
+                    }
+                });
+
+                function submit() {
+                    let lat = parseFloat(latIn.value);
+                    let lng = parseFloat(lngIn.value);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                        errEl.textContent = 'Both fields must be valid numbers.';
+                        return;
+                    }
+                    if (lat < -90 || lat > 90)    { errEl.textContent = 'Latitude must be between -90 and 90.';     return; }
+                    if (lng < -180 || lng > 180) { errEl.textContent = 'Longitude must be between -180 and 180.';  return; }
+                    close({ lat, lng });
+                }
+
+                overlay.querySelector('#ll_ok').addEventListener('click', submit);
+                overlay.querySelector('#ll_cancel').addEventListener('click', () => close(null));
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+                [latIn, lngIn].forEach(i => i.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                    else if (e.key === 'Escape') { close(null); }
+                }));
+            });
+        }
+
         let _appMenuListenersWired = false;
         async function setupAppMenu(user) {
             let btn = document.getElementById('app_menu_btn');
@@ -710,6 +799,21 @@
             items.push({ label: 'Refresh Pool Data', icon: 'fa-rotate', action: async () => {
                 let fresh = await refreshPools();
                 if (fresh && fresh.length) { masterRows = fresh; refreshUI(); }
+            }});
+            items.push({ label: 'Zoom to Lat/Lon…', icon: 'fa-crosshairs', action: async () => {
+                let result = await promptLatLng();
+                if (!result) return;
+                let m = getMap();
+                if (!m) return;
+                // On mobile, show the Map tab so the user actually sees the
+                // result. switchTab() also calls zoomToFilteredPools after
+                // invalidateSize; wait for that to settle, then override
+                // with the user-requested view so our zoom wins.
+                if (mobileQuery.matches) switchTab('map');
+                setTimeout(() => {
+                    let z = Math.max(m.getZoom() || 0, 15);
+                    m.setView([result.lat, result.lng], z);
+                }, 150);
             }});
             items.push({ divider: true });
             items.push(

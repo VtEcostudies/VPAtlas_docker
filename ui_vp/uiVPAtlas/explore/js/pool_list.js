@@ -287,6 +287,7 @@ function renderPoolTable(rows) {
                 }
                 putUserState(0, { poolFinderPools: [...selectedPoolIds] });
                 updateSelectionCount();
+                dispatchPinChanged();
                 return;
             }
             // Row click → focus
@@ -381,6 +382,39 @@ export function getPinnedPoolId() {
     return [...selectedPoolIds][0] || null;
 }
 
+// Decoupled signal for "the pinned pool changed" — fired any time the
+// pin set mutates (user clicked a pin, user clicked Clear All, the page
+// programmatically restored a pin from saved state). Filter_bar listens
+// for this to keep the "Find Pool <id>" chip in sync without having to
+// poll or take a hard import dependency.
+function dispatchPinChanged() {
+    try {
+        document.dispatchEvent(new CustomEvent('explore:pin-changed', {
+            detail: { pinnedPoolId: getPinnedPoolId() }
+        }));
+    } catch(_) {}
+}
+
+// Programmatically clear the pin from outside this module (e.g. the
+// Find Pool chip's X). Mirrors the second-click-on-pin teardown:
+// state, row UI, callbacks, persistence, and the broadcast.
+export function clearPin() {
+    let priorPinned = [...selectedPoolIds][0] || null;
+    if (!priorPinned) return;
+    selectedPoolIds.delete(priorPinned);
+    if (listContainer) {
+        listContainer.querySelectorAll(`.pool-row[data-pool-id="${CSS.escape(priorPinned)}"]`).forEach(r => {
+            r.classList.remove('selected');
+            let pb = r.querySelector('.pl-pin');
+            if (pb) { pb.classList.remove('pinned'); pb.title = 'Add to Pool Finder'; }
+        });
+    }
+    if (onPinDeselect) onPinDeselect(priorPinned);
+    putUserState(0, { poolFinderPools: [...selectedPoolIds] });
+    updateSelectionCount();
+    dispatchPinChanged();
+}
+
 export function getFocusedPoolId() {
     return focusedPoolId;
 }
@@ -441,6 +475,7 @@ export function renderFilteredRows(rows) {
                         if (s) { s.poolFinderPools = []; setLocal('user_state', s); }
                     });
                 });
+                dispatchPinChanged();
             });
         }
         updateSelectionCount();

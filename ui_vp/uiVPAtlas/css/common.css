@@ -1,0 +1,60 @@
+/* /css/common.css — app-wide globals shared by explore/, survey/, admin/, docs/.
+   Load this BEFORE any sub-route stylesheet so the variables and font rules
+   are defined when downstream rules consume them. */
+
+/* Self-hosted fonts — offline-first; no third-party network dependency.
+   Both files are variable fonts (one woff2 covers all weights via the
+   wght axis), so each font-family is declared once with a weight range. */
+@font-face {
+    font-family: 'Lora';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('/webfonts/lora-latin.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Noto Sans';
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url('/webfonts/noto-sans-latin.woff2') format('woff2');
+}
+
+:root {
+    /* VPAtlas color palette (single source of truth) */
+    --primary-color: #2c5530;
+    --primary-hover: #3a7040;
+    --primary-light: #e8f5e9;
+    --primary-medium: #81c784;
+    --primary-dark: #1b5e20;
+    --secondary-color: #6c757d;
+    --background-color: #fafbfc;
+    --card-background: #ffffff;
+    --border-color: #2c5530;
+    --text-primary: #2c5530;
+    --text-secondary: #5a6c7d;
+    --text-muted: #8492a6;
+    --selected-color: #c44100;
+    --success-color: #27ae60;
+    --warning-color: #f39c12;
+    --warning-light: #f5cc8a;
+    --danger-color: #e74c3c;
+    --danger-light: #e69187;
+    --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-medium: 0 4px 6px rgba(0, 0, 0, 0.07);
+    --shadow-strong: 0 10px 25px rgba(0, 0, 0, 0.1);
+    --border-radius: 5px;
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Typography roles. */
+    --font-title: 'Lora', serif;
+    --font-body:  'Noto Sans', sans-serif;
+}
+
+html, body {
+    font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-title);
+}

@@ -107,7 +107,9 @@ export async function requireAuth(redirectUrl='/explore/login.html') {
     let loggedIn = await isLoggedIn();
     if (!loggedIn) {
         let returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = `${redirectUrl}?returnUrl=${returnUrl}`;
+        // Use replace() so the would-be-form URL doesn't sit in history under login —
+        // back from login (or from the form after login) skips both and goes home.
+        window.location.replace(`${redirectUrl}?returnUrl=${returnUrl}`);
         return false;
     }
     return true;

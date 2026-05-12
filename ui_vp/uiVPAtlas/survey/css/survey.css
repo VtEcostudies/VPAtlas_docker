@@ -1,36 +1,11 @@
 /* survey.css - VPAtlas Survey sub-app styles
-   Color scheme from VPAtlas explore/css/common.css */
-
-:root {
-    --primary-color: #2c5530;
-    --primary-hover: #3a7040;
-    --primary-light: #e8f5e9;
-    --primary-medium: #81c784;
-    --primary-dark: #1b5e20;
-    --secondary-color: #6c757d;
-    --background-color: #fafbfc;
-    --card-background: #ffffff;
-    --border-color: #2c5530;
-    --text-primary: #2c5530;
-    --text-secondary: #5a6c7d;
-    --text-muted: #8492a6;
-    --selected-color: #c44100;
-    --success-color: #27ae60;
-    --warning-color: #f39c12;
-    --danger-color: #e74c3c;
-    --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.06);
-    --shadow-medium: 0 4px 6px rgba(0, 0, 0, 0.07);
-    --border-radius: 5px;
-    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    font-family: Georgia, open-sans, sans-serif;
-}
+   Globals (palette + base font-family) live in /css/common.css. */
 
 html, body {
     margin: 0;
     padding: 0;
     min-height: 100vh;
     background-color: var(--background-color);
-    font-family: Georgia, open-sans, sans-serif;
 }
 
 /* ---- Survey Header Bar (start page) ---- */

@@ -11,6 +11,13 @@ import { filters, putUserState, buildSearchTerm, DEFAULT_STATUSES, DATA_TYPES } 
 import { fetchTowns, fetchCounties, fetchPools, fetchMappedPoolStats } from '/js/api.js';
 import { getUser } from '/js/auth.js';
 import { GPSMonitor } from '/survey/js/gps_monitor.js';
+import { getPinnedPoolId, clearPin } from './pool_list.js';
+
+// Re-render tokens whenever the pin changes. pool_list dispatches
+// 'explore:pin-changed' on every pin mutation (user click, programmatic
+// clear, etc.) — this keeps the "Find Pool <id>" chip in sync without
+// pool_list having to know filter_bar exists.
+document.addEventListener('explore:pin-changed', () => renderTokens());
 
 var onFilterChange = null;
 var typeaheadTimer = null;
@@ -354,8 +361,14 @@ export function initFilterBar(filterCallback) {
         applyFilters();
     });
 
-    // Render initial tokens from loaded filters
-    if (filters.poolIdSearch) document.getElementById('filter_pool_id').value = filters.poolIdSearch;
+    // Render initial tokens from loaded filters. Also surface the input
+    // clear-X when a persisted poolIdSearch is restored, so the user has
+    // a one-tap way to remove it (without this the X stays hidden until
+    // they type something into the input).
+    if (filters.poolIdSearch) {
+        document.getElementById('filter_pool_id').value = filters.poolIdSearch;
+        document.getElementById('filter_pool_id_clear').style.display = 'block';
+    }
     renderTokens();
 }
 
@@ -436,7 +449,10 @@ function setupPoolIdSearch() {
         filters.poolIdSearch = '';
         putUserState(1, { poolIdSearch: '' });
         renderTokens();
-        applyFilters();
+        // Don't re-fit the map after clearing a pool ID — the user usually
+        // wants to keep looking at the same area, not jump to bounds of all
+        // pools again.
+        applyFilters({ noZoom: true });
     });
 }
 
@@ -656,6 +672,13 @@ function renderTokens() {
     if (filters.nearMeKm > 0 && filters.nearMeOrigin) {
         tokens.push({ key: 'nearMe', value: `${filters.nearMeKm} km`, label: 'Near me' });
     }
+    // Pinned-for-PoolFinder chip — separate from the map halo / hamburger
+    // shortcut, so the user has an obvious one-tap way to clear it from
+    // the same row as the rest of the active filter chips.
+    let pinned = getPinnedPoolId();
+    if (pinned) {
+        tokens.push({ key: 'pinnedPool', value: pinned, label: 'Find Pool' });
+    }
     // Status chips now driven by map layer control, not shown here
 
     if (!tokens.length) {
@@ -682,6 +705,7 @@ function renderTokens() {
     container.querySelectorAll('.filter-token-remove').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
+            let noZoom = false;
             if (btn.dataset.removeTown) {
                 filters.townNames = filters.townNames.filter(n => n !== btn.dataset.removeTown);
                 putUserState(1, { townNames: filters.townNames });
@@ -693,6 +717,9 @@ function renderTokens() {
                 document.getElementById('filter_pool_id').value = '';
                 document.getElementById('filter_pool_id_clear').style.display = 'none';
                 putUserState(1, { poolIdSearch: '' });
+                // Clearing pool ID shouldn't yank the map back to all-pool
+                // bounds — same rationale as the input X handler.
+                noZoom = true;
             } else if (btn.dataset.removeStatus) {
                 filters.poolStatuses = filters.poolStatuses.filter(s => s !== btn.dataset.removeStatus);
                 document.querySelectorAll('input[name="pool_status"]').forEach(cb => {
@@ -709,9 +736,18 @@ function renderTokens() {
                     cb.dispatchEvent(new Event('change'));
                 }
                 putUserState(1, { nearMeKm: 0, nearMeOrigin: null });
+            } else if (btn.dataset.removeKey === 'pinnedPool') {
+                // pool_list owns the pin state; clearPin() handles state +
+                // row UI + onPinDeselect callback (which clears the map
+                // halo) + persistence. It also dispatches
+                // 'explore:pin-changed' which re-runs renderTokens() —
+                // skip the bottom of this handler to avoid a double render.
+                clearPin();
+                applyFilters();
+                return;
             }
             renderTokens();
-            applyFilters();
+            applyFilters({ noZoom });
         });
     });
 
@@ -737,6 +773,6 @@ function renderTokens() {
 // =============================================================================
 // APPLY
 // =============================================================================
-function applyFilters() {
-    if (onFilterChange) onFilterChange(filters);
+function applyFilters(opts) {
+    if (onFilterChange) onFilterChange(filters, opts || {});
 }

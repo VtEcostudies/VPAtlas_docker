@@ -49,6 +49,8 @@ appConfig.urlsToCache = [
 '/docs/CHANGELOG-2026-05-06.md',
 '/docs/CHANGELOG-2026-05-09.md',
 '/docs/CHANGELOG-2026-05-10-partial.md',
+'/docs/CHANGELOG-2026-05-11-partial.md',
+'/docs/CHANGELOG-2026-05-12-partial.md',
 
 // === Shared JS ===
 '/js/app.js',
@@ -94,6 +96,7 @@ appConfig.urlsToCache = [
 '/survey/silence.wav',
 
 // === Shared CSS ===
+'/css/common.css',
 '/css/bootstrap_5.2.3.min.css',
 '/css/font-awesome_6.6.0.all.min.css',
 '/css/leaflet_1.9.4.css',
@@ -167,4 +170,9 @@ appConfig.urlsToCache = [
 // === Webfonts ===
 '/webfonts/fa-solid-900.woff2',
 '/webfonts/fa-regular-400.woff2',
+// Self-hosted text fonts. Each is a variable-font woff2 (Latin subset)
+// covering both regular and bold weights via the wght axis. Declared in
+// /css/common.css.
+'/webfonts/lora-latin.woff2',
+'/webfonts/noto-sans-latin.woff2',
 ];
