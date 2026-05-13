@@ -176,6 +176,7 @@ function deduplicateByPoolId(rows) {
                 // Max-of timestamps across joined rows for this pool.
                 _maxVisitUpdatedAt:  row.visitUpdatedAt  || null,
                 _maxReviewUpdatedAt: row.reviewUpdatedAt || null,
+                _maxReviewQADate:    row.reviewQADate    || null,
             });
         } else {
             // Merge: mark if any joined row has a visit/survey/review
@@ -190,6 +191,7 @@ function deduplicateByPoolId(rows) {
             if (row.surveyUserName && !existing.surveyUserName) existing.surveyUserName = row.surveyUserName;
             existing._maxVisitUpdatedAt  = maxTs(existing._maxVisitUpdatedAt,  row.visitUpdatedAt);
             existing._maxReviewUpdatedAt = maxTs(existing._maxReviewUpdatedAt, row.reviewUpdatedAt);
+            existing._maxReviewQADate    = maxTs(existing._maxReviewQADate,    row.reviewQADate);
         }
     }
     // Replace visitId/surveyId/reviewId with merged booleans for filterRowsByDataType
@@ -250,6 +252,25 @@ function renderPoolTable(rows) {
         if (photos) countParts.push(`<i class="fa fa-camera"></i>${photos}`);
         let counts = countParts.join(' · ');
 
+        // Debug strip: visit-updatedAt vs. review-QA-date vs. review-updatedAt.
+        // Surfaced so we can see why the Review filter is or isn't catching
+        // a given pool — updatedAt on either side may have been migration-
+        // bumped, in which case the QA date is the real signal of "when
+        // the review actually said something" and the comparison logic
+        // should switch.
+        function fmtTs(ts) {
+            if (!ts) return '—';
+            let s = String(ts);
+            // ISO timestamp → yyyy-mm-dd; date-only string stays as-is.
+            return s.length >= 10 ? s.slice(0, 10) : s;
+        }
+        let dbgVis = fmtTs(row._maxVisitUpdatedAt);
+        let dbgQAD = fmtTs(row._maxReviewQADate);
+        let dbgRup = fmtTs(row._maxReviewUpdatedAt);
+        let dbgHtml = `<span class="pl-dbg-ts" style="font-size:11px; color:#888; margin-left:4px;" `
+            + `title="visit.updatedAt / review.reviewQADate / review.updatedAt">`
+            + `v:${dbgVis} · q:${dbgQAD} · r:${dbgRup}</span>`;
+
         html += `<div class="pl-row pool-row" data-pool-id="${poolId}">
             <button class="pl-pin${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Remove from Pool Finder' : 'Add to Pool Finder'}">
                 <i class="fa fa-thumbtack"></i>
@@ -258,6 +279,7 @@ function renderPoolTable(rows) {
             <span class="pl-pool-id">${poolId}</span>
             <span class="pl-town">${town}</span>
             ${counts ? `<span class="pl-counts">${counts}</span>` : ''}
+            ${dbgHtml}
         </div>`;
     });
     html += '</div>';
