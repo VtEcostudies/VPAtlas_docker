@@ -16,8 +16,9 @@
 
 // Pool list cache. Bump the suffix when you add/remove/rename fields the
 // UI reads from cached rows so existing client caches are abandoned and
-// a fresh fetch is forced. Last bump: May 2026 (added _photoCount).
-export const POOL_CACHE_KEY = 'pool_cache_v2';
+// a fresh fetch is forced. Last bump: May 2026 (added _maxVisitUpdatedAt /
+// _maxReviewUpdatedAt used by the new timestamp-based Review filter).
+export const POOL_CACHE_KEY = 'pool_cache_v3';
 
 // Visit and survey summary caches — used by the offline pool detail pages.
 export const VISIT_CACHE_KEY = 'visit_cache';

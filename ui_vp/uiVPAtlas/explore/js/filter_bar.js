@@ -435,8 +435,12 @@ function setupPoolIdSearch() {
         if (e.key === 'Enter') {
             e.preventDefault();
             sugBox.style.display = 'none';
+            // Free-text submit → substring match (poolIdExact: false).
+            // The user picks exact-match by clicking a suggestion from the
+            // dropdown; typing-then-Enter intentionally widens.
             filters.poolIdSearch = input.value.trim();
-            putUserState(1, { poolIdSearch: filters.poolIdSearch });
+            filters.poolIdExact = false;
+            putUserState(1, { poolIdSearch: filters.poolIdSearch, poolIdExact: false });
             renderTokens();
             applyFilters();
         }
@@ -447,7 +451,8 @@ function setupPoolIdSearch() {
         clearBtn.style.display = 'none';
         sugBox.style.display = 'none';
         filters.poolIdSearch = '';
-        putUserState(1, { poolIdSearch: '' });
+        filters.poolIdExact = false;
+        putUserState(1, { poolIdSearch: '', poolIdExact: false });
         renderTokens();
         // Don't re-fit the map after clearing a pool ID — the user usually
         // wants to keep looking at the same area, not jump to bounds of all
@@ -485,8 +490,13 @@ async function fetchPoolSuggestions(text, sugBox) {
                 document.getElementById('filter_pool_id').value = val;
                 document.getElementById('filter_pool_id_clear').style.display = 'block';
                 sugBox.style.display = 'none';
+                // Picking a specific pool from the suggestion list → exact
+                // match. Otherwise a chosen "SDF123" would also leave
+                // SDF1234, SDF1235, etc. on the map/list because the
+                // downstream filter does substring containment.
                 filters.poolIdSearch = val;
-                putUserState(1, { poolIdSearch: val });
+                filters.poolIdExact = true;
+                putUserState(1, { poolIdSearch: val, poolIdExact: true });
                 renderTokens();
                 applyFilters();
             });
@@ -714,9 +724,10 @@ function renderTokens() {
                 putUserState(1, { countyNames: filters.countyNames });
             } else if (btn.dataset.removeKey === 'poolIdSearch') {
                 filters.poolIdSearch = '';
+                filters.poolIdExact = false;
                 document.getElementById('filter_pool_id').value = '';
                 document.getElementById('filter_pool_id_clear').style.display = 'none';
-                putUserState(1, { poolIdSearch: '' });
+                putUserState(1, { poolIdSearch: '', poolIdExact: false });
                 // Clearing pool ID shouldn't yank the map back to all-pool
                 // bounds — same rationale as the input X handler.
                 noZoom = true;
@@ -755,6 +766,7 @@ function renderTokens() {
     if (clearAll) {
         clearAll.addEventListener('click', () => {
             filters.poolIdSearch = '';
+            filters.poolIdExact = false;
             filters.townNames = [];
             filters.countyNames = [];
             filters.poolStatuses = [...DEFAULT_STATUSES];

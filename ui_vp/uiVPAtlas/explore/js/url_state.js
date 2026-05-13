@@ -17,7 +17,8 @@ export const DATA_TYPES = ['All', 'Visited', 'Monitored', 'Mine', 'Review'];
 // Global filters object
 export var filters = {
     dataType: 'All',                        // primary pool data filter
-    poolIdSearch: '',                       // partial-match pool ID (ILIKE)
+    poolIdSearch: '',                       // pool ID — matched per poolIdExact
+    poolIdExact: false,                     // true → exact equality match (set when user picks from typeahead suggestions); false → substring/ILIKE (free-text)
     townNames: [],                          // multi-select town names
     countyNames: [],                        // multi-select county names
     poolStatuses: [...DEFAULT_STATUSES],    // status checkboxes
@@ -36,7 +37,10 @@ export function putUserState(fromUser=1, updates={}) {
 
     var params = new URLSearchParams();
     if (filters.dataType !== 'All') params.set('dataType', filters.dataType);
-    if (filters.poolIdSearch) params.set('poolId', filters.poolIdSearch);
+    if (filters.poolIdSearch) {
+        params.set('poolId', filters.poolIdSearch);
+        if (filters.poolIdExact) params.set('poolIdExact', '1');
+    }
     filters.townNames.forEach(t => params.append('town', t));
     filters.countyNames.forEach(c => params.append('county', c));
     if (filters.poolStatuses.length < 5) params.set('status', filters.poolStatuses.join(','));
@@ -59,6 +63,7 @@ export function loadFromUrl() {
     let p = new URLSearchParams(window.location.search);
     if (p.get('dataType')) filters.dataType = p.get('dataType');
     if (p.get('poolId')) filters.poolIdSearch = p.get('poolId');
+    filters.poolIdExact = p.get('poolIdExact') === '1';
     if (p.getAll('town').length) filters.townNames = p.getAll('town');
     if (p.getAll('county').length) filters.countyNames = p.getAll('county');
     if (p.get('status')) filters.poolStatuses = p.get('status').split(',');

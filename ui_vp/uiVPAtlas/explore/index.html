@@ -459,12 +459,17 @@
         function applyClientFilters(rows) {
             let filtered = rows;
 
-            // Pool ID partial match
+            // Pool ID match. Exact equality when the user picked the
+            // value from the typeahead suggestion list (poolIdExact=true);
+            // substring when they typed free text. Without this split,
+            // a chosen "SDF123" would also keep SDF1234, SDF1235, etc.,
+            // making it impossible to isolate the specific pool when the
+            // ID is a prefix of others.
             if (filters.poolIdSearch) {
                 let term = filters.poolIdSearch.toLowerCase();
                 filtered = filtered.filter(r => {
                     let id = (r.poolId || r.mappedPoolId || '').toLowerCase();
-                    return id.includes(term);
+                    return filters.poolIdExact ? id === term : id.includes(term);
                 });
             }
 
