@@ -249,23 +249,87 @@
         });
 
         async function initMap(v, m) {
-            let lat = parseFloat(v.visitLatitude || m.mappedLatitude);
-            let lng = parseFloat(v.visitLongitude || m.mappedLongitude);
-            if (isNaN(lat) || isNaN(lng)) return;
+            let mLat = parseFloat(m.mappedLatitude);
+            let mLng = parseFloat(m.mappedLongitude);
+            let vLat = parseFloat(v.visitLatitude);
+            let vLng = parseFloat(v.visitLongitude);
+            let hasMapped = Number.isFinite(mLat) && Number.isFinite(mLng);
+            let hasVisit  = Number.isFinite(vLat) && Number.isFinite(vLng);
+            if (!hasMapped && !hasVisit) return;
+
             let status = m.poolStatus || m.mappedPoolStatus || 'Potential';
-            let map = await createMap('map', { center: [lat, lng], zoom: 16 });
-            visitMap = map;
             let poolId = v.visitPoolId || m.mappedPoolId || '';
-            let town = v.townName || m.townName || '';
-            addPoolMarker(map, [lat, lng], {
-                status: status,
-                surveyLevel: 'visited',
-                size: 22,
-                tooltip: `${poolId} — ${status}${town ? ', ' + town : ''}`,
-                popup: `Visit ${v.visitId} — Pool ${poolId}`
-            });
-            document.getElementById('btn_center').addEventListener('click', () =>
-                map.setView([lat, lng], 16));
+            let town   = v.townName || m.townName || '';
+            let visitDate = v.visitDate ? String(v.visitDate).slice(0, 10) : '';
+
+            // Center on whichever point we have; bounds-fit below if we have both.
+            let initLat = hasMapped ? mLat : vLat;
+            let initLng = hasMapped ? mLng : vLng;
+            let map = await createMap('map', { center: [initLat, initLng], zoom: 16 });
+            visitMap = map;
+
+            // Mapped pool — CIRCLE (surveyLevel: 'potential' draws a circle).
+            // Plotted first so the visit triangle stacks on top when they
+            // overlap; the popup/tooltip wording makes the role unambiguous
+            // regardless of which marker the user clicks.
+            let mappedMarker = null;
+            if (hasMapped) {
+                mappedMarker = addPoolMarker(map, [mLat, mLng], {
+                    status: status,
+                    surveyLevel: 'potential',
+                    size: 22,
+                    tooltip: `Mapped pool location — ${poolId}${town ? ', ' + town : ''} (${status})`,
+                    popup:
+                        `<strong>Mapped pool location</strong><br>` +
+                        `Pool ${poolId}<br>` +
+                        `Status: ${status}` +
+                        (town ? `<br>Town: ${town}` : '')
+                });
+            }
+
+            // Visit — TRIANGLE (surveyLevel: 'visited').
+            let visitMarker = null;
+            if (hasVisit) {
+                visitMarker = addPoolMarker(map, [vLat, vLng], {
+                    status: status,
+                    surveyLevel: 'visited',
+                    size: 24,
+                    tooltip: `Visit ${v.visitId} location${visitDate ? ' — ' + visitDate : ''}`,
+                    popup:
+                        `<strong>Visit location</strong><br>` +
+                        `Visit ${v.visitId}` +
+                        (visitDate ? `<br>Date: ${visitDate}` : '') +
+                        `<br>Pool ${poolId}`
+                });
+            }
+
+            // Bounds-fit when both coords exist and differ; otherwise stay
+            // on the single-point view. fitBounds with a tiny tolerance
+            // would zoom out unnecessarily when the two points are nearly
+            // identical — guard with a coarse equality check.
+            function fitBoth() {
+                if (mappedMarker && visitMarker) {
+                    let dLat = Math.abs(mLat - vLat);
+                    let dLng = Math.abs(mLng - vLng);
+                    if (dLat > 1e-6 || dLng > 1e-6) {
+                        let bounds = L.featureGroup([mappedMarker, visitMarker]).getBounds();
+                        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 18 });
+                        return;
+                    }
+                }
+                map.setView([initLat, initLng], 16);
+            }
+            fitBoth();
+
+            // Rewire the recenter button: fit both, or recenter on the
+            // single point we have.
+            let centerBtn = document.getElementById('btn_center');
+            if (centerBtn) {
+                centerBtn.title = (mappedMarker && visitMarker)
+                    ? 'Zoom to pool and visit'
+                    : 'Zoom to pool';
+                centerBtn.addEventListener('click', fitBoth);
+            }
         }
     </script>
     <script src="/js/bandwidth_monitor.js"></script>

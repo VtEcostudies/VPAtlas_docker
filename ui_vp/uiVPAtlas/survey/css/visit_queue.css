@@ -75,6 +75,7 @@
 .vq-status-draft    { background: #fff3e0; color: #e65100; }
 .vq-status-complete { background: #e3f2fd; color: #1565c0; }
 .vq-status-uploaded { background: #e8f5e9; color: #2e7d32; }
+.vq-status-edited   { background: #fff8e1; color: #b86d00; }
 
 /* Action buttons — won't shrink, wrap to next line when needed */
 .vq-actions {

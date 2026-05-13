@@ -757,10 +757,13 @@
                     cursor:pointer; color:#333; box-shadow:0 1px 4px rgba(0,0,0,0.2);">
                     <i class="fa fa-crosshairs" style="font-size:18px;"></i><i class="fa fa-tint" style="font-size:18px;" aria-hidden="true"></i>
                 </div>
-                <button id="btn_use_gps" class="pf-zoom-btn" style="display:none; position:absolute; top:10px; left:96px; z-index:1000;" title="Set visit location to my GPS position">
+                <button id="btn_use_gps" class="pf-zoom-btn" style="display:flex; position:absolute; top:10px; left:96px; z-index:1000;" title="Zoom to my location">
                     <i class="fa fa-crosshairs"></i><i class="fa fa-user" aria-hidden="true"></i>
                 </button>
-                <div class="map-instruction" id="map_instruction">Tap the map to set pool location, or click the "Use GPS" button.</div>
+                <button id="btn_set_gps_loc" class="pf-zoom-btn" style="display:flex; position:absolute; top:10px; left:182px; z-index:1000;" title="Set visit location to my GPS position">
+                    <i class="fa fa-location-dot"></i><i class="fa fa-user" aria-hidden="true"></i>
+                </button>
+                <div class="map-instruction" id="map_instruction">Set Visit Location (tap map)</div>
             </div>
 
             <!-- LOCATION TAB -->
@@ -1248,9 +1251,9 @@
         import { fetchVisitById, fetchMappedPoolById, fetchMappedPoolGeoJson, createVisit, createPoolAndVisit, updateVisit } from '/js/api.js';
         import { getPoolById } from '/js/pool_data_cache.js';
         import { requireAuth, getUser } from '/js/auth.js';
-        import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText, wireCombinedTooltip, createUserLocationMarker } from '/js/map_common.js';
+        import { createMap, addPoolMarker, getPoolColor, buildShapeIcon, getSurveyLevel, poolTooltipText, wireCombinedTooltip, createUserLocationMarker, createPoolHaloMarker } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
-        import { saveVisit, loadVisit, createVisitState } from './js/visit_store.js';
+        import { saveVisit, loadVisit, loadAllVisits, createVisitState } from './js/visit_store.js';
         import { syncVisit } from './js/visit_sync.js';
         setupProfileIcon();
 
@@ -1437,39 +1440,43 @@
                 setVisitLocation(e.latlng.lat, e.latlng.lng, 'Visit location (tap map)');
             });
 
-            // GPS — get position, show blue dot, enable persistent "Use GPS" button
-            function initGps(centerOnFix) {
-                if (!navigator.geolocation) return;
-                let instr = document.getElementById('map_instruction');
-                if (centerOnFix && instr) instr.textContent = 'Getting your location...';
-
-                navigator.geolocation.getCurrentPosition(
-                    function(pos) {
-                        let lat = pos.coords.latitude, lng = pos.coords.longitude;
-                        let acc = pos.coords.accuracy;
-                        gpsPosition = { lat, lng, accuracy: acc };
-
-                        // Blue person + pulsing halo + accuracy ring (matches the
-                        // user marker shown elsewhere in the app).
-                        createUserLocationMarker([lat, lng], { interactive: true })
-                            .addTo(map)
-                            .bindTooltip('You are here', { direction: 'top', offset: [0, -22] });
-                        L.circle([lat, lng], { radius: acc, color: '#4285f4', fillColor: '#4285f4',
-                            fillOpacity: 0.08, weight: 1, dashArray: '4,4', interactive: false }).addTo(map);
-
-                        if (centerOnFix) map.setView([lat, lng], 14);
-
-                        // Show the persistent GPS button
-                        let gpsBtn = document.getElementById('btn_use_gps');
-                        if (gpsBtn) gpsBtn.style.display = 'flex';
-
-                        if (instr) { instr.textContent = 'Tap the map or pool marker to set location, or click the "Use GPS" button.'; instr.style.display = 'block'; }
-                    },
-                    function() {
-                        if (instr) instr.textContent = 'Tap the map to set location';
-                    },
-                    { enableHighAccuracy: true, timeout: 10000 }
-                );
+            // On-demand GPS. Returns the current fix (or null on
+            // permission denied / timeout). Caches the result in
+            // gpsPosition so two button presses don't trigger two
+            // permission prompts. ONLY called from the GPS button click
+            // handlers — visit_create no longer auto-invokes geolocation
+            // on open. The page never shows the user-location dot until
+            // the user explicitly asks for it (zoom-to-me or
+            // set-visit-location-from-GPS).
+            async function ensureGps() {
+                if (gpsPosition) return gpsPosition;
+                if (!navigator.geolocation) return null;
+                return new Promise(resolve => {
+                    let instr = document.getElementById('map_instruction');
+                    let prevText = instr ? instr.textContent : null;
+                    if (instr) instr.textContent = 'Getting your location…';
+                    navigator.geolocation.getCurrentPosition(
+                        function(pos) {
+                            let lat = pos.coords.latitude, lng = pos.coords.longitude;
+                            let acc = pos.coords.accuracy;
+                            gpsPosition = { lat, lng, accuracy: acc };
+                            // Drop the blue user-location marker + accuracy
+                            // ring now that the user has opted in.
+                            createUserLocationMarker([lat, lng], { interactive: true })
+                                .addTo(map)
+                                .bindTooltip('You are here', { direction: 'top', offset: [0, -22] });
+                            L.circle([lat, lng], { radius: acc, color: '#4285f4', fillColor: '#4285f4',
+                                fillOpacity: 0.08, weight: 1, dashArray: '4,4', interactive: false }).addTo(map);
+                            if (instr && prevText) instr.textContent = prevText;
+                            resolve(gpsPosition);
+                        },
+                        function() {
+                            if (instr && prevText) instr.textContent = prevText;
+                            resolve(null);
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 }
+                    );
+                });
             }
 
             // Zoom to pool button
@@ -1478,11 +1485,26 @@
                 map.setView([poolLocation.lat, poolLocation.lng], 17);
             });
 
-            // Persistent GPS button — always available once GPS position is acquired
-            document.getElementById('btn_use_gps').addEventListener('click', function() {
-                if (!gpsPosition) return;
-                setVisitLocation(gpsPosition.lat, gpsPosition.lng, `GPS location (±${Math.round(gpsPosition.accuracy)}m)`);
-                map.setView([gpsPosition.lat, gpsPosition.lng], 17);
+            // Zoom-to-me button — recenter the map on the user's GPS
+            // position without touching the visit-location pin (matches
+            // the pattern used on the home page and Pool Finder). On the
+            // first click, ensureGps() prompts for permission and drops
+            // the user-location marker; subsequent clicks reuse the fix.
+            document.getElementById('btn_use_gps').addEventListener('click', async function() {
+                let p = await ensureGps();
+                if (!p) { showMsg('GPS unavailable — check location permission', 'error'); return; }
+                map.setView([p.lat, p.lng], 17);
+            });
+
+            // Set-visit-location-to-GPS button — drops the editable visit
+            // marker on the user's current GPS fix. Separate from the
+            // zoom-to-me button above so the two intents (look vs. commit)
+            // can't be conflated.
+            document.getElementById('btn_set_gps_loc').addEventListener('click', async function() {
+                let p = await ensureGps();
+                if (!p) { showMsg('GPS unavailable — check location permission', 'error'); return; }
+                setVisitLocation(p.lat, p.lng, `GPS location (±${Math.round(p.accuracy)}m)`);
+                map.setView([p.lat, p.lng], 17);
             });
 
             let user = await getUser();
@@ -1504,7 +1526,101 @@
                     if (editDate) editTitle += ` on ${editDate}`;
                     document.getElementById('page_title').textContent = editTitle;
                     document.title = `VPAtlas - ${editTitle}`;
-                    populateVisitForm(v);
+
+                    // Plot the mapped pool location as a CIRCLE — always
+                    // visible while editing, even for old visits that
+                    // never recorded a visitLatitude. Clicking the circle
+                    // snaps the editable visit location onto the pool's
+                    // mapped point (same affordance as the new-visit flow).
+                    // NOTE: do NOT setView on the mapped point here. The
+                    // final centering decision is made AFTER populateVisitForm
+                    // so we only fire one setView per open — no flashes
+                    // between mapped and visit, no race with async work.
+                    let mLat = Number(m.mappedLatitude);
+                    let mLng = Number(m.mappedLongitude);
+                    let mappedStatus = m.mappedPoolStatus || m.poolStatus || 'Potential';
+                    if (Number.isFinite(mLat) && Number.isFinite(mLng)) {
+                        poolLocation = { lat: mLat, lng: mLng };
+                        document.getElementById('btn_zoom_pool').style.display = 'flex';
+                        // Pulsing green halo marks the pool being visited.
+                        createPoolHaloMarker([mLat, mLng]).addTo(map);
+                        poolMarker = addPoolMarker(map, [mLat, mLng], {
+                            status: mappedStatus,
+                            surveyLevel: 'potential',
+                            size: 22,
+                            tooltip: `Mapped pool location — ${editPoolId}${editTown ? ', ' + editTown : ''} (${mappedStatus})`
+                        });
+                        poolMarker.on('click', function(e) {
+                            L.DomEvent.stopPropagation(e);
+                            setVisitLocation(mLat, mLng, `Visit location set to Pool ${editPoolId}`);
+                        });
+                    }
+
+                    // Seed local IDB state for this edit. Two cases:
+                    //   1. There's already a local draft for this server
+                    //      visitId — load it, populate from local form data
+                    //      (the user's in-progress edits trump the server
+                    //      copy). My Visits dedups via server_visit_id so
+                    //      the local row already replaces the server row
+                    //      in the list.
+                    //   2. First-time edit for this visitId — seed a new
+                    //      local state from the server visit, with
+                    //      server_visit_id set so the dedup catches it.
+                    //      Form populates from the server data.
+                    // Either way, currentVisitState ends up non-null so
+                    // Save Draft / Save & Upload actually persist.
+                    let existing = null;
+                    try {
+                        let allLocal = await loadAllVisits();
+                        existing = allLocal.find(lv => lv.server_visit_id === Number(visitId)
+                                                  || lv.server_visit_id === visitId) || null;
+                    } catch (_) { /* loadAllVisits errors handled silently */ }
+
+                    if (existing) {
+                        currentVisitState = existing;
+                        // Hand the form whatever the user last typed in
+                        // their draft, not the stale server snapshot.
+                        let draftSource = (existing.formData && Object.keys(existing.formData).length)
+                            ? existing.formData
+                            : { ...v, ...existing };
+                        populateVisitForm(draftSource, m);
+                    } else {
+                        currentVisitState = createVisitState(editPoolId, user);
+                        currentVisitState.server_visit_id = Number(visitId) || visitId;
+                        currentVisitState.visitPoolId = editPoolId;
+                        currentVisitState.visitDate = v.visitDate
+                            ? new Date(v.visitDate).toLocaleDateString('sv-SE')
+                            : currentVisitState.visitDate;
+                        currentVisitState.visitObserverUserName = v.visitObserverUserName
+                            || v.visitUserName || currentVisitState.visitObserverUserName;
+                        currentVisitState.visitLatitude = v.visitLatitude || '';
+                        currentVisitState.visitLongitude = v.visitLongitude || '';
+                        // Seed formData with the server visit fields so the
+                        // upload payload includes any field the user
+                        // doesn't touch in this edit session.
+                        currentVisitState.formData = { ...v };
+                        populateVisitForm(v, m);
+                    }
+
+                    // Framing rule: on open, zoom EXACTLY ONCE.
+                    // Visit lat/lng wins; mapped is the fallback. No
+                    // bounds-fit, no flash-from-mapped-to-visit, no later
+                    // setView from anywhere. populateVisitForm fires
+                    // setView(visit, 16) when the form has visit lat/lng.
+                    // If not, fall back to the mapped pool here.
+                    let frameLat = Number(currentVisitState.visitLatitude || v.visitLatitude);
+                    let frameLng = Number(currentVisitState.visitLongitude || v.visitLongitude);
+                    if (!(Number.isFinite(frameLat) && Number.isFinite(frameLng))) {
+                        if (Number.isFinite(mLat) && Number.isFinite(mLng)) {
+                            map.setView([mLat, mLng], 16);
+                        }
+                    }
+
+                    // No auto-GPS. ensureGps() runs lazily on the first
+                    // tap of the zoom-to-me / set-location-from-GPS
+                    // buttons — keeps the map exactly where the framing
+                    // rule put it on open, and the user-location marker
+                    // only appears when the user asks for it.
                 } catch(err) { showMsg('Error: ' + err.message, 'error'); }
             } else {
                 let newTitle = poolId ? `New Atlas Visit to Pool ${poolId}` : 'New Atlas Visit to New Pool';
@@ -1530,6 +1646,8 @@
                             poolLocation = { lat, lng };
                             map.setView([lat, lng], 16);
                             document.getElementById('btn_zoom_pool').style.display = 'flex';
+                            // Pulsing green halo marks the pool being visited.
+                            createPoolHaloMarker([lat, lng]).addTo(map);
                             poolMarker = addPoolMarker(map, [lat, lng], {
                                 status: pool.mappedPoolStatus || 'Potential',
                                 surveyLevel: 'potential', size: 18,
@@ -1543,8 +1661,8 @@
                                 setVisitLocation(lat, lng, `Location set to Pool ${poolId}`);
                             });
 
-                            // GPS: show user's position relative to the pool
-                            initGps();
+                            // No auto-GPS. The zoom-to-me / set-loc
+                            // buttons fetch on demand.
                         }
                     } catch(err) {}
                 } else {
@@ -1552,17 +1670,17 @@
                     // Load all existing pools on the map for orientation
                     loadAllPoolsOnMap(map);
 
-                    // If lat/lng came from a long-press on the PoolFinder map,
-                    // pre-set the visit location to the dropped pin and skip
-                    // the GPS auto-center. Otherwise fall back to GPS.
+                    // If lat/lng came from a long-press on the PoolFinder
+                    // map, pre-set the visit location to the dropped pin.
+                    // No auto-GPS either way — user can tap the
+                    // zoom-to-me / set-loc-from-GPS buttons if they want
+                    // their position. (Even the new-pool flow no longer
+                    // auto-prompts for geolocation on page open.)
                     let presetLat = parseFloat(params.get('lat'));
                     let presetLng = parseFloat(params.get('lng'));
                     if (!isNaN(presetLat) && !isNaN(presetLng)) {
                         setVisitLocation(presetLat, presetLng, 'Location set from dropped pin');
                         map.setView([presetLat, presetLng], 17);
-                        initGps(false);
-                    } else {
-                        initGps(true);  // centerOnFix=true for new pool flow
                     }
                 }
             }
@@ -1590,8 +1708,9 @@
                             if (pool && pool.mappedLatitude) {
                                 let lat = Number(pool.mappedLatitude), lng = Number(pool.mappedLongitude);
                                 poolLocation = { lat, lng };
-                                map.setView([lat, lng], 16);
                                 document.getElementById('btn_zoom_pool').style.display = 'flex';
+                                // Pulsing green halo marks the pool being visited.
+                                createPoolHaloMarker([lat, lng]).addTo(map);
                                 poolMarker = addPoolMarker(map, [lat, lng], {
                                     status: pool.mappedPoolStatus || 'Potential',
                                     surveyLevel: 'potential', size: 18,
@@ -1601,7 +1720,21 @@
                                     L.DomEvent.stopPropagation(e);
                                     setVisitLocation(lat, lng, `Location set to Pool ${draftPoolId}`);
                                 });
-                                initGps();
+                                // Frame on the visit location when the draft
+                                // already has one; otherwise frame on the
+                                // mapped pool. Without the guard, the
+                                // mapped setView would clobber the
+                                // visit-centered view that populateVisitForm
+                                // set just above.
+                                let draftLat = parseFloat(currentVisitState.visitLatitude
+                                    ?? currentVisitState.formData?.visitLatitude);
+                                let draftLng = parseFloat(currentVisitState.visitLongitude
+                                    ?? currentVisitState.formData?.visitLongitude);
+                                if (!(Number.isFinite(draftLat) && Number.isFinite(draftLng))) {
+                                    map.setView([lat, lng], 16);
+                                }
+                                // No auto-GPS on resume either — see the
+                                // matching note in the edit branch.
                             }
                         } catch(err) {}
                     }
@@ -1694,10 +1827,40 @@
                     body.visitObserverUserId = user.id;
                 }
                 let isNewPool = !isEdit && !poolId;
-                if (!isNewPool && !body.visitPoolId) { showMsg('Pool ID is required', 'error'); return; }
-                if (!body.visitDate) { showMsg('Date is required', 'error'); return; }
-                if (isNewPool && (!body.visitLatitude || !body.visitLongitude)) {
-                    showMsg('Location is required for a new pool — tap the map or use GPS', 'error'); return;
+
+                // Required-field gate. Collect all errors and surface them
+                // together so the user fixes once, not one-error-at-a-time.
+                let errors = [];
+                if (!isNewPool && !body.visitPoolId) errors.push('Pool ID is required');
+                if (!body.visitObserverUserName) errors.push('Observer is required');
+                if (!body.visitDate) errors.push('Date is required');
+                if (!body.visitLatitude || !body.visitLongitude) {
+                    errors.push('Visit location is required — tap the map, use GPS, or tap the pool marker');
+                }
+                if (!body.visitVernalPool) {
+                    errors.push('Answer "Is this a vernal pool?" (Yes / No / Don\'t Know)');
+                }
+                // Vernal-pool = "Yes" → at least one obligate indicator
+                // species (Wood Frog / Spotted / Jefferson / Blue-spotted
+                // salamander adults·eggs·larvae, or Fairy Shrimp) must have
+                // a non-zero count. Reviewers need *some* evidence behind
+                // a "Yes" answer.
+                if (body.visitVernalPool === 'Yes') {
+                    const INDICATOR_FIELDS = [
+                        'visitWoodFrogAdults','visitWoodFrogEgg','visitWoodFrogLarvae',
+                        'visitSpsAdults','visitSpsEgg','visitSpsLarvae',
+                        'visitJesaAdults','visitJesaEgg','visitJesaLarvae',
+                        'visitBssaAdults','visitBssaEgg','visitBssaLarvae',
+                        'visitFairyShrimp'
+                    ];
+                    let anySelected = INDICATOR_FIELDS.some(f => parseInt(body[f], 10) > 0);
+                    if (!anySelected) {
+                        errors.push('When "Is this a vernal pool?" is Yes, record a count > 0 for at least one indicator species (Wood Frog, Spotted, Jefferson, or Blue-spotted salamander adults/eggs/larvae, or Fairy Shrimp).');
+                    }
+                }
+                if (errors.length) {
+                    showMsg(errors.join(' • '), 'error');
+                    return;
                 }
 
                 // Confirm before uploading — visits get queued for VPAtlas review
@@ -1855,8 +2018,9 @@
             }
         });
 
-        function populateVisitForm(v) {
+        function populateVisitForm(v, m) {
             if (!v) return;
+            m = m || {};
             // Text/date inputs
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
              'visitLocationComments','visitMaxWidth','visitMaxLength',
@@ -1931,13 +2095,33 @@
                 let el = document.getElementById(f);
                 if (el && v[f]) el.value = v[f];
             });
-            // Map marker
+            // Visit-location triangle (the existing recorded GPS for this
+            // visit, if any). Color matches the pool's status so it's
+            // visually consistent with the mapped-pool circle plotted by
+            // the edit-flow caller. setView happens here; the caller
+            // bounds-fits afterwards if a mapped circle was added too.
             if (v.visitLatitude && v.visitLongitude) {
                 let lat = Number(v.visitLatitude), lng = Number(v.visitLongitude);
+                let status = m.mappedPoolStatus || m.poolStatus || v.mappedPoolStatus || 'Potential';
+                // The visit object can be the server row (has visitId),
+                // a local draft's formData (no visitId — populated by
+                // getVisitFormData which doesn't collect it), or a draft
+                // object stamped with server_visit_id. Fall through all of
+                // those + the module-level currentVisitState so the
+                // tooltip never reads "Visit undefined".
+                let vid = v.visitId
+                    || v.server_visit_id
+                    || (typeof currentVisitState !== 'undefined' && currentVisitState
+                        ? (currentVisitState.server_visit_id || currentVisitState.visit_uuid)
+                        : null)
+                    || (typeof visitId !== 'undefined' ? visitId : null);
+                let tooltipText = vid ? `Visit ${vid} — recorded location` : 'Visit — recorded location';
                 map.setView([lat, lng], 16);
                 marker = addPoolMarker(map, [lat, lng], {
-                    status: 'Potential', surveyLevel: 'visited', size: 22,
-                    tooltip: `Visit ${v.visitId}`
+                    status: status,
+                    surveyLevel: 'visited',
+                    size: 22,
+                    tooltip: tooltipText
                 });
                 document.getElementById('map_instruction').style.display = 'none';
             }
@@ -2020,6 +2204,25 @@
                 setTimeout(() => { el.className = 'visit-message'; }, 3000);
             }
         }
+
+        // Clear a visible error the moment the user does anything to address
+        // it. Capture-phase listener so it fires before per-element handlers
+        // (e.g. tap on the map, change a radio, type in a field). The click
+        // on btn_save_upload itself fires this too — but the validation
+        // re-runs inside that handler and re-renders any remaining errors,
+        // so re-validation is idempotent.
+        (function autoDismissErrorMessage() {
+            function clearError() {
+                let el = document.getElementById('message');
+                if (el && el.classList.contains('error')) {
+                    el.className = 'visit-message';
+                    el.textContent = '';
+                }
+            }
+            ['input', 'change', 'click'].forEach(ev =>
+                document.addEventListener(ev, clearError, true)
+            );
+        })();
 
         function showUploadOverlay(text, progress) {
             let overlay = document.getElementById('upload_overlay');

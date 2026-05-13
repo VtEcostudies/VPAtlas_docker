@@ -328,6 +328,12 @@
                             isReviewed: Number(v.reviewCount || 0) > 0,
                             photoCount: Number(v.photoCount || 0),
                             speciesCount: speciesCountFromFields(v),
+                            // Server-side timestamps. createdAt is the first
+                            // insert; updatedAt advances on every edit. A
+                            // gap > 5 s (allow for the insert-then-trigger
+                            // race) means the visit was edited after upload.
+                            visitCreatedAt: v.visitCreatedAt || v.createdAt || null,
+                            visitUpdatedAt: v.visitUpdatedAt || v.updatedAt || null,
                         }));
                     }  // close `if (!username) ... else {`
                 } catch(e) {
@@ -339,6 +345,20 @@
             allVisits = [...localVisits, ...serverVisits];
             loading.style.display = 'none';
             renderList(serverFetchError, serverFetchUsername);
+        }
+
+        // Pool-status → CSS class for the colored badge. Mirrors
+        // pool_list.js getStatusClass; the `.status-*` rules live in
+        // /explore/css/pool_list.css (already loaded by this page).
+        function poolStatusClass(status) {
+            switch (status) {
+                case 'Confirmed':  return 'status-confirmed';
+                case 'Probable':   return 'status-probable';
+                case 'Potential':  return 'status-potential';
+                case 'Duplicate':  return 'status-duplicate';
+                case 'Eliminated': return 'status-eliminated';
+                default: return '';
+            }
         }
 
         // =====================================================================
@@ -377,29 +397,52 @@
 
             let html = '';
             sorted.forEach(v => {
-                let statusClass, statusLabel, actions;
+                let statusHtml, actions;
 
                 if (v.source === 'local') {
-                    statusClass = `vq-status-${v.status}`;
-                    statusLabel = v.status;
-                    if (v.status === 'draft') {
+                    // A local row with server_visit_id is an edit-in-progress
+                    // of an existing server visit (dedup hides the server
+                    // row in favor of this). It IS both: the visit lives on
+                    // the server AND has local pending edits — show both
+                    // pills. Underlying v.status (draft/complete) drives
+                    // the action buttons but not the pill label here.
+                    let isEditOfServer = !!v.server_visit_id;
+                    if (v.status === 'uploaded') {
+                        // From-this-device upload; if photos are still
+                        // pending we surface that, otherwise it's the
+                        // green check + a "server" origin pill.
+                        let photoNote = (v.photos_uploaded === false) ? ' <i class="fa fa-image" title="Photos pending"></i>' : '';
+                        statusHtml = `<span class="vq-status vq-status-uploaded">server</span>`;
+                        actions = `<span class="vq-btn" style="color:#2e7d32; border:none;"><i class="fa fa-check"></i>${photoNote}</span>`;
+                    } else if (isEditOfServer) {
+                        statusHtml =
+                            `<span class="vq-status vq-status-uploaded">server</span>` +
+                            `<span class="vq-status vq-status-edited">edited</span>`;
+                        if (v.status === 'draft') {
+                            actions = `
+                                <button class="vq-btn vq-edit" data-uuid="${v.visit_uuid}" title="Edit"><i class="fa fa-pen"></i></button>
+                                <button class="vq-btn vq-upload" data-uuid="${v.visit_uuid}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
+                                <button class="vq-btn vq-delete" data-uuid="${v.visit_uuid}" title="Discard edits"><i class="fa fa-trash"></i></button>`;
+                        } else { // 'complete'
+                            actions = `
+                                <button class="vq-btn vq-upload" data-uuid="${v.visit_uuid}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
+                                <button class="vq-btn vq-delete" data-uuid="${v.visit_uuid}" title="Discard edits"><i class="fa fa-trash"></i></button>`;
+                        }
+                    } else if (v.status === 'draft') {
+                        statusHtml = `<span class="vq-status vq-status-draft">draft</span>`;
                         actions = `
                             <button class="vq-btn vq-edit" data-uuid="${v.visit_uuid}" title="Edit"><i class="fa fa-pen"></i></button>
                             <button class="vq-btn vq-upload" data-uuid="${v.visit_uuid}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
                             <button class="vq-btn vq-delete" data-uuid="${v.visit_uuid}" title="Delete"><i class="fa fa-trash"></i></button>`;
-                    } else if (v.status === 'complete') {
+                    } else { // 'complete' fresh new visit
+                        statusHtml = `<span class="vq-status vq-status-complete">complete</span>`;
                         actions = `
                             <button class="vq-btn vq-upload" data-uuid="${v.visit_uuid}" title="Upload"><i class="fa fa-cloud-arrow-up"></i></button>
                             <button class="vq-btn vq-delete" data-uuid="${v.visit_uuid}" title="Delete"><i class="fa fa-trash"></i></button>`;
-                    } else {
-                        // uploaded from this device
-                        let photoNote = (v.photos_uploaded === false) ? ' <i class="fa fa-image" title="Photos pending"></i>' : '';
-                        actions = `<span class="vq-btn" style="color:#2e7d32; border:none;"><i class="fa fa-check"></i>${photoNote}</span>`;
                     }
                 } else {
                     // server visit
-                    statusClass = 'vq-status-uploaded';
-                    statusLabel = 'server';
+                    statusHtml = `<span class="vq-status vq-status-uploaded">server</span>`;
                     let parts = [`<a class="vq-btn" href="visit_view.html?visitId=${v.visitId}" title="View"><i class="fa fa-eye"></i></a>`];
                     // Owner-and-unreviewed → render delete. Admin can also
                     // delete via this same control. Server gates again
@@ -419,9 +462,16 @@
 
                 let countsHtml = renderCountsHtml(v.photoCount || 0, v.speciesCount || 0, v.reviewCount || 0);
 
+                // Pool-status badge — matches the home page list. Server
+                // visits carry `poolStatus` from the JOIN; local drafts
+                // don't have it, so we skip the badge for those.
+                let poolStatusHtml = v.poolStatus
+                    ? `<span class="status-badge ${poolStatusClass(v.poolStatus)}">${v.poolStatus}</span> `
+                    : '';
+
                 html += `<div class="vq-item">
                     <div class="vq-info">
-                        <div><span class="vq-status ${statusClass}">${statusLabel}</span> ${poolLink} <span style="color:var(--text-muted); font-size:12px;">${idStr}</span>${countsHtml}</div>
+                        <div>${statusHtml} ${poolStatusHtml}${poolLink} <span style="color:var(--text-muted); font-size:12px;">${idStr}</span>${countsHtml}</div>
                         <div class="vq-date">${detail}${v.visitObserverUserName ? ' — ' + v.visitObserverUserName : ''}</div>
                     </div>
                     <div class="vq-actions">${actions}</div>

@@ -148,6 +148,16 @@ async function checkFreshness(cache, onRefresh) {
 // The /pools JOIN returns multiple rows when a pool has multiple visits/surveys.
 // Merge into one row per pool, preserving whether it has visits/surveys/reviews.
 function deduplicateByPoolId(rows) {
+    // The /pools cross-join multiplies rows when a pool has N visits and M
+    // reviews. To answer "does this pool need re-review?" we need the
+    // LATEST visit edit and the LATEST review across all joined rows, not
+    // whichever pair happened to land in the first row. Track the max
+    // timestamps explicitly; null/undefined treated as "never".
+    function maxTs(a, b) {
+        if (!a) return b || null;
+        if (!b) return a;
+        return (new Date(a).getTime() >= new Date(b).getTime()) ? a : b;
+    }
     let poolMap = new Map();
     for (let row of rows) {
         let pid = row.poolId || row.mappedPoolId || '';
@@ -163,6 +173,9 @@ function deduplicateByPoolId(rows) {
                 _visitIds: new Set(row.visitId ? [row.visitId] : []),
                 _surveyIds: new Set(row.surveyId ? [row.surveyId] : []),
                 _photoCount: row.photoCount || 0,
+                // Max-of timestamps across joined rows for this pool.
+                _maxVisitUpdatedAt:  row.visitUpdatedAt  || null,
+                _maxReviewUpdatedAt: row.reviewUpdatedAt || null,
             });
         } else {
             // Merge: mark if any joined row has a visit/survey/review
@@ -175,6 +188,8 @@ function deduplicateByPoolId(rows) {
             if (row.visitUserName && !existing.visitUserName) existing.visitUserName = row.visitUserName;
             if (row.visitObserverUserName && !existing.visitObserverUserName) existing.visitObserverUserName = row.visitObserverUserName;
             if (row.surveyUserName && !existing.surveyUserName) existing.surveyUserName = row.surveyUserName;
+            existing._maxVisitUpdatedAt  = maxTs(existing._maxVisitUpdatedAt,  row.visitUpdatedAt);
+            existing._maxReviewUpdatedAt = maxTs(existing._maxReviewUpdatedAt, row.reviewUpdatedAt);
         }
     }
     // Replace visitId/surveyId/reviewId with merged booleans for filterRowsByDataType

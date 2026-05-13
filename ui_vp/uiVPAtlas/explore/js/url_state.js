@@ -142,8 +142,19 @@ export function filterRowsByDataType(rows, userInfo=null) {
             });
         }
         case 'Review':
-            // Pools needing review: visited but no review, or review status pending
-            return rows.filter(r => r.visitId && !r.reviewId);
+            // Pools needing review: a visit exists AND its latest update is
+            // more recent than the latest review (which is coalesced to a
+            // distant past when no review exists, so never-reviewed pools
+            // always match). Implemented per the deduplicated max
+            // timestamps computed in pool_list.js — see deduplicateByPoolId.
+            return rows.filter(r => {
+                if (!r.visitId) return false;
+                let visitAt = r._maxVisitUpdatedAt;
+                if (!visitAt) return false; // defensive: visitId without timestamp
+                let reviewAt = r._maxReviewUpdatedAt; // null when never reviewed
+                if (!reviewAt) return true;           // coalesce(reviewAt, 1900-01-01) → always due
+                return new Date(visitAt).getTime() > new Date(reviewAt).getTime();
+            });
         case 'All':
         default:
             return rows;
