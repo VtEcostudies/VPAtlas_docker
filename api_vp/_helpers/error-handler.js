@@ -25,8 +25,13 @@ try {
       if (err.name === 'UnauthorizedError') { //jwt authentication error
         next(res.status(401).json(err));
       } else {
-        //ret = { message: err.message }; //hmm. not sure why I did this. UX display issues?
-        next(res.status(400).json(err));
+        // Error objects have non-enumerable name/message, so res.json(err) on
+        // `new Error('…')` serializes to {} and the UI has nothing to show.
+        // Build an explicit payload that always includes message/name, plus
+        // any enumerable own props (pg severity/code/detail, Nodemailer
+        // code/command, etc.) the underlying error carried.
+        const payload = { ...err, name: err.name, message: err.message };
+        next(res.status(400).json(payload));
       }
     } else {
       console.log('errorHandler | Other Error | error:', err)

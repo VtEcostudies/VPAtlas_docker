@@ -200,7 +200,7 @@
         const allDisplayFields = ['username', 'email', 'userrole', 'status', ...editableFields];
 
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!ensureOnline({ pageName: 'My Profile' })) return;
+            if (!(await ensureOnline({ pageName: 'My Profile' }))) return;
             if (!(await requireAuth())) return;
 
             viewingUser = await getUser();

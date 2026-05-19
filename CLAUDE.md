@@ -1,5 +1,34 @@
 # VPAtlas Docker — Project Guide
 
+## 🔒 Locked decisions — re-read before every non-trivial change
+
+These are explicit user-locked rules. Do **not** violate without going back
+to the user and re-discussing. When in doubt, scan this list first. Each
+entry: rule + date logged + short rationale; click through to memory for
+the full why.
+
+- **No cache-key suffix bumps in code** (2026-05-13) — Do not bump
+  `POOL_CACHE_KEY` / sibling keys in [/js/cache_keys.js](ui_vp/uiVPAtlas/js/cache_keys.js)
+  as a stale-cache fix. **Reset App** on
+  [/admin/profile.html](ui_vp/uiVPAtlas/admin/profile.html) is the user-side
+  invalidation mechanism. Make consumers tolerant of older cached schemas
+  instead. A code-side bump forces every active user to refetch the full
+  ~98 MB `/pools` payload — heavy-handed and not what we want from a deploy.
+- **Patch-only versioning, stay in 3.5.x** — No major or minor bumps until
+  told otherwise. `node sw-build.js patch` only.
+- **Every user-visible change → today's changelog, same commit** — See
+  the *Changelog* workflow section below. No batching.
+- **Every new client-side file → urlsToCache.js, same commit** — Public PWA,
+  field-offline use. See the *Offline / Service Worker* workflow section.
+- **Changelogs live ONLY in [ui_vp/uiVPAtlas/docs/](ui_vp/uiVPAtlas/docs/)** —
+  Never duplicate at the repo root; that path isn't served.
+- **`api_vp/**` edits require `up -d --build api_vp`** — A plain `restart`
+  keeps old code.
+
+How to add a new locked decision: when the user says "we decided X" /
+"don't do Y" / "from now on Z," append a bullet here in the same change.
+Date it. Cross-reference a memory file if there's a longer rationale.
+
 ## What This Is
 VPAtlas is a vernal pool ecological data management system for Vermont. This repo (`VPAtlas_docker`) is the new Dockerized rewrite, migrating from an Angular 14 app (`VPAtlas_orig`) to plain HTML/JS/CSS following patterns established in LoonWeb.
 
@@ -142,6 +171,20 @@ Each needs its own SurveyState class, GPS tracking, and offline-first PWA suppor
 - Single data flow: one fetch drives list + map + summary
 - Pool status colors: Potential=goldenrod, Probable=cyan, Confirmed=dark blue
 - Pool shapes by survey level: potential=circle, visited=triangle, monitored=diamond
+
+## Offline contract — READ [`OFFLINE_CONTRACT.md`](OFFLINE_CONTRACT.md) BEFORE TOUCHING app.js / sw_template.js / urlsToCache.js / any data load
+
+Offline is a **normal expected state, not an error.** The same regression
+has been reintroduced many times: code calls `fetch()` unconditionally →
+SW returns 503 offline → 503 thrown → page shows an error instead of using
+cache. **The rule:** network available → fetch, fall back to cache on
+failure; network unavailable → do NOT fetch, use cache/IndexedDB, show no
+error. The only sanctioned online check is `isOnline()` in
+[`js/net_status.js`](ui_vp/uiVPAtlas/js/net_status.js) — never bare
+`navigator.onLine` (unreliable on captive portals / webviews). `app.js`
+must never unregister the SW; the SW's cache-fallback handlers must stay
+cache-first. Full rules + required manual offline test in
+[`OFFLINE_CONTRACT.md`](OFFLINE_CONTRACT.md).
 
 ## Offline / Service Worker — REQUIRED workflow
 This is a public PWA used by volunteers in the field, often without connectivity. Every static asset the app needs offline must be precached.

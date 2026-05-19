@@ -8,7 +8,13 @@ import { ensureCachesLoaded } from '/js/pool_data_cache.js';
 import { showWait, hideWait } from './utils.js';
 import { filters, putUserState } from './url_state.js';
 import { getLocal, setLocal } from '/js/storage.js';
+import { isOnline } from '/js/net_status.js';
 import { POOL_CACHE_KEY as CACHE_KEY } from '/js/cache_keys.js';
+// Older POOL_CACHE_KEY values. When the key suffix is bumped (schema
+// change), an offline user who hasn't been online since the bump has no
+// data under the new key. Rather than strand them with an error, fall
+// back to the most recent legacy cache. Newest-first.
+const LEGACY_POOL_CACHE_KEYS = ['pool_cache_v2', 'pool_cache'];
 // CACHE_KEY: see /js/cache_keys.js — bump the suffix there to invalidate
 // existing client caches after schema changes. { rows, fingerprint, ts }
 const STALE_MS = 60 * 1000;            // check freshness after 1 min
@@ -62,14 +68,44 @@ export async function loadPools(onRefresh = null) {
     let cache = await getLocal(CACHE_KEY);
     if (cache && cache.rows && cache.rows.length) {
         console.log(`pool_list: loaded ${cache.rows.length} pools from cache`);
-        // Check freshness in background
-        checkFreshness(cache, onRefresh);
-        // Populate visit/survey caches for offline use (fire-and-forget)
-        ensureCachesLoaded();
+        // Freshness check + ensureCachesLoaded both hit the network. Only
+        // do them when actually online — offline they'd throw / 503 and
+        // (for ensureCachesLoaded) thrash. Cache-first render already
+        // happened; staleness can wait until we're back online.
+        isOnline().then(on => {
+            if (!on) return;
+            checkFreshness(cache, onRefresh);
+            ensureCachesLoaded();
+        });
         return cache.rows;
     }
 
-    // 2. No cache — fetch from DB (shows wait overlay)
+    // 2. No cache under the current key. Before doing anything network,
+    //    check connectivity — this is the path that has repeatedly
+    //    regressed into "blank/error pool list offline".
+    if (!(await isOnline())) {
+        // OFFLINE with no current-key cache. A POOL_CACHE_KEY bump is the
+        // usual reason (the user simply hasn't been online since the new
+        // build). Recover the newest legacy cache instead of erroring.
+        for (let legacyKey of LEGACY_POOL_CACHE_KEYS) {
+            let legacy = await getLocal(legacyKey);
+            if (legacy && legacy.rows && legacy.rows.length) {
+                console.warn(`pool_list: offline, no '${CACHE_KEY}' cache — serving stale '${legacyKey}' (${legacy.rows.length} pools)`);
+                return legacy.rows;
+            }
+        }
+        // Genuinely nothing cached and offline — calm message, not a
+        // red error. Nothing we fetch will succeed; don't pretend.
+        console.warn('pool_list: offline and no cached pools available');
+        if (listContainer) {
+            listContainer.innerHTML = `<div style="padding:12px; color:var(--text-secondary);">
+                You're offline and no pools have been cached on this device yet.
+                Connect to the internet once and the map will work offline afterward.</div>`;
+        }
+        return [];
+    }
+
+    // 3. Online and no cache — fetch from DB (shows wait overlay)
     return await fetchAndCache(onRefresh);
 }
 
@@ -163,9 +199,34 @@ function deduplicateByPoolId(rows) {
         let pid = row.poolId || row.mappedPoolId || '';
         if (!pid) continue;
         let existing = poolMap.get(pid);
+        // Per-VISIT rollup for the Review filter. Reviews are tied to a
+        // specific visit (vpreview.reviewVisitId = vpvisit.visitId), and the
+        // /pools LEFT JOIN is `ON "reviewVisitId"="visitId"`, so each joined
+        // row's review (if any) belongs to THAT row's visit. Build
+        // _visitMap[visitId] = { lastEditedAt, hasReview, maxReviewQADate }
+        // so the filter can ask "does any one visit need (re)review?"
+        // instead of comparing pool-wide maxes (which could pair visit-A's
+        // edit against visit-B's review).
+        function rollupVisit(target, r) {
+            if (!r.visitId) return;
+            let vm = target._visitMap || (target._visitMap = {});
+            let v = vm[r.visitId] || (vm[r.visitId] = {
+                lastEditedAt: r.lastEditedAt || null,
+                hasReview: false,
+                maxReviewQADate: null,
+            });
+            // lastEditedAt is a per-visit column — identical across this
+            // visit's joined rows; first non-null wins.
+            if (!v.lastEditedAt && r.lastEditedAt) v.lastEditedAt = r.lastEditedAt;
+            if (r.reviewId) {
+                v.hasReview = true;
+                v.maxReviewQADate = maxTs(v.maxReviewQADate, r.reviewQADate);
+            }
+        }
+
         if (!existing) {
             // Clone and init tracking fields
-            poolMap.set(pid, {
+            let seed = {
                 ...row,
                 _hasVisit: !!row.visitId,
                 _hasSurvey: !!row.surveyId,
@@ -174,10 +235,15 @@ function deduplicateByPoolId(rows) {
                 _surveyIds: new Set(row.surveyId ? [row.surveyId] : []),
                 _photoCount: row.photoCount || 0,
                 // Max-of timestamps across joined rows for this pool.
+                // Retained for the debug strip; the Review filter no longer
+                // uses these (it uses _visitMap, per-visit).
                 _maxVisitUpdatedAt:  row.visitUpdatedAt  || null,
                 _maxReviewUpdatedAt: row.reviewUpdatedAt || null,
                 _maxReviewQADate:    row.reviewQADate    || null,
-            });
+                _visitMap: {},
+            };
+            rollupVisit(seed, row);
+            poolMap.set(pid, seed);
         } else {
             // Merge: mark if any joined row has a visit/survey/review
             if (row.visitId) { existing._hasVisit = true; existing._visitIds.add(row.visitId); }
@@ -192,6 +258,7 @@ function deduplicateByPoolId(rows) {
             existing._maxVisitUpdatedAt  = maxTs(existing._maxVisitUpdatedAt,  row.visitUpdatedAt);
             existing._maxReviewUpdatedAt = maxTs(existing._maxReviewUpdatedAt, row.reviewUpdatedAt);
             existing._maxReviewQADate    = maxTs(existing._maxReviewQADate,    row.reviewQADate);
+            rollupVisit(existing, row);
         }
     }
     // Replace visitId/surveyId/reviewId with merged booleans for filterRowsByDataType
@@ -252,24 +319,27 @@ function renderPoolTable(rows) {
         if (photos) countParts.push(`<i class="fa fa-camera"></i>${photos}`);
         let counts = countParts.join(' · ');
 
-        // Debug strip: visit-updatedAt vs. review-QA-date vs. review-updatedAt.
-        // Surfaced so we can see why the Review filter is or isn't catching
-        // a given pool — updatedAt on either side may have been migration-
-        // bumped, in which case the QA date is the real signal of "when
-        // the review actually said something" and the comparison logic
-        // should switch.
+        // Debug strip: the actual inputs the (new) per-visit Review filter
+        // uses. e = newest visit.lastEditedAt across this pool's visits
+        // (NULL until a user edits a visit through the app — migration 016);
+        // q = newest review.reviewQADate; nr = count of visits with no
+        // review. A pool is in the Review queue when nr>0 OR e>q.
         function fmtTs(ts) {
             if (!ts) return '—';
             let s = String(ts);
-            // ISO timestamp → yyyy-mm-dd; date-only string stays as-is.
             return s.length >= 10 ? s.slice(0, 10) : s;
         }
-        let dbgVis = fmtTs(row._maxVisitUpdatedAt);
-        let dbgQAD = fmtTs(row._maxReviewQADate);
-        let dbgRup = fmtTs(row._maxReviewUpdatedAt);
+        let _vm = row._visitMap || {};
+        let _vmVals = Object.values(_vm);
+        let dbgEdited = null, dbgQA = null, dbgNoReview = 0;
+        for (let v of _vmVals) {
+            if (v.lastEditedAt && (!dbgEdited || new Date(v.lastEditedAt) > new Date(dbgEdited))) dbgEdited = v.lastEditedAt;
+            if (v.maxReviewQADate && (!dbgQA || new Date(v.maxReviewQADate) > new Date(dbgQA))) dbgQA = v.maxReviewQADate;
+            if (!v.hasReview) dbgNoReview++;
+        }
         let dbgHtml = `<span class="pl-dbg-ts" style="font-size:11px; color:#888; margin-left:4px;" `
-            + `title="visit.updatedAt / review.reviewQADate / review.updatedAt">`
-            + `v:${dbgVis} · q:${dbgQAD} · r:${dbgRup}</span>`;
+            + `title="newest visit.lastEditedAt / newest review.reviewQADate / # visits with no review">`
+            + `e:${fmtTs(dbgEdited)} · q:${fmtTs(dbgQA)} · nr:${dbgNoReview}</span>`;
 
         html += `<div class="pl-row pool-row" data-pool-id="${poolId}">
             <button class="pl-pin${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Remove from Pool Finder' : 'Add to Pool Finder'}">

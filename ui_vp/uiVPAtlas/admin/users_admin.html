@@ -244,7 +244,7 @@
         let sortAsc = true;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!ensureOnline({ pageName: 'User Administration' })) return;
+            if (!(await ensureOnline({ pageName: 'User Administration' }))) return;
             if (!(await requireAuth())) return;
             currentUser = await getUser();
             if (!currentUser || (currentUser.role !== 'admin' && currentUser.userrole !== 'admin')) {

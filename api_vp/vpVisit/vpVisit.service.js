@@ -372,7 +372,14 @@ async function create(body) {
 async function update(id, body) {
     console.log(`vpVisit.service.update | before pgUtil.parseColumns`, staticColumns);
     var queryColumns = pgUtil.parseColumns(body, 2, [id], staticColumns);
-    text = `update vpvisit set (${queryColumns.named}) = (${queryColumns.numbered}) where "visitId"=$1 returning "visitId"`;
+    // Stamp "lastEditedAt" = now() on every user edit. This service.update
+    // is reached ONLY via PUT /pools/visit/:id (the app's edit path) —
+    // S123 / bulk-upload paths use separate upsert services and never call
+    // this. "lastEditedAt" has no DEFAULT and no trigger, so this is its
+    // sole writer: NULL means "never user-edited since baseline", which is
+    // what the Review filter keys off. Appended as a plain assignment after
+    // the tuple SET; Postgres allows mixing the two forms.
+    text = `update vpvisit set (${queryColumns.named}) = (${queryColumns.numbered}), "lastEditedAt" = now() where "visitId"=$1 returning "visitId"`;
     console.log(text, queryColumns.values);
     return await query(text, queryColumns.values);
 }

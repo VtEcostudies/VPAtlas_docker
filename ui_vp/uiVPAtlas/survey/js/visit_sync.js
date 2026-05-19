@@ -64,12 +64,25 @@ export async function syncVisit(uuid) {
             if (canUploadMedia()) {
                 sendSyncStatus('info', `Uploading ${photoCount} photos...`);
                 let photoResult = await uploadPhotos(visit, visitId, token);
-                visit.photos_uploaded = true;
+                // uploadPhotos() swallows per-photo network failures and
+                // returns a count — it never throws. So on poor signal we
+                // land here with failed > 0. Marking photos_uploaded true
+                // anyway would hide the pending indicator and kill the
+                // retry path, silently orphaning the photos (never sent,
+                // and lost for good if the user then deletes the visit).
+                visit.photos_uploaded = (photoResult.failed === 0);
                 await saveVisit(visit);
-                sendSyncStatus('uploaded', {
-                    visit_uuid: uuid, visitId,
-                    message: `Visit + ${photoResult.uploaded} photos uploaded`
-                });
+                if (photoResult.failed > 0) {
+                    sendSyncStatus('uploaded', {
+                        visit_uuid: uuid, visitId,
+                        message: `Visit uploaded. ${photoResult.uploaded} of ${photoResult.uploaded + photoResult.failed} photos sent — ${photoResult.failed} pending, retry on WiFi`
+                    });
+                } else {
+                    sendSyncStatus('uploaded', {
+                        visit_uuid: uuid, visitId,
+                        message: `Visit + ${photoResult.uploaded} photos uploaded`
+                    });
+                }
             } else {
                 visit.photos_uploaded = false;
                 await saveVisit(visit);
@@ -250,13 +263,19 @@ export async function syncPhotosOnly(uuid) {
     syncInProgress = true;
     try {
         let result = await uploadPhotos(visit, visit.server_visit_id, token);
-        visit.photos_uploaded = true;
+        // Same guard as syncVisit: a partial/total photo failure must keep
+        // photos_uploaded false so the pending indicator + retry stay live.
+        visit.photos_uploaded = (result.failed === 0);
         await saveVisit(visit);
-        sendSyncStatus('uploaded', {
-            visit_uuid: uuid,
-            visitId: visit.server_visit_id,
-            message: `${result.uploaded} photos uploaded`
-        });
+        if (result.failed > 0) {
+            sendSyncStatus('warning', `${result.uploaded} of ${result.uploaded + result.failed} photos uploaded — ${result.failed} still pending, retry on WiFi`);
+        } else {
+            sendSyncStatus('uploaded', {
+                visit_uuid: uuid,
+                visitId: visit.server_visit_id,
+                message: `${result.uploaded} photos uploaded`
+            });
+        }
         return true;
     } catch (err) {
         sendSyncStatus('error', `Photo upload failed: ${err.message}`);

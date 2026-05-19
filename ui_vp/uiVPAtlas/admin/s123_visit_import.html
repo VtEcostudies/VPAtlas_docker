@@ -159,7 +159,7 @@
         const MAX_LIMIT = 100;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!ensureOnline({ pageName: 'Survey123 Visit Import' })) return;
+            if (!(await ensureOnline({ pageName: 'Survey123 Visit Import' }))) return;
             let authOk = await requireAuth();
             if (!authOk) return;
 

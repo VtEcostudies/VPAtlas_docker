@@ -14,11 +14,22 @@
   bump a key suffix, only this file changes.
 */
 
-// Pool list cache. Bump the suffix when you add/remove/rename fields the
-// UI reads from cached rows so existing client caches are abandoned and
-// a fresh fetch is forced. Last bump: May 2026 (added _maxVisitUpdatedAt /
-// _maxReviewUpdatedAt used by the new timestamp-based Review filter).
-export const POOL_CACHE_KEY = 'pool_cache_v3';
+// Pool list cache. Keep stable.
+//
+// **Locked decision (2026-05-13):** Do NOT bump the suffix in source as a
+// way to invalidate stale caches when consumers add new derived fields.
+// The Reset App button on /admin/profile.html is the user-side mechanism
+// for that, and the freshness-fingerprint check in pool_list.js handles
+// routine data-change refresh. Bumping the key forces every active user
+// on every device to refetch the full ~98 MB /pools payload, which is
+// not the behavior we want for a deploy. Instead, make the **consumer**
+// tolerant of older cached row schemas (fall back to single-row
+// `visitUpdatedAt` / `reviewUpdatedAt`, or recompute on read).
+//
+// History: a v2 → v3 bump landed briefly on 2026-05-13 as a wrong fix
+// for the timestamp-based Review filter showing empty; reverted same
+// day in favor of a defensive fallback in `filterRowsByDataType`.
+export const POOL_CACHE_KEY = 'pool_cache_v2';
 
 // Visit and survey summary caches — used by the offline pool detail pages.
 export const VISIT_CACHE_KEY = 'visit_cache';

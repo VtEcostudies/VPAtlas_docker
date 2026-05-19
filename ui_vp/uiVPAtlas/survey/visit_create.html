@@ -1219,6 +1219,7 @@
 
                 <div class="form-section" style="margin-top:8px;">
                     <div class="choice-group">
+                        <label><input type="checkbox" id="visitAmphibianDisease"> Did you observe any signs of amphibian disease?</label>
                         <label><input type="checkbox" id="visitFish"> Fish observed</label>
                     </div>
                     <div class="form-field">
@@ -2040,7 +2041,7 @@
             ['visitLandownerPermission',
              'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitFish'
+             'visitAmphibianDisease','visitFish'
             ].forEach(f => {
                 let el = document.getElementById(f);
                 if (el && v[f]) el.checked = true;
@@ -2144,7 +2145,7 @@
             ['visitLandownerPermission',
              'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
-             'visitFish'
+             'visitAmphibianDisease','visitFish'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.checked; });
             // Landowner info as JSONB
             body.visitLandowner = {

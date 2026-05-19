@@ -23,8 +23,15 @@
   should bail — the panel is already on screen).
 */
 
-export function ensureOnline(opts = {}) {
-    if (navigator.onLine) return true;
+import { isOnline } from '/js/net_status.js';
+
+// NOTE: async. Bare `navigator.onLine` was unreliable across browsers
+// (captive portals / dead Wi-Fi / webviews report online when they
+// aren't). Delegates to the one portable check in net_status.js. All
+// callers are inside `async DOMContentLoaded` handlers — await it:
+//   if (!(await ensureOnline({ pageName: '…' }))) return;
+export async function ensureOnline(opts = {}) {
+    if (await isOnline()) return true;
 
     let pageName = opts.pageName || (document.title || 'This page').replace(/^VPAtlas\s*-\s*/i, '');
     let backHref = opts.backHref || '/explore/';

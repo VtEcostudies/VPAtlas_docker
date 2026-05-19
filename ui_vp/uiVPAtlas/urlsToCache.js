@@ -48,10 +48,9 @@ appConfig.urlsToCache = [
 '/docs/CHANGELOG-2026-05-05.md',
 '/docs/CHANGELOG-2026-05-06.md',
 '/docs/CHANGELOG-2026-05-09.md',
-'/docs/CHANGELOG-2026-05-10-partial.md',
-'/docs/CHANGELOG-2026-05-11-partial.md',
-'/docs/CHANGELOG-2026-05-12-partial.md',
-'/docs/CHANGELOG-2026-05-13-partial.md',
+'/docs/CHANGELOG-2026-05-13.md',
+'/docs/CHANGELOG-2026-05-14-partial.md',
+'/docs/CHANGELOG-2026-05-18-partial.md',
 
 // === Shared JS ===
 '/js/app.js',
@@ -76,6 +75,7 @@ appConfig.urlsToCache = [
 '/js/parcels.js',
 '/js/cache_keys.js',
 '/js/require_online.js',
+'/js/net_status.js',
 
 // === Explore JS modules ===
 '/explore/js/utils.js',

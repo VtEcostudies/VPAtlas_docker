@@ -124,6 +124,7 @@
 
     <script type="module">
         import { fetchVisits, createTrack, deleteTrack, deleteVisitById } from '/js/api.js';
+        import { isOnline } from '/js/net_status.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
@@ -296,6 +297,14 @@
                     if (currentUser.id == null) {
                         serverFetchError = 'Logged-in user has no id — cannot identify owner.';
                         serverFetchUsername = currentUser.username || currentUser.handle || currentUser.email || '(none)';
+                    } else if (!(await isOnline())) {
+                        // OFFLINE: do not fetch, do not error. The merged
+                        // list still shows local drafts / uploaded rows from
+                        // IndexedDB. A server fetch here would hit the SW's
+                        // 503 and render a scary error over what is actually
+                        // a normal offline state. See /js/net_status.js and
+                        // the OFFLINE contract.
+                        serverFetchUsername = `id=${currentUser.id} (offline — showing local only)`;
                     } else {
                         serverFetchUsername = `id=${currentUser.id}`;
                         let data = await fetchVisits(`visitObserverUserId=${currentUser.id}`);

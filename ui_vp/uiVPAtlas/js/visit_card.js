@@ -304,6 +304,16 @@ function buildSpeciesTab(v, photosByType) {
         </div>`;
     }
 
+    // Amphibian disease (sits above Fish in the form, mirror that order here)
+    if (v.visitAmphibianDisease != null && v.visitAmphibianDisease !== '') {
+        html += `<div class="vc-card">
+            <div class="vc-card-title"><i class="fa fa-virus"></i>Amphibian Disease</div>
+            <div class="vc-card-grid">
+                ${field('Signs Observed', v.visitAmphibianDisease ? 'Yes' : 'No')}
+            </div>
+        </div>`;
+    }
+
     // Fish
     let fishItems = [];
     if (v.visitFish != null && v.visitFish !== '') fishItems.push(['Fish Present', v.visitFish ? 'Yes' : 'No']);

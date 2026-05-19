@@ -11,7 +11,7 @@
     - Status badge: draft (amber), complete (blue), uploaded (green)
     - Actions: Edit (draft), Upload (complete), Delete (draft/complete)
 */
-import { loadAllVisits, deleteVisit } from './visit_store.js';
+import { loadAllVisits, loadVisit, deleteVisit } from './visit_store.js';
 import { syncVisit, syncAllCompleted } from './visit_sync.js';
 
 // =============================================================================
@@ -150,7 +150,16 @@ function wireActions(container, containerId, opts) {
 
     container.querySelectorAll('.vq-delete').forEach(btn => {
         btn.addEventListener('click', async () => {
-            if (confirm('Delete this saved visit?')) {
+            // Hard-warn before deleting a visit whose photos never reached
+            // the server. The visit JSON may be uploaded, but the photos
+            // live only in this device's IndexedDB until they sync — a
+            // plain "Delete this saved visit?" hides that they'd be lost.
+            let v = await loadVisit(btn.dataset.uuid);
+            let photosPending = v && v.photos_uploaded === false;
+            let msg = photosPending
+                ? 'This visit still has photos that have NOT been uploaded to the server — they exist only on this device. Deleting will permanently lose those photos. Delete anyway?'
+                : 'Delete this saved visit?';
+            if (confirm(msg)) {
                 await deleteVisit(btn.dataset.uuid);
                 await renderVisitQueue(containerId, opts);
             }

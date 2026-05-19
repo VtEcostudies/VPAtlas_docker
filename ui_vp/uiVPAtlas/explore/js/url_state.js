@@ -147,18 +147,46 @@ export function filterRowsByDataType(rows, userInfo=null) {
             });
         }
         case 'Review':
-            // Pools needing review: a visit exists AND its latest update is
-            // more recent than the latest review (which is coalesced to a
-            // distant past when no review exists, so never-reviewed pools
-            // always match). Implemented per the deduplicated max
-            // timestamps computed in pool_list.js — see deduplicateByPoolId.
+            // A pool needs review iff ANY of its visits needs (re)review.
+            // Per-visit, because reviews are tied to a specific visit
+            // (vpreview.reviewVisitId = vpvisit.visitId). pool_list.js
+            // dedupe builds r._visitMap[visitId] =
+            //   { lastEditedAt, hasReview, maxReviewQADate }.
+            // A visit needs (re)review when:
+            //   * it has NO review at all  → first review needed; OR
+            //   * it WAS user-edited (lastEditedAt set) AND that edit is
+            //     newer than its newest review's QA date → re-review.
+            // lastEditedAt is NULL until a user edits the visit through the
+            // app (no DEFAULT, no trigger — migration 016), so legacy /
+            // imported / never-touched reviewed visits are NOT flagged
+            // regardless of any migration-tainted updatedAt. reviewQADate
+            // is NOT NULL after migration 015.
+            //
+            // Cache compatibility: rows written by an older dedupe have no
+            // _visitMap. Fall back to "visit exists but no review" using
+            // the legacy booleans so the queue isn't silently empty before
+            // the freshness refetch heals the cache (policy: no
+            // POOL_CACHE_KEY bump — see cache_keys.js).
             return rows.filter(r => {
-                if (!r.visitId) return false;
-                let visitAt = r._maxVisitUpdatedAt;
-                if (!visitAt) return false; // defensive: visitId without timestamp
-                let reviewAt = r._maxReviewUpdatedAt; // null when never reviewed
-                if (!reviewAt) return true;           // coalesce(reviewAt, 1900-01-01) → always due
-                return new Date(visitAt).getTime() > new Date(reviewAt).getTime();
+                if (!r.visitId && !r._hasVisit) return false;
+                let vm = r._visitMap;
+                if (!vm || typeof vm !== 'object' || !Object.keys(vm).length) {
+                    // Legacy cached row: best-effort — a visit with no
+                    // review is the unambiguous "needs review" case.
+                    return !!(r.visitId || r._hasVisit) && !(r.reviewId || r._hasReview);
+                }
+                let toMs = (d) => {
+                    if (!d) return null;
+                    let t = new Date(d).getTime();
+                    return Number.isFinite(t) ? t : null;
+                };
+                return Object.values(vm).some(v => {
+                    if (!v.hasReview) return true;                 // never reviewed
+                    let edited = toMs(v.lastEditedAt);
+                    if (edited == null) return false;              // not user-edited since baseline
+                    let qa = toMs(v.maxReviewQADate) ?? -8.64e15;  // ~year -271821; coalesce(qa,'1900')
+                    return edited > qa;                            // edited after the review
+                });
             });
         case 'All':
         default:
