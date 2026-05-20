@@ -45,6 +45,23 @@ app.get('/explore/users_admin.html', (req, res) =>
 app.get('/explore/profile.html', (req, res) =>
     res.redirect(301, '/admin/profile.html?' + new URLSearchParams(req.query)));
 
+// Catch-all for legacy Angular SPA routes (e.g. /pools/list, /pool/123, /visit/N)
+// that users still have bookmarked or in browser history after the cutover from
+// the legacy app to this docker rewrite. Without this they'd hit Express's
+// default "Cannot GET /<path>" 404. Redirects only GETs without a file
+// extension, so asset 404s (missing .js/.css/.png) stay as real 404s for
+// proper debugging. Preserves the query string in case any of it maps to
+// a filter the new app understands.
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !path.extname(req.path)) {
+        const qs = req.originalUrl.includes('?')
+            ? '?' + req.originalUrl.split('?').slice(1).join('?')
+            : '';
+        return res.redirect(302, '/explore/' + qs);
+    }
+    next();
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
