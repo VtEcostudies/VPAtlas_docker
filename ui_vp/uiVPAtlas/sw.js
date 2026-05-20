@@ -1,7 +1,7 @@
 // sw.js - Service Worker for VPAtlas (unified app)
 // Generated from sw_template.js by sw-build.js — do not edit directly
-const APP_VERSION = '3.5.295';
-const BUILD_TIMESTAMP = '1779302887875';
+const APP_VERSION = '3.5.296';
+const BUILD_TIMESTAMP = '1779308510585';
 const ME = 'sw.js';
 
 const SW_BASE = self.location.pathname.replace(/\/[^\/]*$/, '');

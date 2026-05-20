@@ -47,6 +47,14 @@
         .docs-content pre code { background: none; padding: 0; color: inherit; }
         .docs-content a { color: var(--primary-color); }
 
+        /* Pane holds the inline markdown renderer + the iframe for HTML guides.
+           Only one is shown at a time (toggled by showDoc()). */
+        .docs-pane { flex: 1; min-width: 0; overflow: hidden; display: flex; }
+        .docs-frame {
+            flex: 1; min-width: 0; width: 100%; height: 100%; border: 0;
+            background: #fff;
+        }
+
         @media (max-width: 700px) {
             .docs-layout { flex-direction: column; height: auto; overflow: visible; }
             .docs-sidebar { flex: 0 0 auto; border-right: none; border-bottom: 1px solid #ddd; }
@@ -66,12 +74,17 @@
 
     <div class="docs-layout">
         <nav class="docs-sidebar">
+            <h6>Guides</h6>
+            <div id="guide_list">Loading…</div>
             <h6>Changelogs</h6>
-            <div id="docs_list">Loading…</div>
+            <div id="changelog_list">Loading…</div>
         </nav>
-        <main id="docs_content" class="docs-content">
-            <p>Select a document from the left.</p>
-        </main>
+        <div class="docs-pane">
+            <main id="docs_content" class="docs-content">
+                <p>Select a document from the left.</p>
+            </main>
+            <iframe id="docs_frame" class="docs-frame" style="display:none;" title="Guide"></iframe>
+        </div>
     </div>
 
     <script src="/js/config.js"></script>
@@ -79,21 +92,27 @@
         import { setupProfileIcon } from '/js/profile_icon.js';
         setupProfileIcon();
 
-        // Known docs — newest first. To add a doc: drop the .md file in this directory
-        // and add an entry here.
+        // Guides (HTML, shown in an iframe) then Changelogs (Markdown, rendered
+        // in-page), newest first. Adding a new doc:
+        //   - HTML guide: drop the .html in this dir, add to urlsToCache.js, add
+        //     entry below with type:'html'.
+        //   - Markdown changelog: drop the .md here, add to urlsToCache.js, add
+        //     entry below with type:'md'.
         const DOCS = [
-            { file: 'CHANGELOG-2026-05-20-partial.md', title: 'Changelog — 2026-05-20 (partial)' },
-            { file: 'CHANGELOG-2026-05-19.md', title: 'Changelog — 2026-05-19' },
-            { file: 'CHANGELOG-2026-05-18.md', title: 'Changelog — 2026-05-18' },
-            { file: 'CHANGELOG-2026-05-14.md', title: 'Changelog — 2026-05-14' },
-            { file: 'CHANGELOG-2026-05-13.md', title: 'Changelog — 2026-05-13' },
-            { file: 'CHANGELOG-2026-05-09.md', title: 'Changelog — 2026-05-09' },
-            { file: 'CHANGELOG-2026-05-06.md', title: 'Changelog — 2026-05-06' },
-            { file: 'CHANGELOG-2026-05-05.md', title: 'Changelog — 2026-05-05' },
-            { file: 'CHANGELOG-2026-05-04.md', title: 'Changelog — 2026-05-04' },
-            { file: 'CHANGELOG-2026-05-03.md', title: 'Changelog — 2026-05-03' },
-            { file: 'CHANGELOG-2026-05-02.md', title: 'Changelog — 2026-05-02' },
-            { file: 'CHANGELOG-2026-05-01.md', title: 'Changelog — 2026-05-01' },
+            { file: 'VPAtlas_App_Install_Guide.html',    title: 'App Install Guide',           type: 'html' },
+            { file: 'VPAtlas_App_Install_Synopsis.html', title: 'App Install — Quick Reference', type: 'html' },
+            { file: 'CHANGELOG-2026-05-20-partial.md', title: 'Changelog — 2026-05-20 (partial)', type: 'md' },
+            { file: 'CHANGELOG-2026-05-19.md', title: 'Changelog — 2026-05-19', type: 'md' },
+            { file: 'CHANGELOG-2026-05-18.md', title: 'Changelog — 2026-05-18', type: 'md' },
+            { file: 'CHANGELOG-2026-05-14.md', title: 'Changelog — 2026-05-14', type: 'md' },
+            { file: 'CHANGELOG-2026-05-13.md', title: 'Changelog — 2026-05-13', type: 'md' },
+            { file: 'CHANGELOG-2026-05-09.md', title: 'Changelog — 2026-05-09', type: 'md' },
+            { file: 'CHANGELOG-2026-05-06.md', title: 'Changelog — 2026-05-06', type: 'md' },
+            { file: 'CHANGELOG-2026-05-05.md', title: 'Changelog — 2026-05-05', type: 'md' },
+            { file: 'CHANGELOG-2026-05-04.md', title: 'Changelog — 2026-05-04', type: 'md' },
+            { file: 'CHANGELOG-2026-05-03.md', title: 'Changelog — 2026-05-03', type: 'md' },
+            { file: 'CHANGELOG-2026-05-02.md', title: 'Changelog — 2026-05-02', type: 'md' },
+            { file: 'CHANGELOG-2026-05-01.md', title: 'Changelog — 2026-05-01', type: 'md' },
         ];
 
         // Tiny Markdown-to-HTML renderer for the subset our changelogs use:
@@ -142,32 +161,49 @@
             return out.join('\n');
         }
 
-        // Render the docs sidebar
-        let listEl = document.getElementById('docs_list');
-        listEl.innerHTML = DOCS.map(d =>
-            `<a href="#${encodeURIComponent(d.file)}" class="docs-link" data-file="${d.file}">${d.title}</a>`
-        ).join('');
-        listEl.querySelectorAll('.docs-link').forEach(a => {
+        // Render the docs sidebar — split into Guides (html) and Changelogs (md)
+        const guideListEl = document.getElementById('guide_list');
+        const changelogListEl = document.getElementById('changelog_list');
+        const linkHtml = d =>
+            `<a href="#${encodeURIComponent(d.file)}" class="docs-link" data-file="${d.file}">${d.title}</a>`;
+        guideListEl.innerHTML     = DOCS.filter(d => d.type === 'html').map(linkHtml).join('');
+        changelogListEl.innerHTML = DOCS.filter(d => d.type === 'md').map(linkHtml).join('');
+        document.querySelectorAll('.docs-link').forEach(a => {
             a.addEventListener('click', (e) => {
                 e.preventDefault();
                 location.hash = a.dataset.file;
             });
         });
 
+        const contentEl = document.getElementById('docs_content');
+        const frameEl = document.getElementById('docs_frame');
+
         async function showDoc(filename) {
             let doc = DOCS.find(d => d.file === filename);
-            if (!doc) { document.getElementById('docs_content').innerHTML = '<p>Document not found.</p>'; return; }
-            listEl.querySelectorAll('.docs-link').forEach(a => a.classList.toggle('active', a.dataset.file === filename));
+            if (!doc) { contentEl.innerHTML = '<p>Document not found.</p>'; return; }
+            document.querySelectorAll('.docs-link').forEach(a => a.classList.toggle('active', a.dataset.file === filename));
             document.getElementById('page_title').textContent = doc.title;
+
+            if (doc.type === 'html') {
+                // Show iframe, hide inline content
+                contentEl.style.display = 'none';
+                frameEl.style.display = '';
+                frameEl.src = `/docs/${encodeURIComponent(filename)}`;
+                return;
+            }
+            // Markdown changelog — render inline
+            frameEl.style.display = 'none';
+            frameEl.src = 'about:blank';
+            contentEl.style.display = '';
             try {
                 let res = await fetch(`/docs/${encodeURIComponent(filename)}`);
                 if (!res.ok) throw new Error(res.statusText);
                 let md = await res.text();
-                document.getElementById('docs_content').innerHTML = renderMarkdown(md);
+                contentEl.innerHTML = renderMarkdown(md);
                 window.scrollTo(0, 0);
-                document.getElementById('docs_content').scrollTop = 0;
+                contentEl.scrollTop = 0;
             } catch (err) {
-                document.getElementById('docs_content').innerHTML =
+                contentEl.innerHTML =
                     `<p style="color:var(--danger-color);">Error loading ${filename}: ${err.message}</p>`;
             }
         }

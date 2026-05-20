@@ -1,9 +1,20 @@
 # Changelog — Snapshot 2026-05-20 (partial)
 
-## v3.5.284 – v3.5.295
+## v3.5.284 – v3.5.296
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-20 changelog.
+
+### Documentation page — install guides + Guides/Changelogs split sidebar
+
+- **Two new mobile install guides.** [docs/VPAtlas_App_Install_Guide.html](ui_vp/uiVPAtlas/docs/VPAtlas_App_Install_Guide.html) is the long step-by-step (iPhone + Android, FAQ); [docs/VPAtlas_App_Install_Synopsis.html](ui_vp/uiVPAtlas/docs/VPAtlas_App_Install_Synopsis.html) is a one-screen quick-reference (linkable in emails/Slack). Modeled on LoonWeb's guide, adapted to VPAtlas's color and auth flow (username/password login from the hamburger, no email/sign-in-code dance).
+- **Docs sidebar now has two sections.** [docs/index.html](ui_vp/uiVPAtlas/docs/index.html) sidebar split into **Guides** (top) and **Changelogs** (below). Guides are HTML files rendered in an iframe (self-styled); changelogs are markdown rendered inline by the existing tiny markdown engine. DOCS entries now carry a `type: 'html' | 'md'` field; sidebar rendering filters into the right section, `showDoc()` chooses iframe vs inline. Same pattern as LoonWeb's `/survey/docs/`.
+- **Offline.** Both guide HTML files are pure static (inline CSS, no external assets), added to [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) so the SW precaches them at install time. Verified with `sw-validate.js` (precache graph) + `test-offline-serve.sh` (runtime deliverability) against the live prod after deploy.
+
+### Service worker / build
+
+- `manifest.json` 3.5.295 → 3.5.296 via `node sw-build.js patch`.
+- `urlsToCache.js` adds `/docs/VPAtlas_App_Install_Guide.html` and `/docs/VPAtlas_App_Install_Synopsis.html`; comment block updated to mention guides as well as changelogs.
 
 ### Production cutover — vpatlas.org is now the docker rewrite
 

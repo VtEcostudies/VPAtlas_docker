@@ -36,11 +36,13 @@ appConfig.urlsToCache = [
 '/admin/s123_survey_import.html',
 
 // === Documentation / changelog ===
-// The hamburger Changelog link is reachable from any precached page,
-// so the docs index + every daily changelog must be precached too.
-// When you add a new CHANGELOG-YYYY-MM-DD(-partial).md, add it here.
+// The hamburger Documentation link is reachable from any precached page,
+// so the docs index + every guide + every daily changelog must be precached too.
+// When you add a new guide (.html) or changelog (.md), add it here too.
 '/docs/',
 '/docs/index.html',
+'/docs/VPAtlas_App_Install_Guide.html',
+'/docs/VPAtlas_App_Install_Synopsis.html',
 '/docs/CHANGELOG-2026-05-01.md',
 '/docs/CHANGELOG-2026-05-02.md',
 '/docs/CHANGELOG-2026-05-03.md',
