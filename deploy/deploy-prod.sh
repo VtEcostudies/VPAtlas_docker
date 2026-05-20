@@ -235,10 +235,13 @@ CONF_EOF
     #    a) Drop any existing line containing 'db_dump_restore/db_backup.sh'
     #       — we'll re-append a fresh, canonical version below. This makes
     #       the mode safe to re-run when the cron line itself evolves.
-    #    b) Comment out any uncommented line that writes '.backup' files
-    #       (the legacy custom-format dumps). Prefix with a clearly-tagged
-    #       disabled-by marker so it's obvious what happened and re-running
-    #       doesn't double-comment.
+    #    b) Comment out any uncommented line that mentions BOTH 'backup'
+    #       AND 'vpatlas' (case-insensitive). This catches the legacy job
+    #       whether it's a wrapper script named vpatlas_backup.sh or a
+    #       direct pg_dump writing *.backup, without touching unrelated
+    #       cron entries (the weekly vpatlas_vacuum.sh, MAILTO, system
+    #       backups of /etc/, etc.). The grep -v above already removed
+    #       our managed line, so awk won't re-comment it.
     #    c) Append the new cron line with a managed-by tag so future updates
     #       can match-and-replace by tag.
     echo ""
@@ -247,7 +250,7 @@ CONF_EOF
 
     ssh_cmd "{ crontab -l 2>/dev/null || true; } \
              | grep -v 'db_dump_restore/db_backup.sh' \
-             | awk '/^[^#]*\\.backup/ { print \"# disabled-by-deploy-prod.sh-backup-install: \" \$0; next } { print }' \
+             | awk '/^[^#]/ && index(tolower(\$0),\"backup\")>0 && index(tolower(\$0),\"vpatlas\")>0 { print \"# disabled-by-deploy-prod.sh-backup-install: \" \$0; next } { print }' \
              > /tmp/cron.new && \
              echo '$NEW_CRON_LINE' >> /tmp/cron.new && \
              crontab /tmp/cron.new && \
