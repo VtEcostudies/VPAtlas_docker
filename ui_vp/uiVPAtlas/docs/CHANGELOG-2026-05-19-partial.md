@@ -1,9 +1,15 @@
 # Changelog — Snapshot 2026-05-19 (partial)
 
-## v3.5.272 – v3.5.277
+## v3.5.272 – v3.5.281
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-19 changelog.
+
+### Pool list — new "Updated" sort, freshest activity first
+
+- **The ask.** Need to sort visited (or any-scope) pools by recency of activity — mapped edits, visit edits, review edits, whichever is freshest.
+- **The data.** [explore/js/pool_list.js](ui_vp/uiVPAtlas/explore/js/pool_list.js) `deduplicateByPoolId` now stamps `_lastUpdatedAt = max(mappedUpdatedAt, _maxVisitUpdatedAt, _maxReviewUpdatedAt)` on every pool. All three are TIMESTAMPs maintained by `trigger_updated_at` server-side, so they capture every meaningful edit on the pool. Lexical ISO compare is correct chronological order, no Date() construction needed.
+- **The UI.** New `Updated` option appended to the sort dropdown. `sortRowsBy` now special-cases date-shaped columns (`/UpdatedAt$|CreatedAt$|QADate$|Date$/`): null/empty rows always sink to the bottom regardless of direction (otherwise "Updated descending" floats every pool with no activity to the top — the opposite of useful), and ISO strings compare lexically. The change handler flips the direction toggle to descending when the user picks a date column, since newest-first is the natural expectation; other columns keep their ascending default.
 
 ### Reviews ↔ visits — surface the QA date, clearer strip labels
 
@@ -58,8 +64,20 @@ Partial day's work; additional changes may land later under a follow-up
 - **Wired into [test_stack.sh](test_stack.sh)** as a new section ("Offline deliverability (urlsToCache.js → ui_vp)") that delegates to the standalone script and folds one PASS/FAIL into the suite roll-up. Suite now reports 69 / 69 passing.
 - **Deploy rule updated** in [CLAUDE.md](CLAUDE.md) (Required deploy sequence) and the build-workflow memory: `sw-build` → `docker compose up -d --build` → `./test_stack.sh` is now the three-step deploy contract. The test must show zero failures before declaring a change complete.
 
+### Documentation — finalize 2026-05-14 and 2026-05-18 changelogs
+
+- **Why.** Both days had been published as `-partial` files because work continued past the snapshot point at the time; the day is long since closed for each. Per the changelog workflow rule (CLAUDE.md), the `-partial` suffix and `(partial)` qualifier come off once the day is finalized.
+- **Mechanical close-out.** Renamed `docs/CHANGELOG-2026-05-14-partial.md` → `CHANGELOG-2026-05-14.md` and `docs/CHANGELOG-2026-05-18-partial.md` → `CHANGELOG-2026-05-18.md`; dropped the `(partial)` qualifier from each file's H1 and removed the boilerplate "Partial day's work; additional changes may land later…" paragraph. The matching pair of entries was updated in both [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) (precache list) and [docs/index.html](ui_vp/uiVPAtlas/docs/index.html) (in-app changelog menu) — same-change, so the renamed files install in the SW precache and appear in the menu without a 503. Today's 2026-05-19 is still open, so its `-partial` entry stays.
+
+### Home page — Vermont Fish &amp; Wildlife crest in the header
+
+- **The ask.** The legacy Angular app credited VTF&W alongside VCE as a project partner (footer + home-page block). The Docker rewrite's header was only carrying the VCE logo + bird icon; the F&W crest belongs there too so the sponsorship is visible from the first screen instead of buried in a footer that this app doesn't have yet.
+- **The asset.** New `images/vfw-crest.png` (~10 KB, portrait shield) supplied by the user. Sits next to the VCE logo inside the existing `.header-logo-link` span in [explore/index.html](ui_vp/uiVPAtlas/explore/index.html), wrapped in an anchor to `https://vtfishandwildlife.com/` (matches the legacy app's link target), `target="_blank" rel="noopener"`. Alt text "VT Fish & Wildlife" + title attr for the hover tooltip.
+- **Responsive treatment.** New `.header-vfw-logo` class in [explore/css/common.css](ui_vp/uiVPAtlas/explore/css/common.css) mirrors `.header-vce-logo` down through the 768 px breakpoint (36 px → 32 px). Below 420 px the two diverge: VCE still collapses to its bird-icon + "VCE" text abbreviation, but the F&W crest has no equivalent shorthand, so it stays visible — shrunk to 28 px so it doesn't crowd the title on the narrowest phones.
+- **Offline.** `'/images/vfw-crest.png'` added to the images block of [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) so the crest renders in the precached home shell even without a network — same treatment as the VCE logos already get.
+
 ### Service worker / build
 
-- **Patch versions** — `manifest.json` 3.5.271 → 3.5.272 (tab bar), then 3.5.272 → 3.5.273 (My Visits offline snapshot), then 3.5.273 → 3.5.274 (home title back to non-heading sans-serif), then 3.5.274 → 3.5.275 (reviews↔visits cross-references), then 3.5.275 → 3.5.276 (review QA date in right pane + ed:/qa: strip labels), then 3.5.276 → 3.5.277 (Review queue auto-refresh via cache-busted freshness probe + per-visit stats subquery) via `node sw-build.js`; `sw.js` regenerated each time.
-- **`urlsToCache.js`** picked up the new `/docs/CHANGELOG-2026-05-19-partial.md` entry. No other client files added.
-- **UI + API rebuild this round** — the Review-queue auto-refresh changed `vpMapped.service.js` SQL, so `up -d --build api_vp` is needed alongside `ui_vp`. No new columns → no `--force-recreate` needed.
+- **Patch versions** — `manifest.json` 3.5.271 → 3.5.272 (tab bar), then 3.5.272 → 3.5.273 (My Visits offline snapshot), then 3.5.273 → 3.5.274 (home title back to non-heading sans-serif), then 3.5.274 → 3.5.275 (reviews↔visits cross-references), then 3.5.275 → 3.5.276 (review QA date in right pane + ed:/qa: strip labels), then 3.5.276 → 3.5.277 (Review queue auto-refresh via cache-busted freshness probe + per-visit stats subquery), then 3.5.277 → 3.5.278 (finalize 05-14 / 05-18 changelogs), then 3.5.279 → 3.5.280 (F&W crest in header), then 3.5.280 → 3.5.281 (keep F&W crest visible under 420 px at 28 px) via `node sw-build.js`; `sw.js` regenerated each time.
+- **`urlsToCache.js`** picked up the new `/docs/CHANGELOG-2026-05-19-partial.md` entry earlier today, switched the 2026-05-14 / 2026-05-18 entries from `-partial.md` to `.md` for the finalize step, and added `/images/vfw-crest.png` for the new sponsor logo.
+- **UI + API rebuild this round** — the Review-queue auto-refresh changed `vpMapped.service.js` SQL, so `up -d --build api_vp` is needed alongside `ui_vp`. No new columns → no `--force-recreate` needed. The F&W crest is a UI-only addition (`up -d --build ui_vp`).

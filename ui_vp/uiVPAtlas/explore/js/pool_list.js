@@ -292,6 +292,16 @@ function deduplicateByPoolId(rows) {
         if (row._hasVisit && !row.visitId) row.visitId = true;
         if (row._hasSurvey && !row.surveyId) row.surveyId = true;
         if (row._hasReview && !row.reviewId) row.reviewId = true;
+        // _lastUpdatedAt = the freshest user-meaningful change on this
+        // pool — the max of the mapped, visit, and review updatedAt
+        // timestamps. Powers the "Updated" sort option so a user can
+        // ask "show me visited pools, freshest first" in one step. All
+        // three columns are TIMESTAMPs maintained by trigger_updated_at
+        // server-side; lexical ISO compare is correct ordering.
+        row._lastUpdatedAt = maxTs(
+            maxTs(row.mappedUpdatedAt, row._maxVisitUpdatedAt),
+            row._maxReviewUpdatedAt
+        );
         result.push(row);
     }
     return result;
@@ -320,6 +330,7 @@ function renderPoolTable(rows) {
             <option value="_visitCount" style="font-size:16px;" ${sortCol==='_visitCount'?'selected':''}>Visits</option>
             <option value="_surveyCount" style="font-size:16px;" ${sortCol==='_surveyCount'?'selected':''}>Surveys</option>
             <option value="_photoCount" style="font-size:16px;" ${sortCol==='_photoCount'?'selected':''}>Photos</option>
+            <option value="_lastUpdatedAt" style="font-size:16px;" ${sortCol==='_lastUpdatedAt'?'selected':''}>Updated</option>
         </select>
         <button id="pool_sort_dir" title="Toggle direction" style="font-size:20px; font-weight:bold; line-height:1; height:40px; min-width:44px; padding:0; box-sizing:border-box; border:1px solid var(--primary-color); background:white; color:var(--primary-color); border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;">${sortAsc ? '↑' : '↓'}</button>
     </div>`;
@@ -439,6 +450,11 @@ function renderPoolTable(rows) {
     if (sortSelect) {
         sortSelect.addEventListener('change', () => {
             sortCol = sortSelect.value;
+            // For date-shaped sorts the user almost always wants newest
+            // first; flip to descending on the switch so they don't have
+            // to immediately tap the direction toggle. Other columns
+            // (Pool ID, Town, Status) keep ascending as default.
+            if (/UpdatedAt$|CreatedAt$|QADate$|Date$/.test(sortCol)) sortAsc = false;
             renderPoolTable(rows);
         });
     }
@@ -465,9 +481,27 @@ var sortCol = 'mappedPoolId';
 var sortAsc = true;
 
 function sortRowsBy(rows, col, asc) {
+    // Date-shaped columns: ISO-string lexical compare is correct ordering;
+    // but null/empty must always sink to the bottom regardless of
+    // direction, otherwise "Updated descending" floats every pool with no
+    // mapped/visit/review updatedAt to the top — the opposite of useful.
+    let isDateCol = /UpdatedAt$|CreatedAt$|QADate$|Date$/.test(col);
     return [...rows].sort((a, b) => {
-        let va = a[col] != null ? a[col] : '';
-        let vb = b[col] != null ? b[col] : '';
+        let va = a[col];
+        let vb = b[col];
+        if (isDateCol) {
+            let aEmpty = va == null || va === '';
+            let bEmpty = vb == null || vb === '';
+            if (aEmpty && bEmpty) return 0;
+            if (aEmpty) return 1;   // a sinks
+            if (bEmpty) return -1;  // b sinks
+            // ISO 8601 strings — lexical compare matches chronological.
+            if (va < vb) return asc ? -1 : 1;
+            if (va > vb) return asc ? 1 : -1;
+            return 0;
+        }
+        if (va == null) va = '';
+        if (vb == null) vb = '';
         if (typeof va === 'number' || typeof vb === 'number') {
             let na = Number(va) || 0;
             let nb = Number(vb) || 0;

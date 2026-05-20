@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-05-18 (partial)
+# Changelog — Snapshot 2026-05-18
 
 ## v3.5.267 – v3.5.271
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-18 changelog.
 
 ### Atlas Visit — "signs of amphibian disease?" question on the Species tab
 

@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-05-14 (partial)
+# Changelog — Snapshot 2026-05-14
 
 ## v3.5.265 – v3.5.266
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-14 changelog.
 
 ### Explore — Review filter, defensive fallback instead of cache-key bump
 

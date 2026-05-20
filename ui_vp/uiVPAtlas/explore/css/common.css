@@ -468,6 +468,14 @@ div.controls {
     width: auto;
     flex-shrink: 0;
 }
+/* VT Fish & Wildlife crest, sponsor logo paired with VCE.
+   Shares the VCE responsive treatment so the two logos shrink and hide
+   together on narrow phones where header real-estate is at a premium. */
+.header-vfw-logo {
+    height: 36px;
+    width: auto;
+    flex-shrink: 0;
+}
 /* On narrow phones, replace the full VCE logo image with a small icon plus
    the acronym "VCE" per Design Review 2 decision 33:50 (refined): full
    logo on large screens, abbreviated icon + text on small. */
@@ -505,12 +513,17 @@ div.controls {
 }
 @media (max-width: 768px) {
     .header-vce-logo { height: 32px; }
+    .header-vfw-logo { height: 32px; }
     .header-app-name { font-size: 15px; }
 }
 @media (max-width: 419px) {
     .header-vce-logo { display: none; }
     .header-vce-icon { display: inline-block; }
     .header-vce-text { display: inline-block; }
+    /* VCE collapses to icon+text on narrow phones, but F&W has no
+       equivalent abbreviated form — keep the crest visible, just
+       shrunk a touch so it doesn't crowd the title. */
+    .header-vfw-logo { height: 28px; }
 }
 hr {
     margin: 0;

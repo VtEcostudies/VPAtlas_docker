@@ -49,8 +49,8 @@ appConfig.urlsToCache = [
 '/docs/CHANGELOG-2026-05-06.md',
 '/docs/CHANGELOG-2026-05-09.md',
 '/docs/CHANGELOG-2026-05-13.md',
-'/docs/CHANGELOG-2026-05-14-partial.md',
-'/docs/CHANGELOG-2026-05-18-partial.md',
+'/docs/CHANGELOG-2026-05-14.md',
+'/docs/CHANGELOG-2026-05-18.md',
 '/docs/CHANGELOG-2026-05-19-partial.md',
 
 // === Shared JS ===
@@ -130,6 +130,7 @@ appConfig.urlsToCache = [
 '/images/vce_logo_no_tagline.png',
 '/images/vce_logo_abbrev.png',
 '/images/vce_bird_icon.png',
+'/images/vfw-crest.png',
 
 // === Photo identification aids — species (offline reference) ===
 '/images/species/bluespot-adult.jpg',
