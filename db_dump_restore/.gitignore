@@ -1,0 +1,10 @@
+# Logs and per-run state — never tracked
+logs/
+*.log
+
+# Temp files
+*.tmp
+*.temp
+
+# Dumps land in ../db_backup/ which is gitignored at the repo root,
+# so no exclude needed here.
