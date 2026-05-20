@@ -16,8 +16,22 @@ import { POOL_CACHE_KEY as CACHE_KEY } from '/js/cache_keys.js';
 // back to the most recent legacy cache. Newest-first.
 const LEGACY_POOL_CACHE_KEYS = ['pool_cache_v2', 'pool_cache'];
 // CACHE_KEY: see /js/cache_keys.js — bump the suffix there to invalidate
-// existing client caches after schema changes. { rows, fingerprint, ts }
+// existing client caches after schema changes. { rows, fingerprint, ts,
+// shapeVersion }
 const STALE_MS = 60 * 1000;            // check freshness after 1 min
+
+// Shape version of the dedup output stored in the pool cache. Bumped
+// whenever deduplicateByPoolId adds a new synthetic field downstream code
+// depends on (e.g. _lastUpdatedAt for the "Updated" sort, the photo /
+// review counts, etc.). Mismatch on load → online: silently refetch;
+// offline: serve the cached rows anyway (getSortVal falls back to the
+// source columns). This is the sibling of the stats-fingerprint freshness
+// check, but for CODE-shape changes instead of DATA-content changes — and
+// avoids the locked-decision "don't bump cache keys" trap, since the
+// existing cache survives and is repopulated in place.
+//   v2 (2026-05-19): added _lastUpdatedAt = max(mapped, visit, review
+//                    updatedAt) used by the "Updated" sort.
+const POOL_CACHE_SHAPE_VERSION = 2;
 
 var onPoolSelect = null;
 var onPoolDeselect = null;
@@ -67,7 +81,21 @@ export async function loadPools(onRefresh = null) {
     // 1. Try cache first — instant render
     let cache = await getLocal(CACHE_KEY);
     if (cache && cache.rows && cache.rows.length) {
-        console.log(`pool_list: loaded ${cache.rows.length} pools from cache`);
+        let shapeOk = cache.shapeVersion === POOL_CACHE_SHAPE_VERSION;
+        if (!shapeOk) {
+            // CODE-shape change (new synthetic field, etc.) since this
+            // cache was written. Online → silently refetch so the new
+            // shape lands and downstream code (e.g. "Updated" sort)
+            // works. Offline → serve the cached rows anyway; getSortVal
+            // falls back to source columns for missing synthetic fields.
+            if (await isOnline()) {
+                console.log(`pool_list: cache shape v${cache.shapeVersion || 1} < v${POOL_CACHE_SHAPE_VERSION} — refetching`);
+                return await fetchAndCache(onRefresh);
+            }
+            console.warn(`pool_list: cache shape v${cache.shapeVersion || 1} stale and offline — serving as-is`);
+            return cache.rows;
+        }
+        console.log(`pool_list: loaded ${cache.rows.length} pools from cache (shape: v${POOL_CACHE_SHAPE_VERSION})`);
         // Freshness check + ensureCachesLoaded both hit the network. Only
         // do them when actually online — offline they'd throw / 503 and
         // (for ensureCachesLoaded) thrash. Cache-first render already
@@ -151,8 +179,8 @@ async function fetchAndCache(onRefresh) {
             if (stats.rows && stats.rows[0]) fingerprint = statsFingerprint(stats.rows[0]);
         } catch(e) {}
 
-        await setLocal(CACHE_KEY, { rows, fingerprint, ts: Date.now() });
-        console.log(`pool_list: fetched and cached ${rows.length} pools (fp: ${fingerprint})`);
+        await setLocal(CACHE_KEY, { rows, fingerprint, ts: Date.now(), shapeVersion: POOL_CACHE_SHAPE_VERSION });
+        console.log(`pool_list: fetched and cached ${rows.length} pools (fp: ${fingerprint}, shape: v${POOL_CACHE_SHAPE_VERSION})`);
         // Also refresh visit/survey caches (fire-and-forget)
         ensureCachesLoaded();
         return rows;
@@ -480,6 +508,12 @@ function getStatusClass(status) {
 var sortCol = 'mappedPoolId';
 var sortAsc = true;
 
+// Pull the sort value off a row, computing synthetic date fields on the
+// fly when needed. _lastUpdatedAt was added to deduplicateByPoolId, but
+// rows already sitting in the IndexedDB pool cache (deduped by an older
+// build) don't carry it. Per the "no cache-key suffix bumps" locked
+// decision, consumers must tolerate older cached shapes — so derive it
+// from the source columns, which are always present.
 function sortRowsBy(rows, col, asc) {
     // Date-shaped columns: ISO-string lexical compare is correct ordering;
     // but null/empty must always sink to the bottom regardless of
