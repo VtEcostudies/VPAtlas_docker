@@ -1,9 +1,17 @@
 # Changelog — Snapshot 2026-05-20 (partial)
 
-## v3.5.284 – v3.5.296
+## v3.5.284 – v3.5.297
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-20 changelog.
+
+### Home page hamburger — "Changelog" renamed to "Documentation"
+
+- **Why.** Now that the docs page houses install guides as well as the daily changelogs, "Changelog" undersells what's behind that link. Renamed the hamburger menu entry in [explore/index.html](ui_vp/uiVPAtlas/explore/index.html) to "Documentation". Same href (`/docs/`), same icon.
+
+### Service worker / build
+
+- `manifest.json` 3.5.296 → 3.5.297 via `node sw-build.js patch`.
 
 ### Documentation page — install guides + Guides/Changelogs split sidebar
 
