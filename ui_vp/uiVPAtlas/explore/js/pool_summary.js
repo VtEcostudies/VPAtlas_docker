@@ -9,8 +9,9 @@
     All summaries are computed from the same filtered rows that drive the
     pool list and map — ensuring all three panes always agree.
 */
-import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchVisitPhotos, fetchSurveysByPool } from '/js/api.js';
+import { fetchMappedPoolById, fetchMappedPoolStats, fetchVisitsByPool, fetchVisitPhotos, fetchSurveysByPool, fetchReviews } from '/js/api.js';
 import { getPoolById, getVisitsByPoolId, getSurveysByPoolId } from '/js/pool_data_cache.js';
+import { isOnline } from '/js/net_status.js';
 import { getUser } from '/js/auth.js';
 import { formatDate } from './utils.js';
 import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
@@ -284,10 +285,33 @@ export async function showPoolSummary(poolId, onBack = null) {
             catch(e) { visits = await getVisitsByPoolId(poolId); }
             visitRows = visits.rows || (Array.isArray(visits) ? visits : []);
             if (visitRows.length) {
+                // Which of these visits have been reviewed? Reviews have no
+                // offline cache, so this is an OPTIONAL enhancement: gate on
+                // isOnline() and swallow any failure — offline just means no
+                // review tags, never an error (see the OFFLINE contract).
+                let reviewByVisit = new Map();   // visitId → { reviewId, qaDate }
+                try {
+                    if (await isOnline()) {
+                        let rev = await fetchReviews(`reviewPoolId=${poolId}`);
+                        for (let r of (rev.rows || [])) {
+                            let vid = r.reviewVisitId || r.reviewVisitIdLegacy;
+                            if (vid != null && !reviewByVisit.has(vid)) {
+                                reviewByVisit.set(vid, { reviewId: r.reviewId, qaDate: r.reviewQADate });
+                            }
+                        }
+                    }
+                } catch (e) { /* offline / hiccup → no review tags, no error */ }
+
                 html += `<div class="summary-section"><h6>Visits (${visitRows.length})</h6>`;
                 visitRows.slice(0, 10).forEach(v => {
+                    let rv = reviewByVisit.get(v.visitId);
+                    // Show the QA date (most useful at a glance) plus the
+                    // review id. e.g. "📋 qa:2024-06-12 #2515".
+                    let reviewedTag = rv
+                        ? ` <span style="font-size:11px; color:var(--primary-color); white-space:nowrap;" title="Reviewed — review #${rv.reviewId}${rv.qaDate ? ', QA ' + formatDate(rv.qaDate) : ''}"><i class="fa fa-clipboard-check"></i> ${rv.qaDate ? 'qa:' + formatDate(rv.qaDate) + ' ' : ''}#${rv.reviewId}</span>`
+                        : '';
                     html += `<a href="visit_view.html?visitId=${v.visitId}" class="summary-list-item" style="text-decoration:none; color:inherit;">
-                        <span>${formatDate(v.visitDate)}</span>
+                        <span>${formatDate(v.visitDate)}${reviewedTag}</span>
                         <span>${v.visitObserverUserName || v.visitUserName || ''}</span>
                     </a>`;
                 });

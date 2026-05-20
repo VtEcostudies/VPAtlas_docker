@@ -51,6 +51,7 @@ appConfig.urlsToCache = [
 '/docs/CHANGELOG-2026-05-13.md',
 '/docs/CHANGELOG-2026-05-14-partial.md',
 '/docs/CHANGELOG-2026-05-18-partial.md',
+'/docs/CHANGELOG-2026-05-19-partial.md',
 
 // === Shared JS ===
 '/js/app.js',

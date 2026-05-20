@@ -62,14 +62,22 @@ select
 (select count("mappedPoolId") from vpmapped where "mappedPoolStatus"='Confirmed') as confirmed,
 (select count("mappedPoolId") from vpmapped where "mappedPoolStatus"='Duplicate') as duplicate,
 (select count("mappedPoolId") from vpmapped where "mappedPoolStatus"='Eliminated') as eliminated,
-(select count(distinct "mappedPoolId") from vpmapped m
-left join vpvisit v on v."visitPoolId"=m."mappedPoolId"
-left join vpreview r on r."reviewVisitId"=v."visitId"
-where
-("reviewId" IS NULL AND "visitId" IS NOT NULL
---OR (r."updatedAt" IS NOT NULL AND m."updatedAt" > r."updatedAt")
---OR (r."updatedAt" IS NOT NULL AND v."updatedAt" > r."updatedAt")
-)) as review,
+-- Pools needing review: any visit with NO review at all, OR any visit
+-- whose newest review's reviewQADate is older than the visit's
+-- lastEditedAt (per-visit re-review rule). Mirrors the client filter in
+-- explore/js/url_state.js case 'Review' so the fingerprint moves on
+-- BOTH add-first-review AND edit-after-review events. lastEditedAt is
+-- NULL until a user edits a visit through the app (migration 016), so
+-- legacy/imported visits are correctly NOT flagged.
+(select count(distinct v."visitPoolId") from vpvisit v
+inner join vpmapped m on m."mappedPoolId"=v."visitPoolId"
+left join (
+    select "reviewVisitId", max("reviewQADate") as max_qa
+    from vpreview group by "reviewVisitId"
+) r on r."reviewVisitId"=v."visitId"
+where r."reviewVisitId" IS NULL
+   OR (v."lastEditedAt" IS NOT NULL AND v."lastEditedAt"::date > r.max_qa)
+) as review,
 (select count(distinct("visitPoolId")) from vpvisit
 inner join vpmapped on vpmapped."mappedPoolId"=vpvisit."visitPoolId"
 where "mappedPoolStatus"!='Eliminated' AND "mappedPoolStatus"!='Duplicate'

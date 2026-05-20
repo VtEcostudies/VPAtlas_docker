@@ -125,6 +125,8 @@
     <script type="module">
         import { fetchVisits, createTrack, deleteTrack, deleteVisitById } from '/js/api.js';
         import { isOnline } from '/js/net_status.js';
+        import { getLocal, setLocal } from '/js/storage.js';
+        import { MY_VISITS_CACHE_KEY } from '/js/cache_keys.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
@@ -284,70 +286,102 @@
             let serverVisits = [];
             let serverFetchError = null;        // surfaced in the empty-state UI
             let serverFetchUsername = null;     // shown in the diagnostic line
-            if (currentUser) {
+
+            // Map one raw server visit row → the list's row shape, and
+            // dedup against local rows that already represent it (uploaded
+            // from this device). Shared by the live-fetch path and the
+            // offline snapshot-restore path so the two can't drift.
+            function buildServerVisits(rawRows) {
+                let localServerIds = new Set(localVisits.filter(v => v.server_visit_id).map(v => v.server_visit_id));
+                return (rawRows || [])
+                    .filter(v => !localServerIds.has(v.visitId))
+                    .map(v => ({
+                        source: 'server',
+                        status: 'server',
+                        visitId: v.visitId,
+                        visitPoolId: v.visitPoolId || v.poolId || '',
+                        visitDate: v.visitDate || '',
+                        visitObserverUserName: v.visitObserverUserName || v.visitUserName || '',
+                        townName: v.townName || '',
+                        poolStatus: v.poolStatus || v.mappedPoolStatus || '',
+                        visitLocatePool: v.visitLocatePool || '',
+                        // Ownership + review-status fields drive the
+                        // "Delete" button gate. Mirror the visit_view
+                        // owner check (ids preferred, names as fallback
+                        // for legacy rows that pre-date visitUserId).
+                        visitUserId: v.visitUserId,
+                        visitUserName: v.visitUserName || '',
+                        visitObserverUserId: v.visitObserverUserId,
+                        // reviewCount + photoCount come from per-row
+                        // subqueries on the visits service. isReviewed is
+                        // derived for the delete-gate logic below.
+                        reviewCount: Number(v.reviewCount || 0),
+                        isReviewed: Number(v.reviewCount || 0) > 0,
+                        photoCount: Number(v.photoCount || 0),
+                        speciesCount: speciesCountFromFields(v),
+                        // Server-side timestamps. createdAt is the first
+                        // insert; updatedAt advances on every edit.
+                        visitCreatedAt: v.visitCreatedAt || v.createdAt || null,
+                        visitUpdatedAt: v.visitUpdatedAt || v.updatedAt || null,
+                    }));
+            }
+
+            // Offline / failed-fetch fallback: restore the last snapshot of
+            // this user's server visits taken while online. Same paradigm as
+            // pool_cache / track syncFromServer — a static snapshot so the
+            // field user can still see (and locally edit) their uploaded
+            // visits without a network. Guarded by userId so a stale
+            // snapshot from a previous user is never shown.
+            async function restoreServerSnapshot() {
                 try {
-                    // Query by visitObserverUserId — the stable id that's
-                    // forever associated with this user. Replaces the old
-                    // multi-name IN(...) query, which had to compensate for
-                    // historical drift (handle vs username vs old
-                    // capitalisations all stored as the observer name).
-                    // Migration 011 backfilled the id on every row that
-                    // could be matched by name, so the filter is correct
-                    // for every existing visit too.
-                    if (currentUser.id == null) {
-                        serverFetchError = 'Logged-in user has no id — cannot identify owner.';
-                        serverFetchUsername = currentUser.username || currentUser.handle || currentUser.email || '(none)';
-                    } else if (!(await isOnline())) {
-                        // OFFLINE: do not fetch, do not error. The merged
-                        // list still shows local drafts / uploaded rows from
-                        // IndexedDB. A server fetch here would hit the SW's
-                        // 503 and render a scary error over what is actually
-                        // a normal offline state. See /js/net_status.js and
-                        // the OFFLINE contract.
-                        serverFetchUsername = `id=${currentUser.id} (offline — showing local only)`;
+                    let snap = await getLocal(MY_VISITS_CACHE_KEY);
+                    if (snap && snap.userId === currentUser.id && Array.isArray(snap.rows)) {
+                        serverVisits = buildServerVisits(snap.rows);
+                        let when = snap.ts ? new Date(snap.ts).toLocaleString() : 'unknown';
+                        serverFetchUsername = `id=${currentUser.id} (offline — cached snapshot from ${when})`;
                     } else {
+                        serverFetchUsername = `id=${currentUser.id} (offline — no cached snapshot yet)`;
+                    }
+                } catch (e) {
+                    console.warn('visit_list: snapshot restore failed', e);
+                    serverFetchUsername = `id=${currentUser.id} (offline)`;
+                }
+            }
+
+            if (currentUser) {
+                // Query by visitObserverUserId — the stable id that's
+                // forever associated with this user (migration 011 backfilled
+                // it on every legacy row). One id beats the old multi-name
+                // IN(...) query that had to chase handle/username drift.
+                if (currentUser.id == null) {
+                    serverFetchError = 'Logged-in user has no id — cannot identify owner.';
+                    serverFetchUsername = currentUser.username || currentUser.handle || currentUser.email || '(none)';
+                } else if (!(await isOnline())) {
+                    // OFFLINE: never fetch (SW 503 → scary error over what is
+                    // a normal offline state — see the OFFLINE contract).
+                    // Restore the online snapshot instead so uploaded visits
+                    // remain visible and locally editable.
+                    await restoreServerSnapshot();
+                } else {
+                    try {
                         serverFetchUsername = `id=${currentUser.id}`;
                         let data = await fetchVisits(`visitObserverUserId=${currentUser.id}`);
                         let rows = data.rows || (Array.isArray(data) ? data : []);
-                        // Build set of server visitIds that are also in local (uploaded from here)
-                        let localServerIds = new Set(localVisits.filter(v => v.server_visit_id).map(v => v.server_visit_id));
-                        serverVisits = rows
-                            .filter(v => !localServerIds.has(v.visitId))  // skip dupes
-                            .map(v => ({
-                            source: 'server',
-                            status: 'server',
-                            visitId: v.visitId,
-                            visitPoolId: v.visitPoolId || v.poolId || '',
-                            visitDate: v.visitDate || '',
-                            visitObserverUserName: v.visitObserverUserName || v.visitUserName || '',
-                            townName: v.townName || '',
-                            poolStatus: v.poolStatus || v.mappedPoolStatus || '',
-                            visitLocatePool: v.visitLocatePool || '',
-                            // Ownership + review-status fields drive the
-                            // "Delete" button gate. Mirror the visit_view
-                            // owner check (ids preferred, names as fallback
-                            // for legacy rows that pre-date visitUserId).
-                            visitUserId: v.visitUserId,
-                            visitUserName: v.visitUserName || '',
-                            visitObserverUserId: v.visitObserverUserId,
-                            // reviewCount + photoCount come from per-row
-                            // subqueries on the visits service. isReviewed is
-                            // derived for the delete-gate logic below.
-                            reviewCount: Number(v.reviewCount || 0),
-                            isReviewed: Number(v.reviewCount || 0) > 0,
-                            photoCount: Number(v.photoCount || 0),
-                            speciesCount: speciesCountFromFields(v),
-                            // Server-side timestamps. createdAt is the first
-                            // insert; updatedAt advances on every edit. A
-                            // gap > 5 s (allow for the insert-then-trigger
-                            // race) means the visit was edited after upload.
-                            visitCreatedAt: v.visitCreatedAt || v.createdAt || null,
-                            visitUpdatedAt: v.visitUpdatedAt || v.updatedAt || null,
-                        }));
-                    }  // close `if (!username) ... else {`
-                } catch(e) {
-                    console.warn('visit_list: server load failed', e);
-                    serverFetchError = describeError(e);
+                        serverVisits = buildServerVisits(rows);
+                        // Snapshot the RAW rows so the offline path runs the
+                        // exact same mapper + dedup. Per-user, timestamped.
+                        try {
+                            await setLocal(MY_VISITS_CACHE_KEY, {
+                                userId: currentUser.id, ts: Date.now(), rows
+                            });
+                        } catch (e) { console.warn('visit_list: snapshot save failed', e); }
+                    } catch (e) {
+                        // Online but the fetch failed (flaky signal, server
+                        // hiccup). Per the OFFLINE contract: fall back to the
+                        // cached snapshot silently rather than erroring.
+                        console.warn('visit_list: server load failed, using snapshot', e);
+                        await restoreServerSnapshot();
+                    }
                 }
             }
 

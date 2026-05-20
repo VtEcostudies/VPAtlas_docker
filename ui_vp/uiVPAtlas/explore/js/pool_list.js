@@ -116,6 +116,25 @@ function statsFingerprint(s) {
             s.potential, s.probable, s.confirmed, s.duplicate, s.eliminated].join(':');
 }
 
+// Cache-busted stats fetch used ONLY for the freshness fingerprint
+// (baseline write in fetchAndCache + probe in checkFreshness). The SW
+// keeps /pools/mapped/stats in DATA_CACHE_PATTERNS — stale-while-
+// revalidate keyed on the full URL including query string. Without a
+// buster, the probe reads the same cached fingerprint that's already
+// stored in our pool cache, the equality test passes, and a real
+// data change never triggers a refetch. Window the buster to STALE_MS
+// so we don't bloat the SW cache: at most one new entry per freshness
+// window (~1/min), and the entire data cache is versioned by APP_VERSION
+// so it clears on the next deploy. Other callers of
+// fetchMappedPoolStats (filter_bar, pool_summary, pool_data_cache)
+// keep hitting the plain URL and stay on the SW cache — offline
+// behavior unchanged. getStats only reads `params.username`, so the
+// extra _cb param is silently ignored server-side.
+function fetchFreshStats() {
+    let win = Math.floor(Date.now() / STALE_MS);
+    return fetchMappedPoolStats(`_cb=${win}`);
+}
+
 async function fetchAndCache(onRefresh) {
     showWait();
     try {
@@ -123,10 +142,12 @@ async function fetchAndCache(onRefresh) {
         let rawRows = data.rows || [];
         let rows = deduplicateByPoolId(rawRows);
 
-        // Get current stats fingerprint for future staleness checks
+        // Get current stats fingerprint for future staleness checks.
+        // fetchFreshStats() bypasses the SW data cache so the baseline
+        // and the probe in checkFreshness always compare like-for-like.
         let fingerprint = null;
         try {
-            let stats = await fetchMappedPoolStats();
+            let stats = await fetchFreshStats();
             if (stats.rows && stats.rows[0]) fingerprint = statsFingerprint(stats.rows[0]);
         } catch(e) {}
 
@@ -160,7 +181,7 @@ async function checkFreshness(cache, onRefresh) {
     if (cache.ts && (Date.now() - cache.ts) < STALE_MS) return;
 
     try {
-        let stats = await fetchMappedPoolStats();
+        let stats = await fetchFreshStats();
         let dbFingerprint = stats.rows && stats.rows[0] ? statsFingerprint(stats.rows[0]) : null;
         if (dbFingerprint === null) return;
 
@@ -338,8 +359,8 @@ function renderPoolTable(rows) {
             if (!v.hasReview) dbgNoReview++;
         }
         let dbgHtml = `<span class="pl-dbg-ts" style="font-size:11px; color:#888; margin-left:4px;" `
-            + `title="newest visit.lastEditedAt / newest review.reviewQADate / # visits with no review">`
-            + `e:${fmtTs(dbgEdited)} · q:${fmtTs(dbgQA)} · nr:${dbgNoReview}</span>`;
+            + `title="ed: newest visit last-edited date · qa: newest review QA date · nr: # visits with no review">`
+            + `ed:${fmtTs(dbgEdited)} · qa:${fmtTs(dbgQA)} · nr:${dbgNoReview}</span>`;
 
         html += `<div class="pl-row pool-row" data-pool-id="${poolId}">
             <button class="pl-pin${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Remove from Pool Finder' : 'Add to Pool Finder'}">

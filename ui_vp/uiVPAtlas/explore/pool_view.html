@@ -507,9 +507,16 @@
             let html = '<div class="vq-list">';
             rows.forEach(r => {
                 let detail = [formatDate(r.reviewQADate), r.reviewQAPerson, r.reviewStatus].filter(Boolean).join(' — ');
+                // Which visit did this review evaluate? Lets you tell at a
+                // glance which visits have been reviewed (reviewVisitId is
+                // the modern FK; reviewVisitIdLegacy is the pre-migration id).
+                let rvVisit = r.reviewVisitId || r.reviewVisitIdLegacy || '';
+                let visitTag = rvVisit
+                    ? ` <span class="vq-pool" title="Reviewed visit">→ visit #${rvVisit}</span>`
+                    : '';
                 html += `<div class="vq-item">
                     <div class="vq-info">
-                        <div><span class="vq-status vq-status-uploaded">${r.reviewQACode || 'review'}</span> <span class="vq-pool">#${r.reviewId || ''}</span></div>
+                        <div><span class="vq-status vq-status-uploaded">${r.reviewQACode || 'review'}</span> <span class="vq-pool">#${r.reviewId || ''}</span>${visitTag}</div>
                         <div class="vq-date">${detail}</div>
                     </div>
                     <div class="vq-actions">

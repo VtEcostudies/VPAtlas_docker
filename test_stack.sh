@@ -495,6 +495,22 @@ else
 fi
 
 # =============================================================================
+section "Offline deliverability (urlsToCache.js → ui_vp)"
+# =============================================================================
+# Runtime complement to sw-validate.js (build-time graph check). Every URL
+# listed in urlsToCache.js must return HTTP 200 + non-empty body from the
+# running ui_vp container; otherwise the SW install fails offline and a
+# field volunteer hits "Unavailable Offline" on first visit. Standalone
+# script is committed alongside sw-build/sw-validate; we just delegate.
+if BASE="$UI_URL" ./ui_vp/uiVPAtlas/test-offline-serve.sh > /tmp/offline_serve_out.$$ 2>&1; then
+    summary=$(tail -1 /tmp/offline_serve_out.$$)
+    pass "All precached URLs deliverable ($summary)"
+else
+    fail "Some precached URLs are not deliverable" "$(tail -20 /tmp/offline_serve_out.$$)"
+fi
+rm -f /tmp/offline_serve_out.$$
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 echo ""

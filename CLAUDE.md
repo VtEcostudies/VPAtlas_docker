@@ -44,8 +44,16 @@ VPAtlas is a vernal pool ecological data management system for Vermont. This rep
 docker compose -f docker-compose-vpatlas.yml up -d          # Start all
 docker compose -f docker-compose-vpatlas.yml up -d --build ui_vp  # Rebuild UI only
 ./db_restore.sh                                              # Restore from db_backup/*.backup
-./test_stack.sh                                              # Run full test suite (61 tests)
+./test_stack.sh                                              # Full smoke suite (must run after every deploy)
+./ui_vp/uiVPAtlas/test-offline-serve.sh                      # Just the offline-deliverability slice
 ```
+
+### Required deploy sequence
+After UI/API changes, run all three — see `feedback_build_workflow.md`:
+
+1. `node ui_vp/uiVPAtlas/sw-build.js patch` — bump version + regen sw.js (precache validator runs first).
+2. `docker compose -f docker-compose-vpatlas.yml up -d --build ui_vp` (add `api_vp` when `api_vp/**` changed).
+3. `./test_stack.sh` — must report zero failures. Includes the **Offline deliverability** section that runtime-checks every URL in `urlsToCache.js` against the live ui_vp (runtime complement to sw-validate's build-time graph check). Catches "in the list but not actually served" regressions.
 
 ### Database
 - Restored from `db_backup/vpatlas_*.backup` (pg_dump custom format, ~220MB)

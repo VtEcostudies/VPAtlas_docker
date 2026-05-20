@@ -38,6 +38,14 @@ export const SURVEY_CACHE_KEY = 'survey_cache';
 // Per-tile parcel cache for the parcels overlay on PoolFinder.
 export const PARCEL_CACHE_KEY = 'parcel_cache';
 
+// Snapshot of the signed-in user's OWN server visits, taken whenever
+// "My Visits and Tracks" loads online, so the list still shows their
+// uploaded/server visits when offline. Shape: { userId, ts, rows }.
+// Deliberately NOT in KEEP_ON_USER_CHANGE — it's per-user data and must
+// be wiped when a different user signs in on the device (the snapshot
+// also self-guards by storing userId and checking it on read).
+export const MY_VISITS_CACHE_KEY = 'my_visits_cache';
+
 // Map UI state — base layer choice, overlay toggles. Device-level UX
 // preference, not user-specific.
 export const MAP_SETTINGS_KEY = 'map_settings';

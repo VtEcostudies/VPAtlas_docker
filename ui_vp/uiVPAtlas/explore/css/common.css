@@ -134,12 +134,22 @@ select {
    Mobile: tabbed single-pane layout (replaces stacked three-pane)
    ========================================================================= */
 @media (max-width: 1150px) {
+    /* Fixed bottom tab bar height = operable button area (60px, big
+       enough to tap above the OS gesture strip) + the device's bottom
+       safe-area inset (the home-indicator / swipe-up zone, ~34px on
+       modern iPhones, 0 elsewhere). Single source of truth so the body
+       padding and the pane heights below stay in lockstep with the bar.
+       env() is only non-zero because explore/index.html sets
+       viewport-fit=cover. */
+    :root {
+        --tabbar-h: calc(60px + env(safe-area-inset-bottom, 0px));
+    }
     .content-row {
         flex-wrap: wrap;
     }
     .tri-pane {
         display: none !important;
-        height: calc(100dvh - var(--header-h, 100px) - 52px);
+        height: calc(100dvh - var(--header-h, 100px) - var(--tabbar-h));
         min-height: 0;
         border: none !important;
         border-radius: 0 !important;
@@ -165,12 +175,12 @@ select {
 
     /* Map needs explicit height for Leaflet */
     .content-row[data-active-tab="map"] .tri-pane-center {
-        height: calc(100dvh - var(--header-h, 100px) - 52px);
+        height: calc(100dvh - var(--header-h, 100px) - var(--tabbar-h));
         padding: 0;
     }
 
     body {
-        padding-bottom: 52px;
+        padding-bottom: var(--tabbar-h);
     }
 
     /* Filter hamburger toggle — same size as app hamburger (.action-overflow-btn) */
@@ -219,6 +229,10 @@ select {
         border-top: 1px solid #ddd;
         background: white;
         box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+        /* Extend the white bar down into the home-indicator / swipe-up
+           zone, but as inert padding — the buttons stay ABOVE it so the
+           tap targets never overlap the OS gesture strip. */
+        padding-bottom: env(safe-area-inset-bottom, 0px);
     }
     .explore-tab-btn {
         flex: 1;
@@ -226,17 +240,21 @@ select {
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        /* 60px of guaranteed operable height, fully above the reserved
+           bottom strip (which .explore-tabs padding now absorbs). */
+        height: 60px;
         padding: 6px 2px;
         border: none;
         background: white;
         color: var(--text-secondary);
-        font-size: 11px;
+        font-size: 12px;
         cursor: pointer;
         border-radius: 0;
+        -webkit-tap-highlight-color: transparent;
     }
     .explore-tab-btn i {
-        font-size: 18px;
-        margin-bottom: 2px;
+        font-size: 20px;
+        margin-bottom: 3px;
     }
     .explore-tab-btn.active {
         color: var(--primary-color);
@@ -247,7 +265,10 @@ select {
 
 /* Header */
 header {
-    padding: 4px 8px;
+    /* max() keeps the original 4px on non-cover pages (env() = 0) and
+       grows to clear the status bar / notch on explore/index.html, which
+       sets viewport-fit=cover for the bottom-tab safe-area handling. */
+    padding: max(4px, env(safe-area-inset-top, 0px)) 8px 4px;
 }
 
 /* Detail page header: back button + title + action buttons on one row */
