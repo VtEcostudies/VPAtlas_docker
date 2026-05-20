@@ -24,6 +24,15 @@ the full why.
   Never duplicate at the repo root; that path isn't served.
 - **`api_vp/**` edits require `up -d --build api_vp`** — A plain `restart`
   keeps old code.
+- **Daily changelog roll-over closes older partials** (2026-05-20) — Every
+  time a new `CHANGELOG-YYYY-MM-DD-partial.md` is created, scan
+  [ui_vp/uiVPAtlas/docs/](ui_vp/uiVPAtlas/docs/) for any older `-partial.md`
+  files and finalize them **in the same change**: verify the entries cover
+  every user-visible change that landed on that date, rename the file (drop
+  `-partial`), update the H1 (drop `(partial)`), and update both
+  `urlsToCache.js` and `docs/index.html` DOCS array. A `-partial` file
+  older than yesterday is a missed roll-over. See *Changelog — REQUIRED
+  workflow → Daily roll-over rule* below for mechanics.
 
 How to add a new locked decision: when the user says "we decided X" /
 "don't do Y" / "from now on Z," append a bullet here in the same change.
@@ -233,6 +242,15 @@ Entry style (match the existing format in nearby files):
 - Don't write entries for purely internal changes (writing a memory file, asking the user a clarifying question, doc-only tweaks the user wouldn't see). Do write entries for anything a user could observe in the running app.
 
 If today's file doesn't exist yet, create it with the `-partial` naming and title, add to the index, and add your entry. Don't append today's entry to yesterday's file.
+
+**Daily roll-over rule — close out older partials whenever you create today's.** When you create a new day's `CHANGELOG-YYYY-MM-DD-partial.md`, in the same change scan [`ui_vp/uiVPAtlas/docs/`](ui_vp/uiVPAtlas/docs/) for any older `-partial.md` files and finalize each one:
+
+1. **Verify completeness.** Skim the file's existing entries against `git log --since=YYYY-MM-DD --until=YYYY-MM-(DD+1) --oneline -- ui_vp/uiVPAtlas/` for that date. Append any missing user-visible entries before finalizing — that's the last chance to capture them, since after finalization the file is the historical record.
+2. **Rename the file.** `CHANGELOG-YYYY-MM-DD-partial.md` → `CHANGELOG-YYYY-MM-DD.md`.
+3. **Update the H1.** `# Changelog — Snapshot YYYY-MM-DD (partial)` → `# Changelog — Snapshot YYYY-MM-DD`. Remove the boilerplate "Partial day's work; additional changes may land later under a follow-up YYYY-MM-DD changelog." paragraph if it's still there.
+4. **Update both index lists** — the `// === Documentation / changelog ===` block in [`urlsToCache.js`](ui_vp/uiVPAtlas/urlsToCache.js) (precache: drop `-partial.md` from the path) AND the `DOCS` array in [`docs/index.html`](ui_vp/uiVPAtlas/docs/index.html) (both `file:` and `title:` fields: drop `-partial` and `(partial)`). Missing either breaks the offline changelog view with a 503.
+
+A `-partial` file older than yesterday is a missed roll-over and needs catching up immediately. The mechanical sequence (rename → H1 → urlsToCache → docs/index → sw-build → today's changelog entry → rebuild) is the same as any other doc workflow.
 
 ## Reference Projects
 - **VPAtlas_orig**: `/home/jloomis/VPAtlas/VPAtlas_orig/` — Angular 14 source (being replaced)

@@ -103,12 +103,33 @@
 
     <script type="module">
         import { fetchVisitById, fetchVisitPhotos, fetchReviewsByVisit, deleteVisitById } from '/js/api.js';
+        import { isOnline } from '/js/net_status.js';
+        import { getLocal } from '/js/storage.js';
+        import { MY_VISITS_CACHE_KEY } from '/js/cache_keys.js';
         import { formatDate } from './js/utils.js';
         import { getUser } from '/js/auth.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { renderVisitTabs } from '/js/visit_card.js';
         setupProfileIcon();
+
+        // Offline fallback: pull this visit from the My-Visits snapshot
+        // (written when My Visits and Tracks loads online). The snapshot
+        // rows are the flat output of /pools/visit?visitObserverUserId=N
+        // — same shape this page treats as `row` (without the `both`
+        // wrapper). Per the OFFLINE contract: offline = silent cache
+        // fallback, never an error. Limitation: only the signed-in user's
+        // OWN visits are in this snapshot; visits by other users are
+        // genuinely unavailable offline and we show a calm message.
+        async function loadVisitFromSnapshot(visitId) {
+            try {
+                let snap = await getLocal(MY_VISITS_CACHE_KEY);
+                if (!snap || !Array.isArray(snap.rows)) return null;
+                let vid = Number(visitId);
+                let row = snap.rows.find(r => Number(r.visitId) === vid);
+                return row || null;
+            } catch (e) { return null; }
+        }
 
         const params = new URLSearchParams(window.location.search);
         const visitId = params.get('visitId');
@@ -142,15 +163,41 @@
             document.getElementById('page_title').textContent = `Visit ${visitId}`;
 
             try {
-                let data = await fetchVisitById(visitId);
-                let row = data.rows ? data.rows[0] : data;
-                // The API returns { both: { visit: {...}, mapped: {...} } }
-                let visit = row.both ? row.both.visit : row;
-                let mapped = row.both ? row.both.mapped : row;
-                if (!visit) {
-                    document.getElementById('visit_card_container').innerHTML = '<p>Visit not found.</p>';
+                // ONLINE → fetch live. OFFLINE → skip the fetch and read
+                // from the My-Visits snapshot. Online fetch that fails
+                // also falls back to the snapshot, per the OFFLINE
+                // contract (online-but-flaky → cache).
+                let row;
+                let fromCache = false;
+                if (await isOnline()) {
+                    try {
+                        let data = await fetchVisitById(visitId);
+                        row = data.rows ? data.rows[0] : data;
+                    } catch (e) {
+                        console.warn('visit_view: live fetch failed, trying snapshot', e);
+                        row = await loadVisitFromSnapshot(visitId);
+                        fromCache = !!row;
+                    }
+                } else {
+                    row = await loadVisitFromSnapshot(visitId);
+                    fromCache = !!row;
+                }
+                if (!row) {
+                    // Genuinely unavailable: offline + not in snapshot, or
+                    // an unknown visit id. Calm message, not the red error.
+                    let offlineMsg = !(await isOnline())
+                        ? 'This visit isn\'t cached on this device. Reconnect to the internet to view it.'
+                        : 'Visit not found.';
+                    document.getElementById('visit_card_container').innerHTML =
+                        `<div style="padding:16px; color:var(--text-secondary);">${offlineMsg}</div>`;
                     return;
                 }
+                // The API's /pools/visit/:id returns { both: { visit, mapped } }.
+                // The snapshot row is flat-joined and works as both
+                // simultaneously (every accessed field is on the single
+                // object). The fallback below covers both shapes.
+                let visit = row.both ? row.both.visit : row;
+                let mapped = row.both ? row.both.mapped : row;
 
                 // Descriptive title
                 let poolId = visit.visitPoolId || mapped.mappedPoolId || '';
@@ -166,11 +213,17 @@
                 document.getElementById('page_title').textContent = title;
                 document.title = `VPAtlas - ${title}`;
 
-                // Fetch photos & reviews in parallel, then render the tabbed card
-                let [photos, reviews] = await Promise.all([
-                    fetchVisitPhotos(visitId).catch(() => []),
-                    fetchReviewsByVisit(visitId).then(d => d.rows || (Array.isArray(d) ? d : [])).catch(() => [])
-                ]);
+                // Photos and reviews are optional enhancements with no
+                // offline cache. Gate on isOnline() so we don't fire SW
+                // 503s offline; either way the inner catches silently
+                // degrade to empty arrays. Matches the OFFLINE contract.
+                let photos = [], reviews = [];
+                if (await isOnline()) {
+                    [photos, reviews] = await Promise.all([
+                        fetchVisitPhotos(visitId).catch(() => []),
+                        fetchReviewsByVisit(visitId).then(d => d.rows || (Array.isArray(d) ? d : [])).catch(() => [])
+                    ]);
+                }
                 renderVisitTabs(document.getElementById('visit_card_container'), {
                     visit, mapped,
                     photos: Array.isArray(photos) ? photos : [],
@@ -243,8 +296,17 @@
                     initOverflowMenu('action_menu_btn', 'action_menu_panel', menuItems);
                 }
             } catch(err) {
-                document.getElementById('visit_card_container').innerHTML =
-                    `<p style="color:var(--danger-color);">Error: ${err.message || JSON.stringify(err)}</p>`;
+                // Last-resort catch (shouldn't fire offline anymore — the
+                // main load path explicitly checks isOnline() and falls
+                // back to the snapshot). Render a calm message; only
+                // surface "Error:" when we actually have a network and
+                // got an unexpected failure.
+                console.warn('visit_view: render failed', err);
+                let on = await isOnline().catch(() => false);
+                let html = on
+                    ? `<p style="color:var(--danger-color);">Error: ${err.message || JSON.stringify(err)}</p>`
+                    : `<div style="padding:16px; color:var(--text-secondary);">This visit isn't available offline.</div>`;
+                document.getElementById('visit_card_container').innerHTML = html;
             }
         });
 

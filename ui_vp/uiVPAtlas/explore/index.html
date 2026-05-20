@@ -145,6 +145,7 @@
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
         import { getLocal, setLocal } from '/js/storage.js';
+        import { isOnline } from '/js/net_status.js';
 
         // Track this as the last-visited path for /js/home_button.js.
         try { sessionStorage.setItem('lastPath', '/explore/'); } catch (_) {}
@@ -528,13 +529,20 @@
             return 2 * R * Math.asin(Math.sqrt(a));
         }
 
-        // Apply map layer visibility (status + survey level) for list/summary rendering
+        // Apply map layer visibility (status + survey level) for list/summary
+        // rendering. "Reviewed" is OR-style with the mutex survey level —
+        // a reviewed pool stays visible if EITHER its level chip OR the
+        // Reviewed chip is on. (Mirror of isLevelVisible() in map.js.)
         function applyMapVisibility(rows) {
             let mf = getMapFilters();
             return rows.filter(r => {
                 let status = r.poolStatus || r.mappedPoolStatus || '';
                 let level = r.surveyId ? 'monitored' : r.visitId ? 'visited' : 'potential';
-                return mf.statusVisible[status] !== false && mf.levelVisible[level] !== false;
+                if (mf.statusVisible[status] === false) return false;
+                let levelOk = mf.levelVisible[level] !== false;
+                let hasReview = !!(r.reviewId || r._hasReview);
+                let reviewedOk = hasReview && mf.levelVisible['reviewed'] !== false;
+                return levelOk || reviewedOk;
             });
         }
 
@@ -546,10 +554,15 @@
         // =================================================================
         const ALL_STATUS_NAMES = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
         const ADMIN_ONLY = ['Duplicate', 'Eliminated'];
+        // Mutex survey levels followed by the admin-only "Reviewed" chip.
+        // "Reviewed" is OR-style with the others (a monitored-and-reviewed
+        // pool stays visible if EITHER Monitored OR Reviewed is on); the
+        // map.js levelVisible map and isLevelVisible() carry that logic.
         const LEVEL_CHIPS = [
-            { key: 'potential',  label: 'Mapped',    shape: '<svg width="10" height="10" style="vertical-align:-1px;"><circle cx="5" cy="5" r="4" fill="CCC" stroke="#333" stroke-width="0.8"/></svg>' },
-            { key: 'visited',   label: 'Visited',   shape: '<svg width="10" height="10" style="vertical-align:-1px;"><polygon points="5,1 9,9 1,9" fill="#ccc" stroke="#333" stroke-width="0.8"/></svg>' },
-            { key: 'monitored', label: 'Monitored', shape: '<svg width="10" height="10" style="vertical-align:-1px;"><polygon points="5,1 9,5 5,9 1,5" fill="#ccc" stroke="#333" stroke-width="0.8"/></svg>' }
+            { key: 'potential', label: 'Mapped',    adminOnly: false, shape: '<svg width="10" height="10" style="vertical-align:-1px;"><circle cx="5" cy="5" r="4" fill="CCC" stroke="#333" stroke-width="0.8"/></svg>' },
+            { key: 'visited',   label: 'Visited',   adminOnly: false, shape: '<svg width="10" height="10" style="vertical-align:-1px;"><polygon points="5,1 9,9 1,9" fill="#ccc" stroke="#333" stroke-width="0.8"/></svg>' },
+            { key: 'monitored', label: 'Monitored', adminOnly: false, shape: '<svg width="10" height="10" style="vertical-align:-1px;"><polygon points="5,1 9,5 5,9 1,5" fill="#ccc" stroke="#333" stroke-width="0.8"/></svg>' },
+            { key: 'reviewed',  label: 'Reviewed',  adminOnly: true,  shape: '<svg width="10" height="10" viewBox="0 0 10 10" style="vertical-align:-1px;"><polyline points="1.8,5.4 4,7.6 8.2,2.4" fill="none" stroke="var(--primary-color)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' }
         ];
 
         function renderStatusChips() {
@@ -573,8 +586,10 @@
 
 
 
-            // Level chips — sized to match .filter-token
-            html += LEVEL_CHIPS.map(lev => {
+            // Level chips — sized to match .filter-token. Admin-only chips
+            // (currently just "Reviewed") drop out for non-admin users.
+            let chipLevels = LEVEL_CHIPS.filter(lev => !lev.adminOnly || userIsAdmin);
+            html += chipLevels.map(lev => {
                 let active = mf.levelVisible[lev.key] !== false;
                 let style = active
                     ? `background:var(--primary-light); color:var(--primary-color); border-color:var(--primary-color); opacity:1;`
@@ -726,6 +741,9 @@
                                         style="width:100%; padding:8px; font-size:16px; border:1px solid var(--primary-color); border-radius:6px; margin-top:2px;">
                                 </label>
                             </div>
+                            <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">
+                                Vermont longitudes are always negative — the minus sign is added for you. iOS's decimal keyboard doesn't expose a "−" key.
+                            </div>
                             <div id="ll_err" style="color:var(--danger-color); font-size:13px; margin-top:8px; min-height:18px;"></div>
                         </div>
                         <div class="vp-modal-buttons">
@@ -742,16 +760,43 @@
 
                 function close(result) { overlay.remove(); resolve(result); }
 
+                // iOS's `inputmode="decimal"` keyboard has no "−" key, so a
+                // mobile user typing a Vermont longitude (~ -72 to -73)
+                // can't enter the sign. Force-prefix: strip any minus the
+                // user pasted/typed, then re-prepend one. Vermont is in
+                // the western hemisphere, so the sign is always negative
+                // in this app — no surprise for the user (and the helper
+                // text under the inputs spells it out).
+                function normalizeLng(s) {
+                    let stripped = String(s == null ? '' : s).replace(/-/g, '');
+                    return stripped ? '-' + stripped : '';
+                }
+
+                lngIn.addEventListener('input', () => {
+                    let n = normalizeLng(lngIn.value);
+                    if (n !== lngIn.value) {
+                        lngIn.value = n;
+                        // Park the cursor at end. Perfect mid-edit cursor
+                        // preservation isn't worth the complexity for an
+                        // 8-char field; left-to-right typing (the common
+                        // case) is unaffected because the cursor was
+                        // already at end.
+                        try { lngIn.setSelectionRange(n.length, n.length); } catch(_) {}
+                    }
+                });
+
                 // Detect "lat, lon" pasted as a single value and split it
                 // across both fields. Works for ", " separated and for
                 // whitespace-only separated (paste from Apple Maps,
-                // Google Maps "What's here", etc.).
+                // Google Maps "What's here", etc.). Run the longitude
+                // half through normalizeLng so a "44.5, 73.2" paste
+                // (lon without sign) still ends up negative.
                 latIn.addEventListener('input', () => {
                     let v = latIn.value;
                     let m = v.match(/^\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*$/);
                     if (m) {
                         latIn.value = m[1];
-                        lngIn.value = m[2];
+                        lngIn.value = normalizeLng(m[2]);
                         lngIn.focus();
                         lngIn.select();
                     }
@@ -764,6 +809,12 @@
                         errEl.textContent = 'Both fields must be valid numbers.';
                         return;
                     }
+                    // Belt-and-suspenders: if a positive longitude somehow
+                    // reached submit (autofill, programmatic .value=, an
+                    // input event that didn't fire, …), force-negate
+                    // before validating. The input-time prefix above is
+                    // the primary mechanism; this is the backstop.
+                    if (lng > 0) lng = -lng;
                     if (lat < -90 || lat > 90)    { errEl.textContent = 'Latitude must be between -90 and 90.';     return; }
                     if (lng < -180 || lng > 180) { errEl.textContent = 'Longitude must be between -180 and 180.';  return; }
                     close({ lat, lng });
@@ -805,6 +856,15 @@
                 items.push({ divider: true });
             }
             items.push({ label: 'Refresh Pool Data', icon: 'fa-rotate', action: async () => {
+                // Offline contract: don't fire a network fetch that will
+                // throw and surface as a red "Unknown error" in the list
+                // pane. Tell the user calmly that refresh needs a network.
+                if (!(await isOnline())) {
+                    if (typeof showToast === 'function') {
+                        showToast("You're offline — pool data refresh needs a network connection.", 'warning');
+                    }
+                    return;
+                }
                 let fresh = await refreshPools();
                 if (fresh && fresh.length) { masterRows = fresh; refreshUI(); }
             }});

@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-05-19 (partial)
+# Changelog — Snapshot 2026-05-19
 
 ## v3.5.272 – v3.5.281
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-19 changelog.
 
 ### Pool list — new "Updated" sort, freshest activity first
 

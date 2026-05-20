@@ -198,7 +198,13 @@ async function fetchAndCache(onRefresh) {
 
 // Force-refresh: bypass the cache and re-fetch from the API.
 // Returns the freshly-fetched rows so the caller can update its state.
+// Offline-safe: returns null without firing a fetch when offline, so the
+// SW's 503 never bubbles up to the list pane as a red "Unknown error"
+// (per OFFLINE_CONTRACT.md). Callers should check `isOnline()` themselves
+// to give the user explicit feedback (e.g. a toast); this is just the
+// defense-in-depth guard.
 export async function refreshPools() {
+    if (!(await isOnline())) return null;
     return await fetchAndCache(null);
 }
 
@@ -629,7 +635,7 @@ export function setFocusedPoolId(poolId) {
 export function renderFilteredRows(rows) {
     if (titleContainer) {
         titleContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between;">
-            <h5 style="margin:0;">Vernal Pools (${rows.length})</h5>
+            <h5 style="margin:0;">Vernal Pools (${rows.length.toLocaleString()})</h5>
             <div id="poolfinder-btn" style="display:none; align-items:stretch; gap:0;">
                 <a id="poolfinder-link" href="#" title="Open selected pools in Pool Finder"
                     style="display:flex; align-items:center; font-size:14px; font-weight:600; padding:6px 14px; background:var(--primary-light); border:1px solid var(--primary-color); border-radius:18px 0 0 18px; color:var(--primary-color); text-decoration:none; white-space:nowrap;">

@@ -16,6 +16,7 @@ import { getUser } from '/js/auth.js';
 import { formatDate } from './utils.js';
 import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
 import { filters, getCurrentScope } from './url_state.js';
+import { getMapFilters } from './map.js';
 import { prefetchParcelsNear, getParcelBySPAN, getCachedParcels } from '/js/parcels.js';
 import { openPhotoLightbox } from '/js/photo_lightbox.js';
 
@@ -105,53 +106,89 @@ function describeCurrentView(scope, dataType, rows) {
     let geoDesc = scope.type === 'state' ? 'Statewide'
         : `in ${Array.isArray(scope.value) ? scope.value.join(', ') : scope.value}`;
 
-    // Status — derived from rows actually present
+    // "Pools near me" qualifier — when the radius filter is active,
+    // surface it in the narrative so the user can read off how much
+    // the list/map has been narrowed by location. Replaces "Statewide"
+    // outright (the radius IS the geo); appended with " and " when a
+    // town/county filter is also on.
+    if (filters.nearMeKm > 0 && filters.nearMeOrigin) {
+        let km = Number(filters.nearMeKm);
+        let kmStr = Number.isFinite(km) ? (Math.round(km * 10) / 10).toString() : String(filters.nearMeKm);
+        let near = `within ${kmStr} km of my GPS location`;
+        geoDesc = (scope.type === 'state') ? near : `${geoDesc} and ${near}`;
+    }
+
+    // Status — derived from the CHIP STATE (`getMapFilters().statusVisible`),
+    // not from whichever statuses happen to be present in the visible rows.
+    // Symmetric with the data-presence gating below: the narrative should
+    // reflect what the user selected, regardless of what data falls into
+    // the current scope. The previous row-content approach silently
+    // dropped "Confirmed" from the narrative whenever the current scope
+    // contained zero Confirmed pools, even though the Confirmed chip was
+    // on — confusing.
     let statusDesc = '';
     let allStatuses = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
-    if (rows && rows.length) {
-        let present = new Set();
-        rows.forEach(r => { let s = r.poolStatus || r.mappedPoolStatus || ''; if (s) present.add(s); });
-        let activeStatuses = allStatuses.filter(s => present.has(s));
-        if (activeStatuses.length && activeStatuses.length < allStatuses.length) {
-            statusDesc = activeStatuses.join(', ');
-        }
+    let mfStatus = (getMapFilters && getMapFilters().statusVisible) || {};
+    let activeStatuses = allStatuses.filter(s => mfStatus[s] !== false);
+    if (activeStatuses.length && activeStatuses.length < allStatuses.length) {
+        statusDesc = activeStatuses.join(', ');
     }
 
-    // Survey level — derived from rows actually present
-    let levelDesc = '';
+    // Data-presence suffix — list what kinds of data the visible rows
+    // contain, joined with Oxford-comma + "or". Each row is checked
+    // INDEPENDENTLY (not mutex by highest level): a monitored pool has
+    // both a visit and a survey, so both names appear in the suffix.
+    //
+    // GATED by the level-chip state (`getMapFilters().levelVisible`):
+    // the chips have OR semantics for inclusion, which means a
+    // visited-AND-reviewed pool stays visible when only `Visited` is on,
+    // even though `Reviewed` is off. Without the gate, that row's
+    // `reviewId` would leak "Reviews" into the suffix despite the user
+    // having explicitly turned the Reviewed chip OFF. Suffix should
+    // mirror the user's stated intent: only name categories whose chip
+    // is on AND for which at least one row has data.
+    //
+    // "Mapped" pools — no visit, no survey, no review — are the default
+    // state and intentionally omitted ("with [nothing]" is just noise).
+    let dataPresence = [];
     if (rows && rows.length) {
-        let hasVisit = false, hasSurvey = false, hasMapped = false;
+        let lv = (getMapFilters && getMapFilters().levelVisible) || {};
+        let anyVisit = false, anySurvey = false, anyReview = false;
         rows.forEach(r => {
-            if (r.surveyId || r._hasSurvey) hasSurvey = true;
-            else if (r.visitId || r._hasVisit) hasVisit = true;
-            else hasMapped = true;
+            if (r.visitId || r._hasVisit)   anyVisit  = true;
+            if (r.surveyId || r._hasSurvey) anySurvey = true;
+            if (r.reviewId || r._hasReview) anyReview = true;
         });
-        let levels = [];
-        if (hasMapped) levels.push('Mapped');
-        if (hasVisit) levels.push('Visited');
-        if (hasSurvey) levels.push('Monitored');
-        if (levels.length && levels.length < 3) {
-            levelDesc = levels.join(', ');
-        }
+        if (anyVisit  && lv['visited']   !== false) dataPresence.push('Atlas Visits');
+        if (anySurvey && lv['monitored'] !== false) dataPresence.push('Monitoring Surveys');
+        if (anyReview && lv['reviewed']  !== false) dataPresence.push('Reviews');
+    }
+    function joinOr(arr) {
+        if (arr.length === 0) return '';
+        if (arr.length === 1) return arr[0];
+        if (arr.length === 2) return `${arr[0]} or ${arr[1]}`;
+        return arr.slice(0, -1).join(', ') + ', or ' + arr[arr.length - 1];
     }
 
-    // Data type qualifier
-    let typeDesc = '';
-    switch (dataType) {
-        case 'Visited':   typeDesc = 'with Atlas Visits'; break;
-        case 'Monitored': typeDesc = 'with Monitoring Surveys'; break;
-        case 'Mine':      typeDesc = 'associated with your account'; break;
-        case 'Review':    typeDesc = 'needing review'; break;
-    }
+    // Trailing suffix. Mine / Review have chip-specific phrasing that
+    // describes WHY the rows were included (not just what's in them);
+    // they take priority over the data-presence list. Everything else
+    // — All, Visited, Monitored data-type chips, the orthogonal
+    // Reviewed level chip — gets the "with …" enumeration.
+    let suffix = '';
+    if (dataType === 'Mine')         suffix = 'associated with your account';
+    else if (dataType === 'Review')  suffix = 'needing review';
+    else if (dataPresence.length)    suffix = `with ${joinOr(dataPresence)}`;
 
-    // Build: "114 Potential pools Statewide with Atlas Visits"
-    // Parts: count + [status] + "pools" + geo + [level] + [type]
+    // Build: "[count] [statusAdj] pools [geo] [suffix]"
+    //   → "114 Potential pools Statewide with Atlas Visits, Monitoring Surveys, or Reviews"
+    //   → "8 pools in Stowe with Atlas Visits"
+    //   → "12 pools Statewide associated with your account"
     let parts = [count.toLocaleString()];
     if (statusDesc) parts.push(statusDesc);
     parts.push('pools');
     parts.push(geoDesc);
-    if (levelDesc) parts.push(`(${levelDesc})`);
-    if (typeDesc) parts.push(typeDesc);
+    if (suffix) parts.push(suffix);
 
     return parts.join(' ');
 }

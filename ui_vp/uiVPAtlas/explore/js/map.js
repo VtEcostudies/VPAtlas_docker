@@ -188,8 +188,12 @@ function getMarkerRadius() {
 const shapeStyle = { weight: 1, color: '#333', opacity: 0.85, fillOpacity: 0.85 };
 
 const STATUS_ORDER = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
+// Survey-level keys are mutually exclusive per row (a pool is exactly one
+// of potential/visited/monitored). 'reviewed' is an *additional* level
+// that ORs with the others — a monitored-and-reviewed pool is visible if
+// EITHER "Monitored" OR "Reviewed" is on. Admin-only.
 const LEVEL_ORDER  = ['potential', 'visited', 'monitored'];
-const LEVEL_LABELS = { potential: 'Mapped', visited: 'Visited', monitored: 'Monitored' };
+const LEVEL_LABELS = { potential: 'Mapped', visited: 'Visited', monitored: 'Monitored', reviewed: 'Reviewed' };
 
 export function plotPoolRows(rows, onPoolClick=null) {
     clearPoolMarkers();
@@ -241,15 +245,17 @@ export function plotPoolRows(rows, onPoolClick=null) {
             marker.on('click', function() { onPoolClick(row); });
         }
 
-        // Tag for filtering
+        // Tag for filtering. _vpHasReview lets the OR-style "Reviewed"
+        // level chip keep reviewed pools visible even when their mutex
+        // survey level (potential/visited/monitored) is unchecked.
         marker._vpStatus = status;
         marker._vpLevel = surveyLevel;
+        marker._vpHasReview = !!(row.reviewId || row._hasReview);
 
         markers[poolId] = marker;
         allMarkers.push(marker);
 
-        // Add only if both status and level are visible
-        if (statusVisible[status] !== false && levelVisible[surveyLevel] !== false) {
+        if (statusVisible[status] !== false && isLevelVisible(surveyLevel, marker._vpHasReview)) {
             poolLayer.addLayer(marker);
         }
     });
@@ -381,12 +387,22 @@ export function clearPoolHalo() {
     }
 }
 
+// OR-style level visibility: a pool is "visible by level" if its mutex
+// surveyLevel chip is on, OR (if it has a review) the "Reviewed" chip is
+// on. levelVisible['reviewed'] defaults to true via the !== false check,
+// so non-admins (who never see the Reviewed chip) get unchanged behavior.
+function isLevelVisible(level, hasReview) {
+    if (levelVisible[level] !== false) return true;
+    if (hasReview && levelVisible['reviewed'] !== false) return true;
+    return false;
+}
+
 // Recompute which markers are on the map based on status + level visibility
 function applyFilters() {
     if (!poolLayer) return;
     poolLayer.clearLayers();
     allMarkers.forEach(m => {
-        if (statusVisible[m._vpStatus] !== false && levelVisible[m._vpLevel] !== false) {
+        if (statusVisible[m._vpStatus] !== false && isLevelVisible(m._vpLevel, m._vpHasReview)) {
             poolLayer.addLayer(m);
         }
     });
@@ -396,7 +412,8 @@ function applyFilters() {
     let visibleRows = allRows.filter(row => {
         let status = row.poolStatus || row.mappedPoolStatus || '';
         let level = getSurveyLevel(row);
-        return statusVisible[status] !== false && levelVisible[level] !== false;
+        let hasReview = !!(row.reviewId || row._hasReview);
+        return statusVisible[status] !== false && isLevelVisible(level, hasReview);
     });
     document.dispatchEvent(new CustomEvent('map:layer-filter', { detail: { rows: visibleRows } }));
 }
@@ -408,7 +425,11 @@ function applyFilters() {
 const shapeSwatch = {
     potential:  '<svg width="14" height="14"><circle cx="7" cy="7" r="5.5" fill="#ccc" stroke="#333" stroke-width="1"/></svg>',
     visited:    '<svg width="14" height="14"><polygon points="7,1.5 12.5,12 1.5,12" fill="#ccc" stroke="#333" stroke-width="1"/></svg>',
-    monitored:  '<svg width="14" height="14"><polygon points="7,1.5 12.5,7 7,12.5 1.5,7" fill="#ccc" stroke="#333" stroke-width="1"/></svg>'
+    monitored:  '<svg width="14" height="14"><polygon points="7,1.5 12.5,7 7,12.5 1.5,7" fill="#ccc" stroke="#333" stroke-width="1"/></svg>',
+    // Reviewed isn't a map shape — reviewed pools render as their
+    // underlying surveyLevel marker. The swatch is just a check mark to
+    // hint at "QA'd by admin".
+    reviewed:   '<svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2.5,7.5 5.5,10.5 11.5,3.5" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 
 const ADMIN_STATUSES = ['Duplicate', 'Eliminated'];
@@ -419,6 +440,9 @@ async function initStatusControl() {
     let savedLevel  = settings.levelVisible || {};
     STATUS_ORDER.forEach(s => { statusVisible[s] = savedStatus[s] !== undefined ? savedStatus[s] : true; });
     LEVEL_ORDER.forEach(l => { levelVisible[l]  = savedLevel[l]  !== undefined ? savedLevel[l]  : true; });
+    // Init the "reviewed" OR-level toggle (admin-only chip; for non-admins
+    // it stays true so it never hides anything).
+    levelVisible['reviewed'] = savedLevel['reviewed'] !== undefined ? savedLevel['reviewed'] : true;
 
     // Non-admins: force Duplicate/Eliminated hidden
     if (!isAdmin) {
@@ -478,7 +502,11 @@ async function initStatusControl() {
             title2.style.marginTop = '6px';
             title2.textContent = 'Survey Level';
 
-            LEVEL_ORDER.forEach(level => {
+            // Mutex survey levels followed by the OR-style "Reviewed"
+            // toggle (admin-only). The admin gate keeps the legend lean
+            // for the public-facing volunteer flow.
+            let legendLevels = isAdmin ? [...LEVEL_ORDER, 'reviewed'] : LEVEL_ORDER;
+            legendLevels.forEach(level => {
                 let item = L.DomUtil.create('label', 'pool-legend-item pool-legend-toggle', body);
 
                 let cb = document.createElement('input');
@@ -564,15 +592,18 @@ async function initStatusControl() {
 function updateFilterCounts() {
     // Count totals from allMarkers (not just visible)
     let sCounts = {}, lCounts = {};
+    let reviewedCount = 0;
     allMarkers.forEach(m => {
         sCounts[m._vpStatus] = (sCounts[m._vpStatus] || 0) + 1;
         lCounts[m._vpLevel]  = (lCounts[m._vpLevel]  || 0) + 1;
+        if (m._vpHasReview) reviewedCount++;
     });
+    lCounts['reviewed'] = reviewedCount;
     STATUS_ORDER.forEach(s => {
         let el = document.getElementById(`status_count_${s}`);
         if (el) el.textContent = sCounts[s] ? ` (${sCounts[s].toLocaleString()})` : '';
     });
-    LEVEL_ORDER.forEach(l => {
+    [...LEVEL_ORDER, 'reviewed'].forEach(l => {
         let el = document.getElementById(`level_count_${l}`);
         if (el) el.textContent = lCounts[l] ? ` (${lCounts[l].toLocaleString()})` : '';
     });

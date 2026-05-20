@@ -9,6 +9,7 @@ services:
   db_vp:
     container_name: db_vp
     image: db_vp
+    restart: unless-stopped
     build:
       context: ./db_vp
       dockerfile: Dockerfile
@@ -53,6 +54,7 @@ services:
   api_vp:
     container_name: api_vp
     image: api_vp
+    restart: unless-stopped
     build:
       context: ./api_vp
       dockerfile: Dockerfile
@@ -93,6 +95,7 @@ services:
   ui_vp:
     container_name: ui_vp
     image: ui_vp
+    restart: unless-stopped
     build:
       context: ./ui_vp
       dockerfile: Dockerfile
