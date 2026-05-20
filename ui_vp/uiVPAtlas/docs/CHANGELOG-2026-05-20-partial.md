@@ -5,6 +5,11 @@
 Partial day's work; additional changes may land later under a follow-up
 2026-05-20 changelog.
 
+### Install guide — FAQ tweaks
+
+- **"Can I use VPAtlas without installing it?"** Reworded in [docs/VPAtlas_App_Install_Guide.html](ui_vp/uiVPAtlas/docs/VPAtlas_App_Install_Guide.html): large screen yes; mobile no because the desktop layout doesn't fit a phone browser, and installed app gets offline + speed + no-mobile-data benefits anyway.
+- **Removed.** The "I see an old version of VPAtlas" Q&A about the May 2026 rebuild — irrelevant once we're past the cutover window.
+
 ### Home page hamburger — "Changelog" renamed to "Documentation"
 
 - **Why.** Now that the docs page houses install guides as well as the daily changelogs, "Changelog" undersells what's behind that link. Renamed the hamburger menu entry in [explore/index.html](ui_vp/uiVPAtlas/explore/index.html) to "Documentation". Same href (`/docs/`), same icon.
