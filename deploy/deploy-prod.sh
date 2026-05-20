@@ -161,6 +161,125 @@ db-restore-from-live)
     echo "Next: ./deploy/deploy-prod.sh deploy  (this will run all pending migrations)"
     ;;
 
+# ─── Install the LoonWeb-style nightly backup pipeline on prod ───
+# Idempotent: writes ~/.vpatlas_backup.conf only if missing or out of sync,
+# installs / refreshes a single cron line tagged with a managed-by marker,
+# auto-comments out any legacy crontab line that writes .backup files. After
+# install, runs db_backup.sh once on prod to validate end-to-end (locally +
+# S3 upload to s3://vpatlas.backup/daily/YYYYMMDD/).
+#
+# Re-run anytime to converge prod's backup config with the canonical version
+# baked into this script — the same way `clone` is idempotent.
+backup-install)
+    echo "=== Installing VPAtlas backup pipeline on $SSH_HOST ==="
+
+    # 1. Make sure prod has the latest db_dump_restore/ from main.
+    echo "→ Pulling latest main on prod..."
+    ssh_cmd "cd '$REMOTE_DIR' && git pull origin main"
+
+    # 2. Generate the canonical prod conf locally, scp it up to a staging
+    #    path, install only if missing or different from what's already there.
+    #    BACKUP_TARGETS points at db_vp_prod (not db_vp) because prod uses
+    #    the suffixed container name — see docker-compose-vpatlas-prod.yml.
+    echo "→ Writing ~/.vpatlas_backup.conf (idempotent)..."
+    TMP_CONF=$(mktemp)
+    cat > "$TMP_CONF" <<'CONF_EOF'
+#!/bin/bash
+# =============================================================================
+# VPAtlas S3 Backup Configuration (prod)
+# Managed by deploy-prod.sh backup-install — re-run that command to refresh.
+# Loaded by db_dump_restore/db_backup.sh when present.
+# =============================================================================
+
+# ----- AWS -----
+S3_BUCKET="vpatlas.backup"
+AWS_REGION="us-east-1"
+
+# SNS_TOPIC_ARN deferred — set after creating the topic via AWS console
+# (or after granting sns:CreateTopic to whichever IAM identity this host uses).
+# SNS_TOPIC_ARN="arn:aws:sns:us-east-1:824614856275:vpatlas-backup-alerts"
+
+# ----- DATABASE TARGETS -----
+# Prod uses the suffixed container name `db_vp_prod`. The script-internal
+# STATE_CONFIG entry in db_dump_restore/config.sh points at `db_vp` (dev);
+# this BACKUP_TARGETS array overrides that for cron-with-no-args.
+BACKUP_TARGETS=(
+    "vp:db_vp_prod:vpatlas"
+)
+DB_USER="postgres"
+
+# ----- THRESHOLDS -----
+MIN_DUMP_SIZE_BYTES=100000
+CONF_EOF
+
+    scp -i "$SSH_KEY" "$TMP_CONF" "$SSH_HOST:/tmp/.vpatlas_backup.conf.new" >/dev/null
+    rm -f "$TMP_CONF"
+
+    ssh_cmd "if [ ! -f \$HOME/.vpatlas_backup.conf ] || ! cmp -s \$HOME/.vpatlas_backup.conf /tmp/.vpatlas_backup.conf.new; then \
+                mv /tmp/.vpatlas_backup.conf.new \$HOME/.vpatlas_backup.conf && \
+                chmod 600 \$HOME/.vpatlas_backup.conf && \
+                echo '  conf installed/updated'; \
+             else \
+                rm -f /tmp/.vpatlas_backup.conf.new && echo '  conf unchanged'; \
+             fi"
+
+    # 3. Make sure the cron log directory exists before cron tries to write to it.
+    ssh_cmd "mkdir -p \$HOME/db_backups"
+
+    # 4. Show current crontab so any legacy line is visible in the deploy output.
+    echo ""
+    echo "→ Current crontab (before changes):"
+    ssh_cmd "crontab -l 2>/dev/null || echo '(empty)'" | sed 's/^/    /'
+
+    # 5. Update the crontab. Idempotency rules:
+    #    a) Drop any existing line containing 'db_dump_restore/db_backup.sh'
+    #       — we'll re-append a fresh, canonical version below. This makes
+    #       the mode safe to re-run when the cron line itself evolves.
+    #    b) Comment out any uncommented line that writes '.backup' files
+    #       (the legacy custom-format dumps). Prefix with a clearly-tagged
+    #       disabled-by marker so it's obvious what happened and re-running
+    #       doesn't double-comment.
+    #    c) Append the new cron line with a managed-by tag so future updates
+    #       can match-and-replace by tag.
+    echo ""
+    echo "→ Updating crontab (disable legacy + install new line)..."
+    NEW_CRON_LINE="0 2 * * * $REMOTE_DIR/db_dump_restore/db_backup.sh >> \$HOME/db_backups/vpatlas_cron.log 2>&1 # managed-by: deploy-prod.sh backup-install"
+
+    ssh_cmd "{ crontab -l 2>/dev/null || true; } \
+             | grep -v 'db_dump_restore/db_backup.sh' \
+             | awk '/^[^#]*\\.backup/ { print \"# disabled-by-deploy-prod.sh-backup-install: \" \$0; next } { print }' \
+             > /tmp/cron.new && \
+             echo '$NEW_CRON_LINE' >> /tmp/cron.new && \
+             crontab /tmp/cron.new && \
+             rm -f /tmp/cron.new"
+
+    echo ""
+    echo "→ Crontab after changes:"
+    ssh_cmd "crontab -l 2>/dev/null || echo '(empty)'" | sed 's/^/    /'
+
+    # 6. Smoke-test: run the backup script once on prod. Validates the full
+    #    chain — pg_dump in db_vp_prod, .sql.gz to db_backup/, S3 upload.
+    echo ""
+    echo "→ Running one-time backup on prod to validate..."
+    ssh_cmd "cd '$REMOTE_DIR' && bash db_dump_restore/db_backup.sh" | tail -20
+
+    # 7. Confirm the upload landed.
+    echo ""
+    echo "→ S3 daily/ prefix:"
+    ssh_cmd "aws s3 ls s3://vpatlas.backup/daily/ 2>&1 | tail -5" | sed 's/^/    /'
+
+    echo ""
+    echo "✓ Backup pipeline installed on $SSH_HOST"
+    echo ""
+    echo "Followups (not done by this command):"
+    echo "  • SNS alerts — create vpatlas-backup-alerts topic via AWS console,"
+    echo "    paste ARN into ~/.vpatlas_backup.conf on the server."
+    echo "  • S3 lifecycle policy — scope to daily/, weekly/, monthly/ prefixes"
+    echo "    so legacy *.backup files aren't auto-expired."
+    echo "  • Delete legacy .backup files from S3 once you trust the new pipeline:"
+    echo "    aws s3 rm s3://vpatlas.backup/ --recursive --exclude '*' --include 'vpatlas_*.backup'"
+    ;;
+
 # ─── Full deploy: sw-build patch → local rebuild (all) → push → prod rebuild (all) ───
 # Use when you've changed UI + API (and/or migrations). Always rebuilds api_vp too;
 # Docker layer cache makes that cheap if the API hasn't actually changed.
@@ -349,7 +468,7 @@ logs)
 
 help|*)
     cat <<EOF
-Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|setup|clone|inspect-legacy-nginx|cutover|rollback}
+Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|backup-install|setup|clone|inspect-legacy-nginx|cutover|rollback}
 
 == Day-to-day app updates ==
 
@@ -378,6 +497,15 @@ Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|setup|cl
 
   ./deploy/deploy-prod.sh db-dump-from-live      # pg_dump legacy → prod's db_backup/
   ./deploy/deploy-prod.sh db-restore-from-live   # dump + DROP/CREATE + restore
+
+== Backups ==
+
+  ./deploy/deploy-prod.sh backup-install         # write ~/.vpatlas_backup.conf,
+                                                 #   disable legacy .backup cron,
+                                                 #   install 2 AM cron for the new
+                                                 #   db_dump_restore/db_backup.sh
+                                                 #   pipeline, run one validation
+                                                 #   dump. Idempotent — re-run anytime.
 
 == One-time bootstrap (already done — kept for reproducibility) ==
 
