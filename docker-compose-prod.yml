@@ -1,0 +1,62 @@
+#
+# VPAtlas Docker Compose — vpatlas.org (new docker prod)
+#
+# Override for remote prod deployment at /home/ubuntu/VPAtlas_docker_production
+# on the AWS server. Runs side-by-side with the legacy Angular app (until
+# cutover) and with the docker dev stack (indefinitely), so container names
+# and external ports are suffixed/shifted to avoid collisions.
+#
+# Usage:
+#   docker compose -f docker-compose-vpatlas.yml -f docker-compose-prod.yml up -d
+#
+# Port Scheme (external; internal listen ports stay the same as base):
+#   db=6551, api=4011, ui=8091
+#
+# Container names get a _prod suffix so they don't collide with dev's
+# (db_vp, api_vp, ui_vp, db_migrate_vp) on the same docker host.
+#
+
+services:
+  db_vp:
+    container_name: db_vp_prod
+    image: db_vp_prod
+    # !override forces replacement; without it Compose MERGES the port
+    # lists and dev's 5432:5432 would clash with prod also trying 6550.
+    ports: !override
+      - "6551:5432"
+
+  db_migrate_vp:
+    container_name: db_migrate_vp_prod
+    image: db_vp_prod
+
+  api_vp:
+    container_name: api_vp_prod
+    image: api_vp_prod
+    environment:
+      # API is proxied through nginx — no port in external URL
+      API_PROT: https
+      API_HOST: api.vpatlas.org
+      API_PORT: 4010
+
+      # UI host (for CORS / email confirmation URLs)
+      UI_PROT: https
+      UI_HOST: vpatlas.org
+      UI_PORT: 80
+    ports: !override
+      - "4011:4010"
+
+  ui_vp:
+    container_name: ui_vp_prod
+    image: ui_vp_prod
+    environment:
+      # API connection — proxied through nginx (no port in external URL)
+      API_PROT: https
+      API_HOST: api.vpatlas.org
+      API_PORT: 443
+
+      # UI host (external URL — nginx handles SSL on 443)
+      UI_PROT: https
+      UI_HOST: vpatlas.org
+      # UI_PORT stays 8090 from base compose (internal listen port)
+    ports: !override
+      - "8091:8090"

@@ -3,7 +3,10 @@
 #
 # Usage: ./db_restore.sh [path/to/vpatlas.backup]
 #
-# Prerequisites: db_vp container must be running (docker compose up db_vp)
+# Env overrides (used by deploy-prod.sh to target the prod stack):
+#   CONTAINER=db_vp_prod  DB_NAME=vpatlas  DB_USER=postgres  ./db_restore.sh ...
+#
+# Prerequisites: target db container must be running.
 
 if [ -n "$1" ]; then
     BACKUP_FILE="$1"
@@ -14,9 +17,9 @@ else
         exit 1
     fi
 fi
-CONTAINER="db_vp"
-DB_NAME="vpatlas"
-DB_USER="postgres"
+CONTAINER="${CONTAINER:-db_vp}"
+DB_NAME="${DB_NAME:-vpatlas}"
+DB_USER="${DB_USER:-postgres}"
 
 if [ ! -f "$BACKUP_FILE" ]; then
     echo "ERROR: Backup file not found: $BACKUP_FILE"
