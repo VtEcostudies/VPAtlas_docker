@@ -161,46 +161,80 @@ db-restore-from-live)
     echo "Next: ./deploy/deploy-prod.sh deploy  (this will run all pending migrations)"
     ;;
 
-# ─── Full deploy: push, pull, build, up. Migrations run automatically. ───
+# ─── Full deploy: sw-build patch → local rebuild (all) → push → prod rebuild (all) ───
+# Use when you've changed UI + API (and/or migrations). Always rebuilds api_vp too;
+# Docker layer cache makes that cheap if the API hasn't actually changed.
 deploy)
-    echo "=== Deploying to vpatlas.org docker prod ==="
+    echo "=== App update (full stack): local + prod ==="
 
+    # 1. Bump SW patch (regenerates sw.js, runs precache validator).
+    echo "→ Bumping SW patch version + regen sw.js"
+    ( cd ui_vp && node uiVPAtlas/sw-build.js patch )
+
+    # 2. Rebuild local containers so localhost:8090 reflects the change before
+    #    we ship the same code to prod.
+    echo "→ Rebuilding local containers (ui_vp, api_vp)"
+    docker compose -f docker-compose-vpatlas.yml up -d --build ui_vp api_vp
+
+    # 3. Commit + push (this is what carries sw-build's manifest.json/sw.js
+    #    changes to the prod box's git pull on the next line).
     commit_local_changes "${2:-}"
-
-    echo "Pushing to origin..."
+    echo "→ Pushing to origin"
     git push origin main 2>/dev/null || echo "(push skipped or failed — continuing)"
 
+    # 4. Photo dir perms (idempotent, harmless on re-run)
+    ssh_cmd "cd $REMOTE_DIR && mkdir -p photo_data && sudo chown -R 1001:1001 photo_data && sudo chmod -R u+rwX,g+rwX photo_data"
+
+    # 5. Pull + rebuild on prod (full stack — migrations run automatically)
+    echo "→ Deploying full stack to vpatlas.org"
     ssh_cmd "cd $REMOTE_DIR && \
              git pull origin main && \
              $COMPOSE up -d --build"
 
-    # Tail the migrate container's exit log so we see migration results.
+    # 6. Migration log (the migrate container exits 0 on success; surfaces failures)
     echo ""
     echo "=== db_migrate_vp_prod log (most recent run) ==="
     ssh_cmd "docker logs db_migrate_vp_prod 2>&1 | tail -50" || true
 
-    VERSION=$(ssh_cmd "docker exec ui_vp_prod cat /opt/ui/uiVPAtlas/explore/manifest.json" 2>/dev/null | \
+    # 7. Show resulting version
+    VERSION=$(ssh_cmd "docker exec ui_vp_prod cat /opt/ui/uiVPAtlas/manifest.json" 2>/dev/null | \
         python3 -c "import sys,json; print(json.load(sys.stdin)['version'])" 2>/dev/null || echo "?")
     echo ""
-    echo "Prod stack up: api at https://api.vpatlas.org (v${VERSION})"
-    echo "UI is on 127.0.0.1:8091 on the AWS host. Verify via hosts-file or after cutover."
+    echo "✓ Full deploy complete: https://vpatlas.org (v${VERSION})"
     ;;
 
-# ─── UI only: rebuild just ui_vp_prod ───
+# ─── UI: sw-build patch → local ui_vp rebuild → push → prod ui_vp_prod rebuild ───
+# The standard "I made some UI/script changes" workflow. Files in deploy/,
+# db_restore.sh, etc. ride along via the remote git pull even though they
+# don't trigger a container rebuild — they just need to be on disk.
 ui)
-    echo "=== Rebuilding UI on docker prod ==="
+    echo "=== App update (UI): local + prod ==="
 
+    # 1. Bump SW patch (precache validator runs first; aborts if cache list is broken).
+    echo "→ Bumping SW patch version + regen sw.js"
+    ( cd ui_vp && node uiVPAtlas/sw-build.js patch )
+
+    # 2. Rebuild local ui_vp so localhost:8090 picks up the change BEFORE prod.
+    echo "→ Rebuilding local ui_vp container"
+    docker compose -f docker-compose-vpatlas.yml up -d --build ui_vp
+
+    # 3. Commit + push.
     commit_local_changes "${2:-}"
-    git push origin main 2>/dev/null || echo "(push skipped)"
+    echo "→ Pushing to origin"
+    git push origin main 2>/dev/null || echo "(push skipped or failed — continuing)"
 
+    # 4. Pull + rebuild ui_vp_prod on prod.
+    echo "→ Deploying to vpatlas.org"
     ssh_cmd "cd $REMOTE_DIR && \
              git pull origin main && \
              $COMPOSE up -d --build ui_vp"
 
-    VERSION=$(ssh_cmd "docker exec ui_vp_prod cat /opt/ui/uiVPAtlas/explore/manifest.json" 2>/dev/null | \
+    # 5. Show resulting version (path is /opt/ui/uiVPAtlas/manifest.json — older
+    #    version of this script looked under /explore/ and always printed v?).
+    VERSION=$(ssh_cmd "docker exec ui_vp_prod cat /opt/ui/uiVPAtlas/manifest.json" 2>/dev/null | \
         python3 -c "import sys,json; print(json.load(sys.stdin)['version'])" 2>/dev/null || echo "?")
     echo ""
-    echo "Docker prod UI rebuilt (v${VERSION})."
+    echo "✓ App update complete: https://vpatlas.org (v${VERSION})"
     ;;
 
 # ─── Look up the existing legacy vpatlas.org vhost ───
@@ -315,20 +349,43 @@ logs)
 
 help|*)
     cat <<EOF
-Usage: $0 {setup|clone|db-dump-from-live|db-restore-from-live|deploy|ui|inspect-legacy-nginx|cutover|rollback|status|logs}
+Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|setup|clone|inspect-legacy-nginx|cutover|rollback}
 
-First-time bring-up sequence:
-  1. ./deploy/deploy-prod.sh setup
-  2. (manual)  sudo certbot --nginx -d api.vpatlas.org   on the server
-  3. ./deploy/deploy-prod.sh clone
-  4. ./deploy/deploy-prod.sh db-restore-from-live
-  5. ./deploy/deploy-prod.sh deploy
-  6. Verify https://api.vpatlas.org/pools (etc) and the UI via hosts-file override
-  7. ./deploy/deploy-prod.sh inspect-legacy-nginx       # find legacy vhost path
-  8. ./deploy/deploy-prod.sh cutover [legacy-vhost-path]
-  9. If anything is wrong: ./deploy/deploy-prod.sh rollback
+== Day-to-day app updates ==
 
-Day-to-day after cutover: ./deploy/deploy-prod.sh deploy  (or ui)
+  ./deploy/deploy-prod.sh ui         # standard UI update: sw-build patch +
+                                     #   local rebuild + commit/push +
+                                     #   prod rebuild. Use this for any
+                                     #   change under ui_vp/uiVPAtlas/**
+                                     #   plus deploy/ scripts, db_restore.sh,
+                                     #   etc. (non-UI files ride along
+                                     #   via the remote git pull).
+
+  ./deploy/deploy-prod.sh deploy     # full-stack update: same as 'ui' but
+                                     #   also rebuilds api_vp(_prod) and
+                                     #   runs any new migrations. Use when
+                                     #   api_vp/** or db_migrate/** changed.
+
+  Both accept an optional commit message:
+    ./deploy/deploy-prod.sh ui "fix login redirect"
+
+== Inspect ==
+
+  ./deploy/deploy-prod.sh status     # docker compose ps on prod
+  ./deploy/deploy-prod.sh logs [svc] # tail -80 of prod logs
+
+== DB ==
+
+  ./deploy/deploy-prod.sh db-dump-from-live      # pg_dump legacy → prod's db_backup/
+  ./deploy/deploy-prod.sh db-restore-from-live   # dump + DROP/CREATE + restore
+
+== One-time bootstrap (already done — kept for reproducibility) ==
+
+  ./deploy/deploy-prod.sh setup                  # install api.vpatlas.org nginx vhost
+  ./deploy/deploy-prod.sh clone                  # initial git clone on AWS
+  ./deploy/deploy-prod.sh inspect-legacy-nginx   # find legacy vhost name
+  ./deploy/deploy-prod.sh cutover [legacy-path]  # flip vpatlas.org nginx to docker UI
+  ./deploy/deploy-prod.sh rollback               # restore legacy vhost
 EOF
     ;;
 esac
