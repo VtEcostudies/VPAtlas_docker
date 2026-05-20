@@ -52,10 +52,18 @@ VPAtlas is a vernal pool ecological data management system for Vermont. This rep
 ```bash
 docker compose -f docker-compose-vpatlas.yml up -d          # Start all
 docker compose -f docker-compose-vpatlas.yml up -d --build ui_vp  # Rebuild UI only
-./db_restore.sh                                              # Restore from db_backup/*.backup
+./db_dump_restore/db_backup.sh                               # Backup → db_backup/vpatlas_vp_complete_YYYYMMDD.sql.gz (cron pattern)
+./db_dump_restore/db_restore.sh vp db_backup/<file>.sql.gz   # Restore from a .sql.gz dump (preferred)
+./db_restore.sh                                              # Legacy restore from db_backup/*.backup (used by deploy scripts)
 ./test_stack.sh                                              # Full smoke suite (must run after every deploy)
 ./ui_vp/uiVPAtlas/test-offline-serve.sh                      # Just the offline-deliverability slice
 ```
+
+The `db_dump_restore/` pipeline mirrors LoonWeb's so the two projects' backup
+systems operate identically. Designed to be cron'd on the vpatlas server,
+not run from a dev machine — see [`db_dump_restore/README.md`](db_dump_restore/README.md)
+for the cron line, optional `~/.vpatlas_backup.conf` (S3 + SNS), and the
+post-restore migration step.
 
 ### Required deploy sequence
 After UI/API changes, run all three — see `feedback_build_workflow.md`:
