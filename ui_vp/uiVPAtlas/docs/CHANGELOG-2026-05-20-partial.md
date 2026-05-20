@@ -1,9 +1,26 @@
 # Changelog — Snapshot 2026-05-20 (partial)
 
-## v3.5.284 – v3.5.294
+## v3.5.284 – v3.5.295
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-20 changelog.
+
+### Production cutover — vpatlas.org is now the docker rewrite
+
+- **What changed.** `vpatlas.org` now serves the new docker UI (this app). The legacy Angular site at `/var/www/vpatlas` has been retired (snapshot preserved for rollback). API moved from `vpatlas.org:4322` to a proper `api.vpatlas.org` subdomain, fronted by nginx with SSL.
+- **Data.** A fresh `pg_dump` of the legacy production DB was restored into the new docker stack and all 16 dev-era migrations were applied. 34 real visits from dev (kevtolan, mbrios94, jloomis), 9 new pools (NEW1507–NEW1515), 31 photos, and 1 track were harvested over to the new system. 25 dev visits that already existed in prod via Survey123 dual-write were skipped.
+- **CORS.** The Express `cors()` middleware on `api_vp_prod` and the nginx `add_header` directives were both emitting `Access-Control-Allow-Origin`, and nginx APPENDS rather than replaces, so browsers were seeing the combined string `*, https://vpatlas.org` and rejecting every API call. Fixed with `proxy_hide_header` for the four CORS keys in [deploy/nginx-api.vpatlas.org.conf](deploy/nginx-api.vpatlas.org.conf) so nginx is the only source of truth.
+
+### Kill-switch service worker for legacy Angular installs
+
+- **The problem.** Users who had visited the old Angular site still have its service worker (`/ngsw-worker.js`) registered in their browser. After the cutover, that SW continues to intercept every fetch on `vpatlas.org` and serve cached Angular content — they don't see the new docker app at all, even though the server has changed.
+- **The fix.** New file [ngsw-worker.js](ui_vp/uiVPAtlas/ngsw-worker.js) at the legacy SW's exact path. On the next navigation, the browser does its standard SW update check, sees different bytes, installs this SW; on `activate` it deletes every cache on the origin, claims all clients, unregisters itself, and reloads every open tab. The reload hits the docker app fresh and registers `/sw.js` (the docker app's own SW) as the new controller.
+- **Not precached.** Deliberately excluded from [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) — we want it served fresh from the network so the browser's update check always succeeds.
+
+### Service worker / build
+
+- `manifest.json` 3.5.294 → 3.5.295 via `node sw-build.js patch`.
+- No `urlsToCache.js` changes (the kill switch is intentionally out of the precache).
 
 ### Home page — "Refresh Pool Data" no longer errors offline
 
