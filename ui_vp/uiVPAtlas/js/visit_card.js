@@ -104,8 +104,21 @@ function buildVisitTab(v, m) {
         </div>
     </div>`;
 
-    let hasLandowner = val(v.visitLandownerName) || val(v.visitLandownerPhone)
-        || val(v.visitLandownerEmail) || val(v.visitLandownerAddress)
+    // Landowner subfields live in the vpvisit.visitLandowner jsonb column,
+    // written by survey/visit_create.html as { visitLandownerName, Phone,
+    // Email, Address }. Older Angular-era rows used a single `name` key —
+    // surface that as Name so legacy visits still render. visitLandowner
+    // comes back from the API as an object (pg auto-parses jsonb) but
+    // defensively handle the string case for any cache path that stored
+    // it pre-parsed.
+    let lo = v.visitLandowner;
+    if (typeof lo === 'string') { try { lo = JSON.parse(lo); } catch(e) { lo = {}; } }
+    lo = lo || {};
+    let loName    = lo.visitLandownerName    || lo.name    || '';
+    let loPhone   = lo.visitLandownerPhone   || lo.phone   || '';
+    let loEmail   = lo.visitLandownerEmail   || lo.email   || '';
+    let loAddress = lo.visitLandownerAddress || lo.address || '';
+    let hasLandowner = val(loName) || val(loPhone) || val(loEmail) || val(loAddress)
         || v.visitLandownerPermission != null;
     if (hasLandowner) {
         let perm = v.visitLandownerPermission == null ? ''
@@ -114,10 +127,10 @@ function buildVisitTab(v, m) {
             <div class="vc-card-title"><i class="fa fa-user"></i>Landowner</div>
             <div class="vc-card-grid">
                 ${field('Permission', perm)}
-                ${field('Name', v.visitLandownerName)}
-                ${field('Phone', v.visitLandownerPhone)}
-                ${field('Email', v.visitLandownerEmail)}
-                ${field('Address', v.visitLandownerAddress, { full: true })}
+                ${field('Name', loName)}
+                ${field('Phone', loPhone)}
+                ${field('Email', loEmail)}
+                ${field('Address', loAddress, { full: true })}
             </div>
         </div>`;
     }

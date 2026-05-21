@@ -1,9 +1,19 @@
 # Changelog — Snapshot 2026-05-20 (partial)
 
-## v3.5.284 – v3.5.297
+## v3.5.284 – v3.5.300
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-20 changelog.
+
+### Visit detail — landowner card now actually appears
+
+- **The bug.** Landowner Name / Phone / Email / Address never showed on the visit detail page, even when entered on the visit form. The form correctly writes them into the `vpvisit.visitLandowner` JSONB column (as `{ visitLandownerName, …Phone, …Email, …Address }`), but the renderer in [js/visit_card.js](ui_vp/uiVPAtlas/js/visit_card.js) was reading `v.visitLandownerName` etc. as TOP-level fields — which never exist — so the landowner card was always hidden. So while the data was being saved, none of it was being shown.
+- **The fix.** [js/visit_card.js](ui_vp/uiVPAtlas/js/visit_card.js) `buildVisitTab` now destructures the four subfields from `v.visitLandowner` (defensively handling both the object shape pg auto-parses from JSONB and a JSON-string shape that could come through a cache path). Card show/hide logic and the four `field()` calls now use the unpacked locals. Also surfaces the legacy Angular `name` key as Name (and matching `phone` / `email` / `address` fallbacks) so visits imported from the old system display whatever landowner data they carried in.
+- **Editor parity.** [survey/visit_create.html](ui_vp/uiVPAtlas/survey/visit_create.html) edit-load uses the same fallback chain so opening a legacy visit for edit no longer presents blank landowner fields when the data really exists under the older key.
+
+### Service worker / build
+
+- `manifest.json` 3.5.299 → 3.5.300 via `node sw-build.js patch`. UI rebuild only; no API or DB change.
 
 ### Install guide — FAQ tweaks
 

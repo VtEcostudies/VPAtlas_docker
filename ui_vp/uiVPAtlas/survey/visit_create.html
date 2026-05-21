@@ -2046,13 +2046,23 @@
                 let el = document.getElementById(f);
                 if (el && v[f]) el.checked = true;
             });
-            // Landowner info (JSONB)
-            if (v.visitLandowner && typeof v.visitLandowner === 'object') {
-                let lo = v.visitLandowner;
-                if (lo.visitLandownerName) document.getElementById('visitLandownerName').value = lo.visitLandownerName;
-                if (lo.visitLandownerAddress) document.getElementById('visitLandownerAddress').value = lo.visitLandownerAddress;
-                if (lo.visitLandownerPhone) document.getElementById('visitLandownerPhone').value = lo.visitLandownerPhone;
-                if (lo.visitLandownerEmail) document.getElementById('visitLandownerEmail').value = lo.visitLandownerEmail;
+            // Landowner info (JSONB). Modern docker rows: visitLandownerName/
+            // Phone/Email/Address keys. Legacy Angular-era rows: a single
+            // `name` key (+ optional phone/email/address). Fall back to the
+            // legacy keys on load so editing a legacy visit doesn't blank
+            // the name field.
+            let loRaw = v.visitLandowner;
+            if (typeof loRaw === 'string') { try { loRaw = JSON.parse(loRaw); } catch(e) { loRaw = null; } }
+            if (loRaw && typeof loRaw === 'object') {
+                let lo = loRaw;
+                let nm = lo.visitLandownerName    || lo.name    || '';
+                let ad = lo.visitLandownerAddress || lo.address || '';
+                let ph = lo.visitLandownerPhone   || lo.phone   || '';
+                let em = lo.visitLandownerEmail   || lo.email   || '';
+                if (nm) document.getElementById('visitLandownerName').value = nm;
+                if (ad) document.getElementById('visitLandownerAddress').value = ad;
+                if (ph) document.getElementById('visitLandownerPhone').value = ph;
+                if (em) document.getElementById('visitLandownerEmail').value = em;
             }
             // Radio groups
             // visitPoolType may have been stored as a JSON array by the redesigned form;
