@@ -1,4 +1,11 @@
 #!/bin/bash
+# Cron runs with a minimal PATH (/usr/bin:/bin). aws-cli v2 installs to
+# /usr/local/bin/aws by default, so without this line the S3 upload step
+# fails at 2 AM with "aws: command not found" even though the same script
+# works fine when invoked from an interactive shell. Prepend the standard
+# admin/local paths so the script works regardless of invocation context.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
 # =============================================================================
 # db_backup.sh - VPAtlas unified database backup
 #
