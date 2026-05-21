@@ -1,0 +1,25 @@
+{
+    "Rules": [
+        {
+            "ID": "expire-daily-after-30-days",
+            "Filter": { "Prefix": "daily/" },
+            "Status": "Enabled",
+            "Expiration": { "Days": 30 },
+            "NoncurrentVersionExpiration": { "NoncurrentDays": 7 }
+        },
+        {
+            "ID": "expire-weekly-after-90-days",
+            "Filter": { "Prefix": "weekly/" },
+            "Status": "Enabled",
+            "Expiration": { "Days": 90 },
+            "NoncurrentVersionExpiration": { "NoncurrentDays": 7 }
+        },
+        {
+            "ID": "expire-monthly-after-365-days",
+            "Filter": { "Prefix": "monthly/" },
+            "Status": "Enabled",
+            "Expiration": { "Days": 365 },
+            "NoncurrentVersionExpiration": { "NoncurrentDays": 30 }
+        }
+    ]
+}

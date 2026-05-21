@@ -283,6 +283,40 @@ CONF_EOF
     echo "    aws s3 rm s3://vpatlas.backup/ --recursive --exclude '*' --include 'vpatlas_*.backup'"
     ;;
 
+# ─── Apply S3 lifecycle policy to vpatlas.backup ───
+# Idempotent — PutBucketLifecycleConfiguration replaces. Scoped to daily/,
+# weekly/, monthly/ prefixes so legacy *.backup files at the bucket root
+# are untouched. Mirrors loonweb-db-backups's retention (30/90/365 days).
+# Re-run to converge after editing deploy/s3-lifecycle.json.
+backup-lifecycle)
+    echo "=== Applying S3 lifecycle policy to s3://vpatlas.backup/ ==="
+
+    SCRIPT_DIR_LOCAL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    LIFECYCLE_JSON="$SCRIPT_DIR_LOCAL/s3-lifecycle.json"
+
+    if [ ! -f "$LIFECYCLE_JSON" ]; then
+        echo "ERROR: lifecycle policy file not found: $LIFECYCLE_JSON" >&2
+        exit 1
+    fi
+
+    echo "→ Policy file: $LIFECYCLE_JSON"
+    aws s3api put-bucket-lifecycle-configuration \
+        --bucket vpatlas.backup \
+        --lifecycle-configuration "file://${LIFECYCLE_JSON}"
+
+    echo ""
+    echo "→ Live policy:"
+    aws s3api get-bucket-lifecycle-configuration --bucket vpatlas.backup \
+        | sed 's/^/    /'
+
+    echo ""
+    echo "✓ S3 lifecycle applied to s3://vpatlas.backup/"
+    echo "  daily/    → expire after 30 days"
+    echo "  weekly/   → expire after 90 days"
+    echo "  monthly/  → expire after 365 days"
+    echo "  (legacy *.backup files at bucket root: untouched — no prefix match)"
+    ;;
+
 # ─── Full deploy: sw-build patch → local rebuild (all) → push → prod rebuild (all) ───
 # Use when you've changed UI + API (and/or migrations). Always rebuilds api_vp too;
 # Docker layer cache makes that cheap if the API hasn't actually changed.
@@ -471,7 +505,7 @@ logs)
 
 help|*)
     cat <<EOF
-Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|backup-install|setup|clone|inspect-legacy-nginx|cutover|rollback}
+Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|backup-install|backup-lifecycle|setup|clone|inspect-legacy-nginx|cutover|rollback}
 
 == Day-to-day app updates ==
 
@@ -509,6 +543,12 @@ Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|backup-i
                                                  #   db_dump_restore/db_backup.sh
                                                  #   pipeline, run one validation
                                                  #   dump. Idempotent — re-run anytime.
+
+  ./deploy/deploy-prod.sh backup-lifecycle       # apply S3 lifecycle rules to
+                                                 #   s3://vpatlas.backup/ from
+                                                 #   deploy/s3-lifecycle.json
+                                                 #   (daily 30d / weekly 90d /
+                                                 #   monthly 365d). Idempotent.
 
 == One-time bootstrap (already done — kept for reproducibility) ==
 
