@@ -41,6 +41,11 @@ appConfig.urlsToCache = [
 // When you add a new guide (.html) or changelog (.md), add it here too.
 '/docs/',
 '/docs/index.html',
+'/docs/howto_update_app.html',
+'/docs/howto_cache_basemaps.html',
+'/docs/howto_top_filters.html',
+'/docs/howto_primary_features.html',
+'/docs/howto_gps_compass.html',
 '/docs/VPAtlas_App_Install_Guide.html',
 '/docs/VPAtlas_App_Install_Synopsis.html',
 '/docs/CHANGELOG-2026-05-01.md',
@@ -55,7 +60,8 @@ appConfig.urlsToCache = [
 '/docs/CHANGELOG-2026-05-18.md',
 '/docs/CHANGELOG-2026-05-19.md',
 '/docs/CHANGELOG-2026-05-20.md',
-'/docs/CHANGELOG-2026-05-21-partial.md',
+'/docs/CHANGELOG-2026-05-21.md',
+'/docs/CHANGELOG-2026-05-22-partial.md',
 
 // === Shared JS ===
 '/js/app.js',

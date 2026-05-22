@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enabling GPS &amp; Compass</title>
+    <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;padding:20px;background:#f8f9fa;color:#333;}
+        .container{max-width:760px;margin:0 auto;background:#fff;padding:28px 34px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+        .header{text-align:center;margin-bottom:22px;padding-bottom:16px;border-bottom:2px solid #2c5530;}
+        .title{font-size:24px;font-weight:700;color:#2c5530;margin:0 0 6px;}
+        .subtitle{font-size:15px;color:#7f8c8d;margin:0;}
+        h2{color:#2c5530;font-size:20px;margin:26px 0 10px;padding-bottom:5px;border-bottom:1px solid #e3efe5;}
+        h3{color:#2c3e50;font-size:16px;margin:18px 0 6px;}
+        p,li{line-height:1.65;font-size:15px;}
+        ol,ul{padding-left:22px;margin:6px 0 10px;}
+        ol li,ul li{margin-bottom:8px;}
+        .ui{font-weight:600;color:#2c3e50;}
+        .callout{border-left:4px solid #2c5530;background:#f0faf3;padding:12px 16px;margin:14px 0;border-radius:0 6px 6px 0;}
+        .callout.warning{border-left-color:#e67e22;background:#fef9f0;}
+        .callout.iphone{border-left-color:#007aff;background:#f0f7ff;}
+        .callout strong{display:block;margin-bottom:3px;}
+        @media (max-width:500px){body{padding:10px;}.container{padding:18px;}.title{font-size:20px;}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="title">Enabling GPS &amp; Compass</div>
+        <p class="subtitle">Let the app see where you are and which way you're facing</p>
+    </div>
+
+    <p>GPS shows where you are; the compass shows which way you're facing. Together they let the Pool Finder point you to a pool. Your phone asks permission before sharing either &mdash; here's how to grant it.</p>
+
+    <h2>Enabling GPS</h2>
+
+    <h3>On the Explore map (&ldquo;Near me&rdquo;)</h3>
+    <ol>
+        <li>In the top filter bar, use the <span class="ui">Near me</span> stepper.</li>
+        <li>Your phone asks to use your location &mdash; tap <span class="ui">Allow</span>.</li>
+        <li>Pools within the chosen radius are shown.</li>
+    </ol>
+
+    <h3>In the Pool Finder</h3>
+    <ol>
+        <li>Open <span class="ui">Find Pool</span> for any pool.</li>
+        <li>Tap the GPS button &mdash; a crosshairs-and-person icon labeled <span class="ui">Zoom to my GPS location</span>.</li>
+        <li>Tap <span class="ui">Allow</span> when your phone asks.</li>
+        <li>A green dot in the header means GPS is tracking, and the map centers on you.</li>
+    </ol>
+
+    <div class="callout iphone">
+        <strong>On iPhone</strong>
+        Choose <span class="ui">Allow While Using App</span>. You may be asked again each time you open the app &mdash; that's normal iPhone behavior.
+    </div>
+
+    <h2>Enabling the Compass</h2>
+    <p>The compass is the round dial in the bottom-right corner of the Pool Finder map.</p>
+    <ul>
+        <li><strong>Android:</strong> the compass usually starts working on its own.</li>
+        <li><strong>iPhone:</strong> the compass shows a card that says <span class="ui">Tap this dialog to enable compass orientation</span>. Tap it, then approve the motion &amp; orientation request.</li>
+    </ul>
+    <p>Once enabled, the arrow rotates to point toward your selected pool as you turn.</p>
+
+    <div class="callout warning">
+        <strong>iPhone forgets compass permission.</strong>
+        iPhone does not remember compass permission between sessions. Each time you open the Pool Finder you may need to tap the card again to re-enable the compass.
+    </div>
+
+    <h2>If something isn't working</h2>
+    <ul>
+        <li><strong>No location:</strong> check that Location Services are on in your phone's settings, and that VPAtlas (or your browser) is allowed to use it.</li>
+        <li><strong>Compass arrow stuck:</strong> leave the Pool Finder and reopen it, then tap the compass card again. Calibrate the phone by moving it in a figure-8.</li>
+        <li>Both GPS and compass work best outdoors with a clear view of the sky.</li>
+    </ul>
+</div>
+</body>
+</html>

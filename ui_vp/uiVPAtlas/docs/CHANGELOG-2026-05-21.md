@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-05-21 (partial)
+# Changelog — Snapshot 2026-05-21
 
-## v3.5.302
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-21 changelog.
+## v3.5.302 – v3.5.303
 
 ### Kill-switch SW — fixed a 1-second reload loop on iOS
 
@@ -17,4 +14,4 @@ Partial day's work; additional changes may land later under a follow-up
 
 ### Service worker / build
 
-- `manifest.json` 3.5.301 → 3.5.302 via `node sw-build.js patch`. UI rebuild only.
+- `manifest.json` 3.5.301 → 3.5.303 via `node sw-build.js patch` (one bump per change). UI rebuild only.

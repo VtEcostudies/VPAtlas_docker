@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caching Basemaps for Offline Use</title>
+    <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;padding:20px;background:#f8f9fa;color:#333;}
+        .container{max-width:760px;margin:0 auto;background:#fff;padding:28px 34px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+        .header{text-align:center;margin-bottom:22px;padding-bottom:16px;border-bottom:2px solid #2c5530;}
+        .title{font-size:24px;font-weight:700;color:#2c5530;margin:0 0 6px;}
+        .subtitle{font-size:15px;color:#7f8c8d;margin:0;}
+        h2{color:#2c5530;font-size:20px;margin:26px 0 10px;padding-bottom:5px;border-bottom:1px solid #e3efe5;}
+        p,li{line-height:1.65;font-size:15px;}
+        ol,ul{padding-left:22px;margin:6px 0 10px;}
+        ol li,ul li{margin-bottom:8px;}
+        .ui{font-weight:600;color:#2c3e50;}
+        .callout{border-left:4px solid #2c5530;background:#f0faf3;padding:12px 16px;margin:14px 0;border-radius:0 6px 6px 0;}
+        .callout.warning{border-left-color:#e67e22;background:#fef9f0;}
+        .callout.tip{border-left-color:#007aff;background:#f0f7ff;}
+        .callout strong{display:block;margin-bottom:3px;}
+        .footer-link{margin-top:22px;font-size:14px;color:#7f8c8d;}
+        .footer-link a{color:#2c5530;}
+        @media (max-width:500px){body{padding:10px;}.container{padding:18px;}.title{font-size:20px;}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="title">Caching Basemaps for Offline Use</div>
+        <p class="subtitle">Pre-load the map background so it works where there's no signal</p>
+    </div>
+
+    <p>The map background &mdash; aerial imagery and topographic tiles &mdash; is saved automatically as you look at it. There is no &ldquo;download&rdquo; button: the app simply keeps every map tile you bring on-screen. To have a usable map offline, view your field area while you still have a connection.</p>
+
+    <h2>How map caching works</h2>
+    <ul>
+        <li>Every time you pan or zoom the map, the tiles you see are saved onto your device.</li>
+        <li>Saved tiles stay available offline, and they are kept even when the app updates.</li>
+        <li>Tiles you never viewed are not saved. If you never zoomed into an area, it will be blank offline.</li>
+    </ul>
+
+    <h2>Before you head out</h2>
+    <ol>
+        <li>While on wifi or a cell signal, open VPAtlas and go to the map.</li>
+        <li>Navigate to the area where you'll be working.</li>
+        <li>Pan slowly across the whole area so every part of it appears on-screen at least once.</li>
+        <li>Zoom in to the closest zoom level you expect to use in the field, and pan across the area again at that zoom. Then zoom out a step or two and pan once more.</li>
+        <li>If you use more than one map background, switch to each one and repeat &mdash; each background is its own separate set of tiles.</li>
+    </ol>
+
+    <div class="callout tip">
+        <strong>Think of it as showing the app where you're going.</strong>
+        Whatever you looked at, you'll have offline. Whatever you skipped over, you won't.
+    </div>
+
+    <div class="callout warning">
+        <strong>Map tiles can be large.</strong>
+        Pre-load on wifi when you can, so you don't use a lot of cell data covering a wide area at high zoom.
+    </div>
+
+    <h2>In the field</h2>
+    <p>The areas you viewed display normally with no connection. If you reach a spot you didn't pre-load, that part of the map will be blank &mdash; but pool markers, the pool list, and data entry all keep working regardless.</p>
+
+    <p class="footer-link">See also: <a href="howto_update_app.html">Updating the App Before Going Out</a>.</p>
+</div>
+</body>
+</html>

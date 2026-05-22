@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Updating the App Before Going Out</title>
+    <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;padding:20px;background:#f8f9fa;color:#333;}
+        .container{max-width:760px;margin:0 auto;background:#fff;padding:28px 34px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+        .header{text-align:center;margin-bottom:22px;padding-bottom:16px;border-bottom:2px solid #2c5530;}
+        .title{font-size:24px;font-weight:700;color:#2c5530;margin:0 0 6px;}
+        .subtitle{font-size:15px;color:#7f8c8d;margin:0;}
+        h2{color:#2c5530;font-size:20px;margin:26px 0 10px;padding-bottom:5px;border-bottom:1px solid #e3efe5;}
+        p,li{line-height:1.65;font-size:15px;}
+        ol,ul{padding-left:22px;margin:6px 0 10px;}
+        ol li,ul li{margin-bottom:8px;}
+        .ui{font-weight:600;color:#2c3e50;}
+        .callout{border-left:4px solid #2c5530;background:#f0faf3;padding:12px 16px;margin:14px 0;border-radius:0 6px 6px 0;}
+        .callout.warning{border-left-color:#e67e22;background:#fef9f0;}
+        .callout.tip{border-left-color:#007aff;background:#f0f7ff;}
+        .callout strong{display:block;margin-bottom:3px;}
+        .footer-link{margin-top:22px;font-size:14px;color:#7f8c8d;}
+        .footer-link a{color:#2c5530;}
+        @media (max-width:500px){body{padding:10px;}.container{padding:18px;}.title{font-size:20px;}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="title">Updating the App Before Going Out</div>
+        <p class="subtitle">Make sure you have the latest app and pool data before you lose signal</p>
+    </div>
+
+    <p>VPAtlas works offline in the field &mdash; but only with whatever it downloaded the last time it had a connection. Before a field trip, take a minute on wifi or cell data to bring both the app and the pool data up to date.</p>
+
+    <h2>The app updates itself</h2>
+    <ul>
+        <li>VPAtlas is an installed web app. Each time you open it with an internet connection, it automatically checks for a new version.</li>
+        <li>If an update is found, the app downloads and installs it on the spot &mdash; you'll briefly see a dark <span class="ui">Downloading update&hellip;</span> / <span class="ui">Activating update&hellip;</span> screen &mdash; then it reloads itself onto the new version. You don't have to close or reopen anything.</li>
+        <li>Your current version is shown in the top bar, just under the <span class="ui">VPAtlas</span> name (for example, <span class="ui">v3.5.305</span>).</li>
+    </ul>
+
+    <h2>Before you head out</h2>
+    <ol>
+        <li>While you still have wifi or a cell signal, open VPAtlas from your home-screen icon.</li>
+        <li>If an update is available, let the brief <span class="ui">Downloading update&hellip;</span> / <span class="ui">Activating update&hellip;</span> screen finish &mdash; the app reloads itself when it's done. If no such screen appears, you're already on the latest version.</li>
+        <li>Check the version number under <span class="ui">VPAtlas</span> in the top bar. The newest version is listed at the top of the most recent changelog, here in Documentation.</li>
+    </ol>
+
+    <h2>Refresh the pool data</h2>
+    <p>The map and pool list are stored on your device <em>separately</em> from the app itself, and they do not refresh on their own. Pull the latest records before you go:</p>
+    <ol>
+        <li>Tap the menu button (<span class="ui">&#9776;</span>, three lines) in the top-right corner.</li>
+        <li>Tap <span class="ui">Refresh Pool Data</span>.</li>
+        <li>Wait for the list to reload. You now have the latest pool records saved for offline use.</li>
+    </ol>
+
+    <div class="callout warning">
+        <strong>Offline is handled gracefully.</strong>
+        If you tap Refresh Pool Data with no connection, the app simply tells you it needs a network and leaves your existing data in place. It will not show an error or lose anything.
+    </div>
+
+    <div class="callout tip">
+        <strong>Do this where the signal is good.</strong>
+        Update the app and refresh the pool data at home or anywhere with solid wifi. In the field, the app runs entirely from what it has already saved.
+    </div>
+
+    <p class="footer-link">Next: <a href="howto_cache_basemaps.html">Caching Basemaps for Offline Use</a> &mdash; so the map background works offline too.</p>
+</div>
+</body>
+</html>

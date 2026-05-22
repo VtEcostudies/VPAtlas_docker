@@ -55,10 +55,23 @@
             background: #fff;
         }
 
+        /* Mobile landscape keeps the default side-by-side row layout — it
+           reads fine with the list and document next to each other. */
         @media (max-width: 700px) {
-            .docs-layout { flex-direction: column; height: auto; overflow: visible; }
-            .docs-sidebar { flex: 0 0 auto; border-right: none; border-bottom: 1px solid #ddd; }
             .docs-content { padding: 12px 14px; }
+        }
+        /* Mobile portrait: the doc list becomes a panel above the document.
+           Cap it at a third of the screen height with its own scrollbar so
+           the document body always gets the other two-thirds — without the
+           cap the list grows with its entries and pushes the document off
+           the bottom of the screen. */
+        @media (max-width: 700px) and (orientation: portrait) {
+            .docs-layout { flex-direction: column; }
+            .docs-sidebar {
+                flex: 0 0 33vh; border-right: none;
+                border-bottom: 1px solid #ddd; overflow-y: auto;
+            }
+            .docs-pane { flex: 1 1 auto; min-height: 0; }
         }
     </style>
 </head>
@@ -99,9 +112,15 @@
         //   - Markdown changelog: drop the .md here, add to urlsToCache.js, add
         //     entry below with type:'md'.
         const DOCS = [
+            { file: 'howto_update_app.html',             title: 'Updating the App Before Going Out',  type: 'html' },
+            { file: 'howto_cache_basemaps.html',         title: 'Caching Basemaps for Offline Use',   type: 'html' },
+            { file: 'howto_top_filters.html',            title: 'Using the Top Filters',              type: 'html' },
+            { file: 'howto_primary_features.html',       title: 'Find Pool, Atlas Visit & New Pool',  type: 'html' },
+            { file: 'howto_gps_compass.html',            title: 'Enabling GPS & Compass',             type: 'html' },
             { file: 'VPAtlas_App_Install_Guide.html',    title: 'App Install Guide',           type: 'html' },
             { file: 'VPAtlas_App_Install_Synopsis.html', title: 'App Install — Quick Reference', type: 'html' },
-            { file: 'CHANGELOG-2026-05-21-partial.md', title: 'Changelog — 2026-05-21 (partial)', type: 'md' },
+            { file: 'CHANGELOG-2026-05-22-partial.md', title: 'Changelog — 2026-05-22 (partial)', type: 'md' },
+            { file: 'CHANGELOG-2026-05-21.md', title: 'Changelog — 2026-05-21', type: 'md' },
             { file: 'CHANGELOG-2026-05-20.md', title: 'Changelog — 2026-05-20', type: 'md' },
             { file: 'CHANGELOG-2026-05-19.md', title: 'Changelog — 2026-05-19', type: 'md' },
             { file: 'CHANGELOG-2026-05-18.md', title: 'Changelog — 2026-05-18', type: 'md' },

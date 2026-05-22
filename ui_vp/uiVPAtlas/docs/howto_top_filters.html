@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Using the Top Filters</title>
+    <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;padding:20px;background:#f8f9fa;color:#333;}
+        .container{max-width:760px;margin:0 auto;background:#fff;padding:28px 34px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+        .header{text-align:center;margin-bottom:22px;padding-bottom:16px;border-bottom:2px solid #2c5530;}
+        .title{font-size:24px;font-weight:700;color:#2c5530;margin:0 0 6px;}
+        .subtitle{font-size:15px;color:#7f8c8d;margin:0;}
+        h2{color:#2c5530;font-size:20px;margin:26px 0 10px;padding-bottom:5px;border-bottom:1px solid #e3efe5;}
+        h3{color:#2c3e50;font-size:16px;margin:18px 0 6px;}
+        p,li{line-height:1.65;font-size:15px;}
+        ol,ul{padding-left:22px;margin:6px 0 10px;}
+        ol li,ul li{margin-bottom:6px;}
+        .ui{font-weight:600;color:#2c3e50;}
+        .callout{border-left:4px solid #2c5530;background:#f0faf3;padding:12px 16px;margin:14px 0;border-radius:0 6px 6px 0;}
+        .callout.tip{border-left-color:#007aff;background:#f0f7ff;}
+        .callout strong{display:block;margin-bottom:3px;}
+        .footer-link{margin-top:22px;font-size:14px;color:#7f8c8d;}
+        .footer-link a{color:#2c5530;}
+        @media (max-width:500px){body{padding:10px;}.container{padding:18px;}.title{font-size:20px;}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="title">Using the Top Filters</div>
+        <p class="subtitle">Control which vernal pools appear on the Explore screen</p>
+    </div>
+
+    <p>The bar across the top of the Explore (home) screen filters which pools you see. The pool list, the map, and the summary panel all update together as you change filters. Your choices are remembered between sessions.</p>
+
+    <h2>Data-type buttons</h2>
+    <ul>
+        <li><span class="ui">All</span> &mdash; every pool in the Atlas.</li>
+        <li><span class="ui">Mine</span> &mdash; pools connected to your account (shown when you're signed in).</li>
+        <li><span class="ui">Review</span> &mdash; pools awaiting review (administrators only).</li>
+    </ul>
+
+    <h2>Pool ID search</h2>
+    <p>The <span class="ui">Pool&hellip;</span> box matches part of a pool ID as you type and shows suggestions. Pick one to jump straight to that pool.</p>
+
+    <h2>Town and County</h2>
+    <p>The <span class="ui">Town&hellip;</span> and <span class="ui">County&hellip;</span> boxes let you type to search and pick one or more. Each choice appears as a removable chip &mdash; tap its &times; to clear it.</p>
+
+    <h2>Indicator Spp</h2>
+    <p>Tick <span class="ui">Indicator Spp</span> to show only pools whose visits recorded an indicator species.</p>
+
+    <h2>Near me</h2>
+    <p>The <span class="ui">Near me</span> stepper (with &minus; and + buttons, e.g. &ldquo;5&nbsp;km&rdquo;) limits the list to pools within that distance of your location. It needs GPS &mdash; see <a href="howto_gps_compass.html">Enabling GPS &amp; Compass</a>.</p>
+
+    <h2>Status chips</h2>
+    <p>A row of colored chips: <span class="ui">Potential</span>, <span class="ui">Probable</span>, <span class="ui">Confirmed</span> (plus <span class="ui">Duplicate</span> and <span class="ui">Eliminated</span> for administrators). A chip is colored when its status is shown and grey when hidden. Tap a chip to toggle it.</p>
+
+    <h2>Survey-level chips</h2>
+    <ul>
+        <li><span class="ui">Mapped</span> (circle) &mdash; pool has been mapped but not yet visited.</li>
+        <li><span class="ui">Visited</span> (triangle) &mdash; pool has at least one Atlas visit.</li>
+        <li><span class="ui">Monitored</span> (diamond) &mdash; pool has a monitoring survey.</li>
+        <li><span class="ui">Reviewed</span> (checkmark, administrators only) &mdash; pool has a completed review.</li>
+    </ul>
+    <p>These are &ldquo;show any of these&rdquo; toggles &mdash; turning a chip on widens what appears. Turn one off to hide that level.</p>
+
+    <div class="callout tip">
+        <strong>Filters stack.</strong>
+        &ldquo;Confirmed&rdquo; status + &ldquo;Stowe&rdquo; town + &ldquo;Visited&rdquo; level shows only confirmed, visited pools in Stowe. To start fresh, clear the town and county chips and turn all the status and level chips back on.
+    </div>
+</div>
+</body>
+</html>
