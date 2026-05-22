@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-05-20 (partial)
+# Changelog — Snapshot 2026-05-20
 
 ## v3.5.284 – v3.5.300
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-20 changelog.
 
 ### Visit detail — landowner card now actually appears
 
