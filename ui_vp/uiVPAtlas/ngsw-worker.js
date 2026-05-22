@@ -1,54 +1,49 @@
-// /ngsw-worker.js — kill switch for the legacy Angular service worker
+// /ngsw-worker.js — retirement stub for the legacy Angular service worker
 //
 // Background: vpatlas.org migrated from the Angular app (which registered
 // this filename as its service worker) to the docker rewrite (which uses
-// /sw.js instead). Users who visited the legacy site still have the old
-// Angular SW installed in their browser — it intercepts every fetch and
-// serves stale Angular content from its cache, hiding the new docker app
-// even though the server has changed.
+// /sw.js instead). Phones that installed the PWA while the legacy site was
+// live still have THIS path registered as their service worker.
 //
-// On every navigation, browsers do an "SW update check" by fetching this
-// file and comparing it byte-for-byte with the cached version. As soon as
-// they see a different file here, they install the new SW. The install +
-// activate handlers below then:
-//   1. delete every cache on this origin
-//   2. take control of all controlled tabs
-//   3. unregister this SW (so future loads go straight to the network)
-//   4. reload every open tab, which then hits the live docker app fresh
+// On every navigation the browser does an SW update check by fetching this
+// file; when it sees different bytes than the cached SW it installs this
+// one. The install + activate handlers below skip waiting, clear every
+// cache on the origin, and unregister this registration. After that there
+// is no service worker — the next launch/navigation loads the current
+// docker app straight from the network, which registers /sw.js.
 //
-// After that, /js/app.js registers the docker /sw.js as the new SW.
+// IMPORTANT — why this file does NOT reload the page:
+// An earlier version called clients.claim() + clients.navigate() in
+// `activate` to force an immediate reload into the new app. On iOS that
+// unregister→navigate sequence did not terminate cleanly: the forced
+// reload re-ran the SW lifecycle, which activated and navigated again, in
+// a ~1-second loop that made the screen flash. A retirement stub must
+// NEVER reload anything — it has no cooldown and nothing to stop a loop.
+// It only unregisters; the clean app appears on the next normal launch.
 //
-// This file is deliberately NOT in urlsToCache.js — we want it served
-// fresh from the network so the SW update check always succeeds.
+// This file is deliberately NOT in urlsToCache.js — it must be served
+// fresh from the network so the browser's update check always sees it.
 
 self.addEventListener('install', (event) => {
-    // Skip the "waiting" phase so we activate as soon as install finishes.
+    // Activate as soon as install finishes — no waiting phase.
     event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event) => {
     event.waitUntil((async () => {
-        // 1. Delete every cache on this origin (Angular SW caches + anything else).
+        // Drop every cache on this origin (legacy Angular SW caches etc.).
         try {
             const keys = await caches.keys();
             await Promise.all(keys.map((k) => caches.delete(k)));
         } catch (_) { /* caches API can throw in odd contexts; keep going */ }
 
-        // 2. Take control of any pages still controlled by the old SW.
-        try { await self.clients.claim(); } catch (_) { /* no-op */ }
-
-        // 3. Unregister this kill-switch SW.
+        // Unregister this registration. Once it's gone, future page loads
+        // have no service worker and fetch the live docker app directly.
         try { await self.registration.unregister(); } catch (_) { /* no-op */ }
 
-        // 4. Reload every controlled window so it picks up the new docker app.
-        try {
-            const windows = await self.clients.matchAll({ type: 'window' });
-            for (const w of windows) {
-                try { await w.navigate(w.url); } catch (_) { /* about:srcdoc etc. */ }
-            }
-        } catch (_) { /* no-op */ }
+        // NOTHING ELSE. No clients.claim(), no clients.navigate(), no
+        // reload — those are what caused the iOS reload loop.
     })());
 });
 
-// No fetch handler — all requests pass through to the network until this
-// SW unregisters itself in `activate`.
+// No fetch handler — every request passes straight through to the network.
