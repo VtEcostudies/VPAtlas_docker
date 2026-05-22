@@ -45,6 +45,7 @@ appConfig.urlsToCache = [
 '/docs/howto_cache_basemaps.html',
 '/docs/howto_top_filters.html',
 '/docs/howto_primary_features.html',
+'/docs/howto_pool_finder.html',
 '/docs/howto_gps_compass.html',
 '/docs/VPAtlas_App_Install_Guide.html',
 '/docs/VPAtlas_App_Install_Synopsis.html',

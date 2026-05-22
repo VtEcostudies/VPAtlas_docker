@@ -314,7 +314,7 @@
                 <span id="gps_accuracy"></span>
             </div>
             <div class="pf-track-pill" id="pf_track_pill">
-                <span class="dot"></span><span id="pf_track_pill_label">Recording</span>
+                <span class="dot"></span><span id="pf_track_pill_label">Track Points</span>
             </div>
             <div class="pf-zoom-bar">
                 <button class="pf-zoom-btn" id="btn_zoom_pools" title="Zoom to selected pools">
@@ -551,24 +551,20 @@
                 menuPanel.appendChild(nearbyItem);
 
                 // Track recording controls (decision 25:06). State-aware:
-                // shows "Start Track" when idle, "Stop / Discard" when active.
+                // shows "Start Track" when idle, "Stop Track" when active.
+                // Stopping opens a single Cancel / Discard / Save dialog —
+                // discard is folded into that dialog rather than living as a
+                // separate menu item.
                 let trackItem = document.createElement('button');
                 trackItem.className = 'action-button';
                 trackItem.id = 'pf_track_toggle';
-                let trackDiscardItem = document.createElement('button');
-                trackDiscardItem.className = 'action-button';
-                trackDiscardItem.id = 'pf_track_discard';
-                trackDiscardItem.style.display = 'none';
-                trackDiscardItem.innerHTML = '<i class="fa fa-trash" style="width:20px;"></i> Discard Track';
 
                 function refreshTrackMenu() {
                     let active = trackRec.getActive();
                     if (active) {
                         trackItem.innerHTML = `<i class="fa fa-stop-circle" style="width:20px; color:#dc2626;"></i> Stop Track (${active.points.length} pts)`;
-                        trackDiscardItem.style.display = '';
                     } else {
                         trackItem.innerHTML = '<i class="fa fa-play-circle" style="width:20px;"></i> Start Track';
-                        trackDiscardItem.style.display = 'none';
                     }
                 }
 
@@ -577,14 +573,17 @@
                     if (trackRec.getActive()) {
                         let result = await showModal(
                             'Stop track?',
-                            'Save this track to your local queue? You can upload it later from My Visits and Tracks.',
+                            'Save this track to your local queue (upload later from My Visits and Tracks), or discard the points recorded so far?',
                             { buttons: [
                                 { text: 'Cancel', value: null },
+                                { text: 'Discard', value: 'discard' },
                                 { text: 'Save', value: 'save', isDefault: true }
                             ]}
                         );
                         if (result === 'save') {
                             await trackRec.stopTrack();
+                        } else if (result === 'discard') {
+                            await trackRec.discardTrack();
                         }
                     } else {
                         await trackRec.startTrack();
@@ -592,24 +591,7 @@
                     refreshTrackMenu();
                 });
 
-                trackDiscardItem.addEventListener('click', async () => {
-                    menuPanel.classList.remove('show');
-                    let result = await showModal(
-                        'Discard track?',
-                        'Throw away the points recorded so far? This cannot be undone.',
-                        { buttons: [
-                            { text: 'Cancel', value: false },
-                            { text: 'Discard', value: true }
-                        ]}
-                    );
-                    if (result) {
-                        await trackRec.discardTrack();
-                        refreshTrackMenu();
-                    }
-                });
-
                 menuPanel.appendChild(trackItem);
-                menuPanel.appendChild(trackDiscardItem);
                 refreshTrackMenu();
 
                 let viewTrackItem = document.createElement('button');
@@ -647,7 +629,7 @@
                 function setPill(active) {
                     if (active) {
                         trackPill.classList.add('active');
-                        trackPillLabel.textContent = `Recording (${active.points.length})`;
+                        trackPillLabel.textContent = `Track Points (${active.points.length})`;
                     } else {
                         trackPill.classList.remove('active');
                     }
@@ -1069,7 +1051,7 @@
         function updateGpsDisplay(pos) {
             let q = GPSMonitor.accuracyLabel(pos.accuracy);
             document.getElementById('gps_accuracy').innerHTML =
-                `<span style="color:${q.color};">\u25cf</span> ${q.label} (${Math.round(pos.accuracy)}m)`;
+                `<span style="color:${q.color};">\u25cf</span> Position Accuracy (${Math.round(pos.accuracy)}m)`;
         }
 
         // \u2500\u2500 Nearby pools \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
