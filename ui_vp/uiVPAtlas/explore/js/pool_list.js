@@ -20,6 +20,13 @@ const LEGACY_POOL_CACHE_KEYS = ['pool_cache_v2', 'pool_cache'];
 // shapeVersion }
 const STALE_MS = 60 * 1000;            // check freshness after 1 min
 
+// Hard cap on the cold-start /pools fetch. The endpoint returns ~98 MB; on
+// poor cell the underlying fetch has no client-side timeout and can hang
+// for minutes with no UI feedback (Bug 1 on iPhone). Boot path only — we
+// deliberately don't touch fetchApiRoute in api.js because visit submits
+// and S123 imports need their long fetch budget on slow networks.
+const BOOT_FETCH_TIMEOUT_MS = 30 * 1000;
+
 // Shape version of the dedup output stored in the pool cache. Bumped
 // whenever deduplicateByPoolId adds a new synthetic field downstream code
 // depends on (e.g. _lastUpdatedAt for the "Updated" sort, the photo /
@@ -111,6 +118,10 @@ export async function loadPools(onRefresh = null) {
     // 2. No cache under the current key. Before doing anything network,
     //    check connectivity — this is the path that has repeatedly
     //    regressed into "blank/error pool list offline".
+    //    Paint a visible "Loading…" message in the list pane BEFORE the
+    //    isOnline probe so the user has feedback during the (~3.5 s)
+    //    probe and any subsequent fetch — Bug 1 (silent blank screen).
+    renderBootLoading();
     if (!(await isOnline())) {
         // OFFLINE with no current-key cache. A POOL_CACHE_KEY bump is the
         // usual reason (the user simply hasn't been online since the new
@@ -163,10 +174,59 @@ function fetchFreshStats() {
     return fetchMappedPoolStats(`_cb=${win}`);
 }
 
+// Boot-path /pools fetch with a client-side abort timeout. Mirrors the
+// shape of fetchPools()/fetchApiRoute() (URL, Authorization header from
+// the stored JWT, JSON response) but adds an AbortController so a slow
+// cell connection can't hang the boot for minutes with no feedback. On
+// timeout the AbortError surfaces to the caller's catch where we fall
+// back to a legacy cache or render a Retry / Continue panel.
+// Inline "Loading…" message that paints into the list pane itself, so it's
+// visible at phone scale even when showWait()'s centered overlay reads as a
+// tiny dot against an empty layout. Used by the cold-start path in both
+// loadPools (before the isOnline probe) and fetchAndCache (before the
+// fetch). Clobbered when real content renders.
+function renderBootLoading() {
+    if (!listContainer) return;
+    listContainer.innerHTML = `<div style="padding:14px; color:var(--text-secondary);">
+        <i class="fa fa-spinner fa-spin"></i> Loading pool data… on a slow connection this can take a minute.</div>`;
+}
+
+async function fetchPoolsWithTimeout(ms) {
+    let url = `${appConfig.api.fqdn}/pools`;
+    let ctl = new AbortController();
+    let timer = setTimeout(() => ctl.abort(), ms);
+    try {
+        let headers = { 'Content-Type': 'application/json' };
+        try {
+            let token = await getLocal('auth_token');
+            if (token) headers.Authorization = `Bearer ${token}`;
+        } catch(_) {}
+        let res = await fetch(url, { method: 'GET', headers, signal: ctl.signal });
+        let text = await res.text();
+        if (!res.ok) {
+            throw {
+                name: 'APIError',
+                status: res.status,
+                message: `${res.status} ${res.statusText}`,
+                detail: text.substring(0, 200)
+            };
+        }
+        return JSON.parse(text);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function fetchAndCache(onRefresh) {
+    // Paint the in-list "Loading…" message before showWait so it's
+    // visible at phone scale (the centered overlay alone reads as blank
+    // on an empty page). Bug 1 fix.
+    renderBootLoading();
     showWait();
     try {
-        let data = await fetchPools(false);
+        // Boot-path-only AbortController-wrapped fetch — bounded so a
+        // poor cell connection doesn't hang the boot for minutes.
+        let data = await fetchPoolsWithTimeout(BOOT_FETCH_TIMEOUT_MS);
         let rawRows = data.rows || [];
         let rows = deduplicateByPoolId(rawRows);
 
@@ -185,6 +245,44 @@ async function fetchAndCache(onRefresh) {
         ensureCachesLoaded();
         return rows;
     } catch(err) {
+        // AbortError = our BOOT_FETCH_TIMEOUT_MS fired. On slow cell
+        // this is the common case; recover gracefully instead of red-
+        // erroring. Other errors (real backend failure) keep the
+        // existing red-error path so we don't mask a real bug.
+        let isTimeout = err && (err.name === 'AbortError' || err.message === 'The operation was aborted.');
+        if (isTimeout) {
+            console.warn(`pool_list: /pools fetch exceeded ${BOOT_FETCH_TIMEOUT_MS}ms timeout`);
+            // Fall back to the newest legacy cache silently. checkFreshness
+            // will retry the network later when conditions improve.
+            for (let legacyKey of LEGACY_POOL_CACHE_KEYS) {
+                let legacy = await getLocal(legacyKey);
+                if (legacy && legacy.rows && legacy.rows.length) {
+                    console.warn(`pool_list: timed out, serving stale '${legacyKey}' (${legacy.rows.length} pools)`);
+                    return legacy.rows;
+                }
+            }
+            // No legacy cache either — render a calm Retry / Continue panel.
+            if (listContainer) {
+                listContainer.innerHTML = `<div style="padding:14px; color:var(--text-secondary);">
+                    Trouble reaching the server on this connection.
+                    <div style="margin-top:12px; display:flex; gap:10px;">
+                        <button class="btn btn-sm btn-primary" id="pool_boot_retry_btn">Retry</button>
+                        <button class="btn btn-sm btn-outline-secondary" id="pool_boot_continue_btn">Continue Without Data</button>
+                    </div>
+                </div>`;
+                let retryBtn = document.getElementById('pool_boot_retry_btn');
+                let contBtn = document.getElementById('pool_boot_continue_btn');
+                if (retryBtn) retryBtn.addEventListener('click', async () => {
+                    let rows = await fetchAndCache(onRefresh);
+                    if (onRefresh && rows && rows.length) onRefresh(rows);
+                });
+                if (contBtn) contBtn.addEventListener('click', () => {
+                    if (listContainer) listContainer.innerHTML = `<div style="padding:12px; color:var(--text-secondary);">
+                        No pool data loaded yet. Tap Retry from the menu, or reconnect and reload, to fetch.</div>`;
+                });
+            }
+            return [];
+        }
         console.error('pool_list.js=>loadPools error:', err);
         if (listContainer) {
             listContainer.innerHTML = `<div style="padding:10px; color:var(--danger-color);">

@@ -47,29 +47,41 @@ try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
 // updates (deploy + reopen) sail through.
 //
 // Why a timestamp instead of a session flag: an iOS PWA in standalone mode
-// keeps the same `sessionStorage` across backgrounding/foregrounding for as
-// long as iOS keeps the process alive. A session flag locked users on their
-// first auto-reloaded version forever (or until force-quit), blocking every
-// subsequent deploy. A short cooldown is the right tool — long enough to
-// stop pathological loops, short enough to never feel sticky.
+// keeps the same `sessionStorage` across backgrounding/foregrounding only
+// for as long as iOS keeps the WebKit process alive. A session flag locked
+// users on their first auto-reloaded version forever (or until force-quit),
+// blocking every subsequent deploy. A short cooldown is the right tool —
+// long enough to stop pathological loops, short enough to never feel sticky.
+//
+// Why `localStorage` (not `sessionStorage`): iOS aggressively evicts the
+// standalone PWA's WebKit process under memory pressure (common on field
+// iPhones with poor cell). Each eviction wipes sessionStorage, which means
+// the next cold open starts with a clean cooldown — and the auto-reload
+// fires unconditionally. If the served sw.js is byte-unstable in any way,
+// that becomes a visible reload loop on close/reopen. localStorage
+// survives process eviction so the cooldown actually defends the user.
+// The stored value is just a Date.now() timestamp — no PII.
 // =============================================================================
 const RELOAD_TS_KEY = 'vpa_sw_last_reload_ts';
 const RELOAD_COOLDOWN_MS = 30 * 1000;
 
 function alreadyReloadedRecently() {
   try {
-    let ts = Number(sessionStorage.getItem(RELOAD_TS_KEY) || 0);
+    let ts = Number(localStorage.getItem(RELOAD_TS_KEY) || 0);
     return ts > 0 && (Date.now() - ts) < RELOAD_COOLDOWN_MS;
   } catch(_) { return false; }
 }
 function markReloadedNow() {
-  try { sessionStorage.setItem(RELOAD_TS_KEY, String(Date.now())); } catch(_) {}
+  try { localStorage.setItem(RELOAD_TS_KEY, String(Date.now())); } catch(_) {}
 }
 
 // Clean up the legacy session-lock flag from app.js < 3.5.222 in case
 // IndexedDB/sessionStorage on an existing PWA install still has it. With
 // the flag still set, the new logic would never let an auto-reload run.
 try { sessionStorage.removeItem('vpa_sw_reloaded_this_session'); } catch(_) {}
+// The cooldown timestamp lived in sessionStorage between 3.5.222 and the
+// localStorage migration. Drop the now-stale key so it doesn't linger.
+try { sessionStorage.removeItem(RELOAD_TS_KEY); } catch(_) {}
 
 // =============================================================================
 // MAIN ENTRY POINT - Runs immediately on script load

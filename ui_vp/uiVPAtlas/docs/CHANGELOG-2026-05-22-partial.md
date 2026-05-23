@@ -1,6 +1,6 @@
 # Changelog — Snapshot 2026-05-22 (partial)
 
-## v3.5.306 – v3.5.311
+## v3.5.306 – v3.5.312
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-22 changelog.
@@ -37,9 +37,27 @@ Partial day's work; additional changes may land later under a follow-up
 - **The bug.** The how-to guides render inside an iframe on the Documentation page, and the parent page routes by URL hash. Guide-to-guide cross-links used a plain `href="howto_x.html"`, so clicking one reloaded just the *iframe* with the bare guide — the sidebar, page title, and active-link state all stopped matching what was shown.
 - **The fix.** Every guide-to-guide link now uses an absolute `href="/docs/#howto_x.html"` with `target="_top"`. A fragment-only `href="#howto_x.html"` resolves against the *iframe's* own document URL (`/docs/howto_primary_features.html`), so `target="_top"` would send the top window to `/docs/howto_primary_features.html#howto_x.html` — a path the router doesn't serve. The absolute `/docs/#…` form sets the hash on the Documentation index page itself, so its router opens the linked guide with the full sidebar/title chrome intact. Fixed across all six guides — [howto_pool_finder.html](ui_vp/uiVPAtlas/docs/howto_pool_finder.html) (3 links), plus one each in [howto_primary_features.html](ui_vp/uiVPAtlas/docs/howto_primary_features.html), [howto_update_app.html](ui_vp/uiVPAtlas/docs/howto_update_app.html), [howto_cache_basemaps.html](ui_vp/uiVPAtlas/docs/howto_cache_basemaps.html), and [howto_top_filters.html](ui_vp/uiVPAtlas/docs/howto_top_filters.html).
 
+### iPhone fix — boot no longer hangs silently on poor cell
+
+- **The bug.** On iPhone with a poor cell connection (and an empty pool cache — first launch, post-Reset, or post-schema-bump), opening the app showed a mostly blank screen for 2–3 minutes before anything painted. No spinner visible at phone scale, no message, no progress.
+- **Why it happened.** [`js/api.js`](ui_vp/uiVPAtlas/js/api.js) `fetchApiRoute()` runs a bare `fetch()` with no client-side `AbortController` / timeout. The `/pools` payload is ~98 MB; on a slow connection the browser can keep that socket open for *minutes*. The boot path awaits `loadPools()` ([explore/index.html](ui_vp/uiVPAtlas/explore/index.html)) before any meaningful UI renders, so the silent hang is felt as "blank screen". `showWait()`'s centered Font Awesome spinner does paint, but on a 6.1″ phone with no surrounding content it reads as blank.
+- **The fix (boot path only).** [`explore/js/pool_list.js`](ui_vp/uiVPAtlas/explore/js/pool_list.js):
+  - New `BOOT_FETCH_TIMEOUT_MS = 30000` and a local `fetchPoolsWithTimeout(ms)` helper that wraps the `/pools` fetch in an `AbortController`. Used only on the cold-start path; `fetchApiRoute` in `api.js` is untouched so visit submits / S123 imports keep their long fetch budget.
+  - A new `renderBootLoading()` paints "Loading pool data… on a slow connection this can take a minute." into the list pane *before* the `isOnline()` probe (`loadPools`) and *before* `showWait()` (`fetchAndCache`). The user sees text immediately at phone scale, not just a centered dot.
+  - Hardened catch in `fetchAndCache`: on `AbortError`, silently fall back to any `LEGACY_POOL_CACHE_KEYS` cache so the app populates from cache and `checkFreshness` retries later. If no legacy cache exists, render a calm Retry / Continue panel (no red error text) — Retry re-runs `fetchAndCache(onRefresh)`; Continue leaves a brief explanatory message.
+  - Non-network errors still surface as the existing red error message so a real backend bug isn't masked.
+  - `loadPools()` still resolves to an array (`[]` on failure), preserving the contract callers rely on.
+
+### iPhone fix — SW reload loop on close/reopen
+
+- **The bug.** After closing and reopening the app a few times, it flashed repeatedly, reloading itself over and over.
+- **Why it happened.** [`js/app.js`](ui_vp/uiVPAtlas/js/app.js) auto-reloads the page when the SW broadcasts `RELOAD` (the desired behaviour after a deploy — fix from commit `23aca23` that unstuck iOS users from stale versions). A 30 s cooldown prevents loops — but it was stored in `sessionStorage`, which iOS clears whenever the standalone PWA's WebKit process is evicted under memory pressure. After eviction, the cooldown is gone; if any condition causes a SW install on the next launch, the reload fires; if iOS evicts again, the cycle repeats.
+- **The fix.** Move the cooldown timestamp from `sessionStorage` to `localStorage` (same key `vpa_sw_last_reload_ts`, same 30 s window). `localStorage` survives iOS process eviction so the cooldown actually defends. The auto-reload-on-update feature is preserved; only the loop break is hardened. Also clean up the now-stale sessionStorage key on upgrade.
+- **What's intentionally NOT changed.** The SW's `RELOAD` broadcast (`sw_template.js:124`) stays — it's the mechanism that delivers new versions to iOS standalone PWAs after a deploy.
+
 ### Service worker / build
 
-- `manifest.json` 3.5.303 → 3.5.311 via `node sw-build.js patch`. UI rebuild only; no API or DB change. (3.5.307 = Pool Finder label/dialog changes + the new how-to guide; 3.5.308 = guide cross-link fix; 3.5.309 = corrected those links to the absolute `/docs/#…` form; 3.5.310 = Pool Finder guide wording; 3.5.311 = prod deploy bump.)
+- `manifest.json` 3.5.303 → 3.5.312 via `node sw-build.js patch`. UI rebuild only; no API or DB change. (3.5.307 = Pool Finder label/dialog changes + the new how-to guide; 3.5.308 = guide cross-link fix; 3.5.309 = corrected those links to the absolute `/docs/#…` form; 3.5.310 = Pool Finder guide wording; 3.5.311 = prod deploy bump; 3.5.312 = iPhone bug fixes — boot-path timeout + SW reload cooldown in localStorage.)
 - `urlsToCache.js` adds the five `howto_*.html` guides plus `howto_pool_finder.html`; the 2026-05-21 changelog entry switched from `-partial.md` to `.md` as part of the daily roll-over.
 
 ### Documentation — 2026-05-21 finalized
