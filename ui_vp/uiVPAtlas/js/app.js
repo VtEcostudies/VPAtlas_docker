@@ -65,6 +65,24 @@ try { localStorage.removeItem('vpa_disable_sw'); } catch(_) {}
 const RELOAD_TS_KEY = 'vpa_sw_last_reload_ts';
 const RELOAD_COOLDOWN_MS = 30 * 1000;
 
+// Hard cap on auto-reloads in a sliding window. The 30 s cooldown above
+// catches the obvious "second reload one second after the first" case, but
+// it doesn't stop a user who's been on cell for a few minutes from
+// experiencing a 1 Hz reload-every-cycle pattern if something keeps firing
+// RELOAD broadcasts past the cooldown. The cap is the second brake: at
+// most RELOAD_CAP_COUNT reloads in any RELOAD_CAP_WINDOW_MS window, after
+// which auto-reload is suppressed entirely until the oldest entry ages
+// out. Stored as a JSON array of timestamps in localStorage so it survives
+// iOS PWA process eviction (same reason as RELOAD_TS_KEY).
+const RELOAD_CAP_KEY = 'vpa_sw_reload_events';
+const RELOAD_CAP_COUNT = 3;
+const RELOAD_CAP_WINDOW_MS = 5 * 60 * 1000;
+
+// Diagnostic ring buffer — last 10 reload-decision events captured in
+// localStorage so a field user can paste it back if a flashing report
+// recurs. ~1 KB total. Surface via System Info in a follow-up if useful.
+const RELOAD_LOG_KEY = 'vpa_sw_reload_log';
+
 function alreadyReloadedRecently() {
   try {
     let ts = Number(localStorage.getItem(RELOAD_TS_KEY) || 0);
@@ -73,6 +91,35 @@ function alreadyReloadedRecently() {
 }
 function markReloadedNow() {
   try { localStorage.setItem(RELOAD_TS_KEY, String(Date.now())); } catch(_) {}
+}
+
+function recordReloadForCap() {
+  try {
+    let arr = JSON.parse(localStorage.getItem(RELOAD_CAP_KEY) || '[]');
+    let cutoff = Date.now() - RELOAD_CAP_WINDOW_MS;
+    arr = arr.filter(t => t > cutoff);
+    arr.push(Date.now());
+    localStorage.setItem(RELOAD_CAP_KEY, JSON.stringify(arr));
+  } catch(_) {}
+}
+function reloadCapExceeded() {
+  try {
+    let arr = JSON.parse(localStorage.getItem(RELOAD_CAP_KEY) || '[]');
+    let cutoff = Date.now() - RELOAD_CAP_WINDOW_MS;
+    arr = arr.filter(t => t > cutoff);
+    return arr.length >= RELOAD_CAP_COUNT;
+  } catch(_) { return false; }
+}
+
+function logReloadEvent(reason, extra) {
+  try {
+    let arr = JSON.parse(localStorage.getItem(RELOAD_LOG_KEY) || '[]');
+    let entry = { t: new Date().toISOString(), reason };
+    if (extra && typeof extra === 'object') Object.assign(entry, extra);
+    arr.push(entry);
+    if (arr.length > 10) arr = arr.slice(-10);
+    localStorage.setItem(RELOAD_LOG_KEY, JSON.stringify(arr));
+  } catch(_) {}
 }
 
 // Clean up the legacy session-lock flag from app.js < 3.5.222 in case
@@ -124,8 +171,13 @@ try { sessionStorage.removeItem(RELOAD_TS_KEY); } catch(_) {}
   if (registration?.waiting) {
     if (alreadyReloadedRecently()) {
       console.warn('app.js: SW is waiting but we auto-reloaded within the last ' + (RELOAD_COOLDOWN_MS/1000) + 's — leaving in waiting state to prevent install loop. Will pick up on next page load after the cooldown.');
+      logReloadEvent('waiting-skipped', { why: 'cooldown' });
+    } else if (reloadCapExceeded()) {
+      console.warn('app.js: SW is waiting but reload cap exceeded (' + RELOAD_CAP_COUNT + ' in ' + (RELOAD_CAP_WINDOW_MS/60000) + ' min) — leaving in waiting state. Will pick up on a later launch outside the cap window.');
+      logReloadEvent('waiting-skipped', { why: 'cap' });
     } else {
       console.log('app.js: Found waiting SW, activating...');
+      logReloadEvent('waiting-activating');
       showUpdateUI('Activating update...');
       activateWaitingSW(registration.waiting);
       return;
@@ -187,11 +239,23 @@ async function registerAndCheckForUpdates() {
               // Leave the new SW in `waiting`; the NEXT page load past the
               // cooldown will pick it up automatically.
               console.warn('app.js: New SW installed but we auto-reloaded within the last ' + (RELOAD_COOLDOWN_MS/1000) + 's — staying on current version to prevent loop. Will activate on next page load after the cooldown.');
+              logReloadEvent('install-skipped', { why: 'cooldown' });
+              updateInProgress = false;
+              hideUpdateUI();
+              callInitApp();
+            } else if (reloadCapExceeded()) {
+              // Hard cap tripped: we've auto-reloaded RELOAD_CAP_COUNT
+              // times in the last RELOAD_CAP_WINDOW_MS. Something is
+              // wrong (or the user keeps hitting an iOS edge case).
+              // Stop auto-reloading entirely until the cap window clears.
+              console.warn('app.js: New SW installed but reload cap exceeded (' + RELOAD_CAP_COUNT + ' in ' + (RELOAD_CAP_WINDOW_MS/60000) + ' min) — staying on current version. Will activate naturally on a later launch outside the cap window.');
+              logReloadEvent('install-skipped', { why: 'cap' });
               updateInProgress = false;
               hideUpdateUI();
               callInitApp();
             } else {
               console.log('app.js: New SW installed and waiting, activating...');
+              logReloadEvent('install-activating');
               showUpdateUI('Activating update...');
               activateWaitingSW(newWorker);
             }
@@ -221,19 +285,37 @@ async function registerAndCheckForUpdates() {
       let bandwidthSource = null;
 
       let connKbps = navigator.connection?.downlink ? navigator.connection.downlink * 1000 : null;
-      if (connKbps != null && connKbps > GATE_KBPS) {
-        bandwidthKbps = connKbps;
-        bandwidthSource = 'connection-api';
-      } else if (window.bandwidthMonitor) {
-        bandwidthKbps = await window.bandwidthMonitor.measureBandwidth();
-        bandwidthSource = 'download-test';
-        if (connKbps != null) {
-          console.log(`app.js: connection API reported ${connKbps} kbps (≤${GATE_KBPS} gate); confirmed via probe = ${Math.round(bandwidthKbps ?? 0)} kbps`);
+      if (window.bandwidthMonitor) {
+        // Always run the real probe, even when connection-api reports
+        // above the gate. On iOS Safari standalone PWA,
+        // navigator.connection.downlink is bucketed and notoriously
+        // stale — it can carry a "WiFi" reading into a fresh cell-only
+        // session and let a no-update-needed cell session run an SW
+        // update check that triggers the install/activate cycle the
+        // user sees as the flashing loop. Take MIN of the two so a
+        // false fast-yes from the API can't sneak past the gate.
+        let probeKbps = await window.bandwidthMonitor.measureBandwidth();
+        if (probeKbps == null) {
+          bandwidthKbps = connKbps;
+          bandwidthSource = connKbps != null ? 'connection-api-probe-null' : null;
+        } else if (connKbps != null) {
+          bandwidthKbps = Math.min(connKbps, probeKbps);
+          bandwidthSource = (bandwidthKbps === probeKbps) ? 'download-test' : 'connection-api';
+          if (connKbps > GATE_KBPS && probeKbps <= GATE_KBPS) {
+            console.log(`app.js: connection API reported ${connKbps} kbps (>${GATE_KBPS} gate) but probe = ${Math.round(probeKbps)} kbps — trusting probe`);
+          } else {
+            console.log(`app.js: bandwidth conn=${connKbps} kbps probe=${Math.round(probeKbps)} kbps → using ${Math.round(bandwidthKbps)} kbps (${bandwidthSource})`);
+          }
+        } else {
+          bandwidthKbps = probeKbps;
+          bandwidthSource = 'download-test';
         }
       } else if (connKbps != null) {
-        // Fallback: connection API said low and we have no probe; trust it.
+        // No probe module available — trust the API as before. Rare
+        // path (the bandwidth monitor is in urlsToCache so should
+        // always load), kept for graceful degradation.
         bandwidthKbps = connKbps;
-        bandwidthSource = 'connection-api-low';
+        bandwidthSource = connKbps > GATE_KBPS ? 'connection-api' : 'connection-api-low';
       }
 
       if (bandwidthKbps === null) {
@@ -320,7 +402,28 @@ function handleSwMessage(msg) {
   if (!msg) return;
   switch (msg.type) {
     case 'RELOAD':
+      // Defense in depth — the cooldown was previously checked only at
+      // the SKIP_WAITING decision point (statechange === 'installed').
+      // A RELOAD message that reaches the page from any other source
+      // (queued waiting SW from a previous session, SW restart, multi-
+      // tab race, iOS replaying a broadcast on foreground) would
+      // otherwise unconditionally reload. Both brakes apply here too.
+      if (alreadyReloadedRecently()) {
+        console.warn('sw-messages: RELOAD ignored — auto-reloaded within the last ' + (RELOAD_COOLDOWN_MS/1000) + 's');
+        logReloadEvent('broadcast-skipped', { why: 'cooldown' });
+        break;
+      }
+      if (reloadCapExceeded()) {
+        console.warn('sw-messages: RELOAD ignored — reload cap exceeded (' + RELOAD_CAP_COUNT + ' in ' + (RELOAD_CAP_WINDOW_MS/60000) + ' min); new SW left active, no auto-reload');
+        logReloadEvent('broadcast-skipped', { why: 'cap' });
+        break;
+      }
       console.log('sw-messages: RELOAD - SW activation complete, reloading...');
+      // Stamp BEFORE reload so the post-reload code sees the cooldown
+      // and the next launch's cap counter includes this event.
+      markReloadedNow();
+      recordReloadForCap();
+      logReloadEvent('broadcast-reload');
       window.location.reload();
       break;
     case 'wait':

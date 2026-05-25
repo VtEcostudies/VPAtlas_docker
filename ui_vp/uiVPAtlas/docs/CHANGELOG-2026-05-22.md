@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-05-22 (partial)
+# Changelog — Snapshot 2026-05-22
 
 ## v3.5.306 – v3.5.312
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-22 changelog.
 
 ### Documentation — how-to guides for basic field workflows
 
