@@ -4,6 +4,7 @@ const routes = require('../_helpers/routes');
 const convert = require('json-2-csv');
 const service = require('./vpMapped.service');
 const fs = require('fs');
+const { scrubEmails } = require('../_helpers/scrub');
 
 // routes NOTE: routes with names for same method (ie. GET) must be above routes
 // for things like /:id, or they are missed/skipped.
@@ -118,6 +119,10 @@ function getGeoJson(req, res, next) {
     service.getGeoJson(req.query)
         .then(items => {
             if (items.rows && items.rows[0].geojson) {
+              // Public endpoint — strip any email-shaped value from every
+              // feature's properties (mappedLandownerEmail, plus any user
+              // column whose value happens to be an email address).
+              scrubEmails(items.rows[0].geojson);
               if (req.query.download) {
                     var file = JSON.stringify(items.rows[0].geojson);
                     res.setHeader('Content-disposition', 'attachment; filename=vp_mapped.geojson');

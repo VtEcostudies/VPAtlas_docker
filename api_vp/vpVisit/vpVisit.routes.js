@@ -10,6 +10,7 @@ const photoSvc = require('./vpVisitPhoto.service');
 const multer = require('multer');
 const upFile = multer({ dest: 'vpvisit/uploads/' });
 const upPhoto = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const { scrubEmails } = require('../_helpers/scrub');
 const fs = require('fs');
 
 // routes NOTE: routes with names for same method (ie. GET) must be above routes
@@ -190,6 +191,11 @@ function getGeoJson(req, res, next) {
     service.getGeoJson(req.query)
         .then(items => {
             if (items.rows && items.rows[0].geojson) {
+              // Public endpoint — strip emails from every feature's
+              // properties (mappedLandownerEmail, the visitLandowner JSONB's
+              // visitLandownerEmail key, and any user column whose value
+              // happens to be an email address). Walks nested objects.
+              scrubEmails(items.rows[0].geojson);
               if (req.query.download) {
                     var file = JSON.stringify(items.rows[0].geojson);
                     res.setHeader('Content-disposition', 'attachment; filename=vp_visit.geojson');
