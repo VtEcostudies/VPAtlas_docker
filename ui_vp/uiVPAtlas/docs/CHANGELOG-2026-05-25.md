@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-05-25 (partial)
+# Changelog — Snapshot 2026-05-25
 
 ## v3.5.313 – v3.5.314
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-25 changelog.
 
 ### Basemap tiles — fix SW TypeError on offline / timed-out tile fetches
 
