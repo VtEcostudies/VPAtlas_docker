@@ -317,6 +317,15 @@ export function openDownloadDialog(user, masterRows) {
             }
         }
 
+        // Diagnostic so a stale-SW cache hit is easy to spot: if this log
+        // shows poolIds: null when you've picked Mine or Review, you're
+        // running the old dialog and need to hard-refresh.
+        console.log('[download] dataType=%s poolIds=%s statuses=%s kinds=%s',
+            dataType,
+            poolIds === null ? 'null (All)' : `[${poolIds.length}] ${poolIds.slice(0, 6).join(',')}${poolIds.length > 6 ? '…' : ''}`,
+            statuses.join(','),
+            kinds.join(','));
+
         let stamp = todayStamp();
         // Trigger each download. Stagger by a short delay so browsers
         // handle the back-to-back navigations cleanly (Chrome especially
@@ -324,6 +333,7 @@ export function openDownloadDialog(user, masterRows) {
         kinds.forEach((kind, idx) => {
             let { path, parts } = buildParts({ dataKind: kind, statuses, poolIds });
             let url = `${config.api.fqdn}/${path}?${parts.join('&')}`;
+            console.log('[download] →', url);
             let filename = `vpatlas_${kind}_${stamp}.csv`;
             setTimeout(() => triggerDownload(url, filename), idx * 250);
         });

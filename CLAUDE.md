@@ -33,6 +33,14 @@ the full why.
   `urlsToCache.js` and `docs/index.html` DOCS array. A `-partial` file
   older than yesterday is a missed roll-over. See *Changelog — REQUIRED
   workflow → Daily roll-over rule* below for mechanics.
+- **No prod deploys without explicit OK** (2026-05-26) — Do **not** run
+  anything that reaches `vpatlas.org` / `api.vpatlas.org` (e.g. a
+  `deploy-prod.sh`, an `ssh ubuntu@vpatlas.org` build/restart, a `git push`
+  to a branch that auto-deploys to prod) until the user explicitly says
+  "deploy to prod" / "deploy to production" / "deploy live". The local
+  dev rebuild (`docker compose ... up -d --build ui_vp`) and
+  `deploy/deploy-dev.sh deploy|ui|logs` (which targets the dev.vpatlas.org
+  stack) remain fine as routine workflow. When in doubt → ask, don't run.
 
 How to add a new locked decision: when the user says "we decided X" /
 "don't do Y" / "from now on Z," append a bullet here in the same change.

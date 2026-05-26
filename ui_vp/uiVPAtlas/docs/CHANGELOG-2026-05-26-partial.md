@@ -1,18 +1,23 @@
 # Changelog — Snapshot 2026-05-26 (partial)
 
-## v3.5.315 – v3.5.321
+## v3.5.315 – v3.5.323
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-26 changelog.
 
-### Admin Download — Mapped is always downloadable; Reviews added as a 4th data kind
+### Admin Download — "Which pools" is the pool-set filter; Reviews data kind added
 
-- **The bug.** With dataType=Mine + Mapped checked, the download came back empty: only ~2,200 of ~13,500 mapped records have a `mappedUserId` and an admin who isn't one of those users got 0 rows. With dataType=Review, the Mapped checkbox was *disabled* — same family of mistake but the other direction. As the user put it: *"Mapped pools is just pool location data. It should always be downloadable."*
-- **The fix — Mapped ignores dataType.** [explore/js/download_dialog.js](ui_vp/uiVPAtlas/explore/js/download_dialog.js) `buildParts` no longer adds `mappedUserId` (Mine) or `visitNeedsReview` (Review) for the Mapped kind. Mapped CSV is now: status filter only, every time. Same treatment for the new Reviews kind. Visit keeps Mine + Review filters; Survey keeps Mine only. Removed the disable-checkboxes-when-Review logic and the "Visit is the only one allowed" note — every kind is always selectable.
-- **New data option: Reviews.** Added a 4th checkbox `Reviews` next to Mapped Pool records / Atlas Visits / Monitoring Surveys, backed by a new `/review/csv` endpoint:
-  - [api_vp/vpReview/vpReview.routes.js](api_vp/vpReview/vpReview.routes.js) — added `router.get('/csv', getCsv)` above `'/:id'` (Express order matters or `csv` is matched as an id and we get an enum-cast error), plus a `getCsv` handler that calls the existing `service.getAll` and pipes the result through `json-2-csv` with `Content-disposition: attachment; filename=vp_review.csv`. Same pattern as `vpMapped`, `vpVisit`, `vpSurvey`.
-  - [api_vp/vpReview/vpReview.service.js](api_vp/vpReview/vpReview.service.js) — staticColumns expanded from `[vpreview, vptown]` to `[vpreview, vpmapped, vpvisit, vptown]` so the existing `mappedPoolStatus` filter passes through `pgUtil.whereClause` and reaches the SQL. (Documented the `createdAt`/`updatedAt` ambiguity risk in a comment — those columns exist on all four tables; don't pass them as filter params.)
-- **Inline note in the dialog** now adapts to dataType: explains for Mine which downloads get user-filtered, and for Review that only Visit is filtered to "needs review" — the others return whatever matches the pool-status filter.
+- **The model.** Two filter axes, matching the user's mental model: *"Which pools to include"* (radio: All / Mine / Review) filters the POOL SET; *"What data to include"* (checkboxes: Mapped Pool records / Atlas Visits / Monitoring Surveys / Reviews) selects which records to download for that set. Review + Mapped = mapped records for the same ~15 pools the home page's Review filter shows, not 13.5K mapped records.
+- **The implementation.** [explore/js/download_dialog.js](ui_vp/uiVPAtlas/explore/js/download_dialog.js) imports `filterRowsByDataType` from `url_state.js` and runs it (over `masterRows`, now passed in from `setupAppMenu`) at Download time to resolve the pool ID list. Then each checked data kind's CSV endpoint is called with `?<poolIdCol>=A&<poolIdCol>=B&…` constraining to those pools (`mappedPoolId` for Mapped, `visitPoolId` for Visit, `surveyPoolId` for Survey, `reviewPoolId` for Reviews). Status filter applies on top via `mappedPoolStatus` on every endpoint. For `All`, no pool-id filter is sent — the CSV streams every record matching the status filter (no needless URL inflation).
+- **Why client-side resolution.** The home page already does Review and Mine filtering client-side per-pool (the per-visit Review rule needs `_visitMap` from `deduplicateByPoolId`; Mine matches across `mappedUserId`/`visitUserId`/`surveyUserId`). Re-implementing both on the SQL side for every CSV endpoint would have been ~4× the surface area for no UX win. The dialog reuses the exact same `filterRowsByDataType` the home page uses, so a Review download matches the home-page list 1:1.
+- **Edge cases.**
+  - 0 pools match Mine/Review → friendly inline error in the dialog instead of an empty CSV.
+  - 0 statuses checked → same; download blocked.
+  - Soft warn at >400 pool IDs (nginx's default 8 KB header buffer would start cutting it close at ~500 short IDs × 4 endpoints).
+- **New data option: Reviews.** 4th checkbox next to Mapped Pool records / Atlas Visits / Monitoring Surveys, backed by a new `/review/csv` endpoint:
+  - [api_vp/vpReview/vpReview.routes.js](api_vp/vpReview/vpReview.routes.js) — `router.get('/csv', getCsv)` placed BEFORE `'/:id'` (Express order matters or `csv` is matched as an id and PG throws an enum-cast error). The handler calls the existing `service.getAll` and pipes through `json-2-csv`; same pattern as `vpMapped`, `vpVisit`, `vpSurvey`.
+  - [api_vp/vpReview/vpReview.service.js](api_vp/vpReview/vpReview.service.js) — `staticColumns` expanded from `[vpreview, vptown]` to `[vpreview, vpmapped, vpvisit, vptown]` so `mappedPoolStatus` and `reviewPoolId` filters pass through `pgUtil.whereClause`. (Comment notes the `createdAt`/`updatedAt` column-ambiguity hazard — don't pass those as filter params on the review endpoints.)
+- **What the wrong intermediate fix was.** 3.5.320 had "Mapped ignores dataType entirely; Review applies only to Visit as needs-review-per-visit." That solved the empty-download-for-Mine-Mapped case but missed the bigger point — the user wanted Review (and Mine) to filter the pool set so every checked data kind reflects the same set. The `visitNeedsReview()` SQL helper added to [api_vp/_helpers/db_common.js](api_vp/_helpers/db_common.js) and the `?visitNeedsReview=1` opt-in on the visit CSV are no longer wired through the dialog — left in place for possible future use (e.g. a per-visit review-queue export).
 
 ### s123 visit import — photos now actually arrive in vpvisit_photos
 
@@ -31,6 +36,8 @@ Partial day's work; additional changes may land later under a follow-up
 - `manifest.json` 3.5.318 → 3.5.319 — `download_dialog.js` `window.appConfig` → bare `appConfig` (config.js declares it with `const`, which doesn't attach to window; api.js's pattern matched).
 - `manifest.json` 3.5.319 → 3.5.320 — admin Download: Mapped/Reviews ignore dataType, new `/review/csv` endpoint, Reviews data-kind checkbox. API change.
 - `manifest.json` 3.5.320 → 3.5.321 — s123 visit photo import: dynamic relationship discovery + attachmentLayerId decoupling. Reverts the wrong 3.5.318 parent-attachment block. API change.
+- `manifest.json` 3.5.321 → 3.5.322 — admin Download: "Which pools" is now the pool-set filter; client-side `filterRowsByDataType` resolves the pool ID list, sent to each `/csv` endpoint via `?<poolIdCol>=A&<poolIdCol>=B&…`. UI-only change.
+- `manifest.json` 3.5.322 → 3.5.323 — admin Download: added a `[download] dataType=… poolIds=… → URL` console log on click, to make a stale-SW cached dialog easy to spot in DevTools (if you see `poolIds: null` for Mine/Review, you're running the pre-3.5.322 code). UI-only change.
 
 ### "Updating the App" how-to — sign-in warning added
 
