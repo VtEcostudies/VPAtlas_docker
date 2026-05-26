@@ -1,7 +1,7 @@
 // sw.js - Service Worker for VPAtlas (unified app)
 // Generated from sw_template.js by sw-build.js — do not edit directly
-const APP_VERSION = '3.5.313';
-const BUILD_TIMESTAMP = '1779708201120';
+const APP_VERSION = '3.5.314';
+const BUILD_TIMESTAMP = '1779759742233';
 const ME = 'sw.js';
 
 const SW_BASE = self.location.pathname.replace(/\/[^\/]*$/, '');
@@ -287,7 +287,11 @@ async function handleTileRequest(request, url) {
     if (response.ok) cache.put(request, response.clone());
     return response;
   } catch (error) {
-    return new Response('', { status: 204 });
+    // 204 is a "null body status" per the Fetch spec — body MUST be null,
+    // not '' (empty string still counts as a body). The wrong form throws
+    // TypeError in respondWith() and surfaces as a tile load failure in
+    // the console on every offline/timed-out tile request.
+    return new Response(null, { status: 204 });
   }
 }
 

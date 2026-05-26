@@ -1,9 +1,19 @@
 # Changelog — Snapshot 2026-05-25 (partial)
 
-## v3.5.313
+## v3.5.313 – v3.5.314
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-25 changelog.
+
+### Basemap tiles — fix SW TypeError on offline / timed-out tile fetches
+
+- **The bug.** `handleTileRequest` in the service worker returned `new Response('', { status: 204 })` when a tile fetch threw (offline, timeout, basemap-server error). Per the Fetch spec, statuses **101/103/204/205/304** are "null body statuses" — the body MUST be `null`; an empty string still counts as a body. The `Response` constructor threw `TypeError` and the rejection bubbled through `respondWith()`, surfacing as `Failed to load 'https://server.arcgisonline.com/.../tile/N/X/Y'. A ServiceWorker passed a promise to FetchEvent.respondWith() that rejected with 'TypeError: Response constructor: Response body is given with a null body status.' sw.js:290` in the browser console — one line per failed tile.
+- **The fix.** [sw_template.js](ui_vp/uiVPAtlas/sw_template.js) `handleTileRequest` now returns `new Response(null, { status: 204 })`. Same semantic (silent no-content placeholder so the browser doesn't render a broken-image icon), spec-compliant body type.
+- **Latent since.** The bug has been there since `handleTileRequest` was added; only fires on tile-fetch failure (offline, timeout, basemap-server error), so it only became visible when field devices panned into uncached regions or the basemap CDN hiccuped.
+
+### Service worker / build
+
+- `manifest.json` 3.5.313 → 3.5.314 via `node sw-build.js patch`. UI rebuild only; no API or DB change.
 
 ### iPhone fix — SW auto-reload loop, round 2 (defense in depth)
 
