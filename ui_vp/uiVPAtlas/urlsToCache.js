@@ -94,6 +94,7 @@ appConfig.urlsToCache = [
 // === Explore JS modules ===
 '/explore/js/utils.js',
 '/explore/js/modal.js',
+'/explore/js/download_dialog.js',
 '/explore/js/map.js',
 '/explore/js/pool_list.js',
 '/explore/js/pool_summary.js',

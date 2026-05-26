@@ -259,6 +259,7 @@ function getByPoolId(poolId) {
 async function getCsv(params={}) {
     const where = pgUtil.whereClause(params, staticColumns);
     if (params.visitHasIndicator) {if (where.text) {where.text += ' AND ';} else {where.text = ' WHERE '} where.text += common.visitHasIndicator();}
+    if (params.visitNeedsReview) {if (where.text) {where.text += ' AND ';} else {where.text = ' WHERE '} where.text += common.visitNeedsReview();}
     const sql = `
     SELECT
     "mappedPoolId" AS "poolId",

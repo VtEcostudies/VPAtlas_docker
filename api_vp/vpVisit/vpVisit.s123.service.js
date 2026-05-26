@@ -317,6 +317,34 @@ function getAttachments(req) {
     //if (!req.query.featureId) {req.query.featureId = defaultFeatureId;}
     if (req.query.featureId) {beg=req.query.featureId; end=req.query.featureId;}
     else {beg=1; end=maximumFeatureId;}
+
+    // Step A — parent visit's OWN attachments (FeatureServer/0/<objId>/attachments).
+    // The VPVisit Survey123 form attaches photos directly to the parent visit
+    // (visitPoolPhoto, visitWoodFrogPhoto, etc.), NOT as child-feature records.
+    // Without this query we miss the photos on 99%+ of s123-imported visits —
+    // see CHANGELOG-2026-05-26 for the production diagnostic.
+    if (req.query.objectId) {
+      await vpS123Util.getFeatureAttachmentInfo(req.query.serviceId, 0, req.query.objectId)
+        .then(infos => {
+          // Parent attachments aren't tied to a repeat-table feature, so they
+          // don't get a featureServerId from getFeatureAttachmentInfo (it sets
+          // it to 0). Tag each as POOL so attachFeatureIds[8] → 'POOL' for
+          // visitPhotoSpecies. Keyword-based species classification (WOFR/SPSA/etc.)
+          // can be added later by parsing infos[i].keywords.
+          infos.forEach(a => { a.featureServerId = 8; });
+          parentId = req.query.objectId;
+          atchArr = atchArr.concat(infos);
+          console.log('vpVisit.s123.service::getAttachments | parent attachments:', infos.length);
+        })
+        .catch(err => {
+          console.log('vpVisit.s123.service::getAttachments | parent attachments ERROR', err.message);
+          atchErr.push(err.message);
+        });
+    }
+
+    // Step B — child-feature attachments (existing path). Loop relationshipId
+    // 1..maximumFeatureId; collects attachments on the species/repeat-table
+    // sub-records, if the form has any.
     for (var i=beg; i<=end; i++) {
       req.query.featureId=i;
       await vpS123Util.getRepeatAttachments(req.query)
@@ -331,7 +359,7 @@ function getAttachments(req) {
         }); //end getRepeatAttachments
       } //end for-loop
       console.log('vpVisit.s123.service::getAttachments | ERRORS', atchErr);
-      console.log('vpVisit.s123.service::getAttachments | RESULTS', atchArr);
+      console.log('vpVisit.s123.service::getAttachments | RESULTS', `${atchArr.length} attachments for parentObjectId=${parentId}`);
       resolve({parentObjectId:parentId, attachmentInfos:atchArr});
     }); //end promise
 }
@@ -429,6 +457,17 @@ function upsertAttachments(req, jsonParent) {
 */
         valArr.push(photoRow);
       } //end for loop
+
+      // Nothing to insert: short-circuit. pg-promise's helpers.insert() throws
+      // on empty input ("Cannot generate an INSERT from an empty array"), which
+      // before this guard surfaced as a "MIXED RESULTS" rejection on every
+      // visit that simply had no attachments — hiding the no-op behind what
+      // looked like a generic failure.
+      if (!valArr.length) {
+        console.log('vpVisit.s123.service::upsertAttachments | no attachments to insert for visitId', req.query.visitId);
+        resolve([]);
+        return;
+      }
       var columns = [];
       var query = null;
       var photoColumns = tableColumns['vpvisit_photos']; //make a copy so it can be altered in case of UPDATE, below.

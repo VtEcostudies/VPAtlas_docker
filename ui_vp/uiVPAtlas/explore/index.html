@@ -142,6 +142,7 @@
         import { getPoolColor } from '/js/map_common.js';
         import { getUser, logout } from '/js/auth.js';
         import { showModal } from './js/modal.js';
+        import { openDownloadDialog } from './js/download_dialog.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
         import { getLocalVisitCount } from '/survey/js/visit_queue_ui.js';
         import { getLocal, setLocal } from '/js/storage.js';
@@ -893,6 +894,7 @@
             if (user && user.userrole === 'admin') {
                 items.push({ divider: true });
                 items.push({ label: 'Users', href: '/admin/users_admin.html', icon: 'fa-users-cog' });
+                items.push({ label: 'Download…', icon: 'fa-download', action: () => openDownloadDialog(user) });
                 items.push({ label: 'Import S123 Atlas Visits', href: '/admin/s123_visit_import.html', icon: 'fa-file-import' });
                 items.push({ label: 'Import S123 Monitoring Surveys', href: '/admin/s123_survey_import.html', icon: 'fa-file-import' });
             }

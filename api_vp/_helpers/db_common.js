@@ -4,7 +4,28 @@
 
 module.exports = {
     visitHasIndicator: visitHasIndicator,
-    surveyHasIndicator: surveyHasIndicator
+    surveyHasIndicator: surveyHasIndicator,
+    visitNeedsReview: visitNeedsReview
+}
+
+// SQL fragment matching the per-visit Review filter used by the home page
+// (explore/js/url_state.js case 'Review'). A visit needs (re)review when
+// it has NO review at all, OR it was user-edited (lastEditedAt) after its
+// newest review's reviewQADate. Used by the admin Download dialog when
+// the admin picks dataType=Review + Visit.
+function visitNeedsReview() {
+    return `(
+        NOT EXISTS (
+            SELECT 1 FROM vpreview r WHERE r."reviewVisitId" = vpvisit."visitId"
+        )
+        OR (
+            vpvisit."lastEditedAt" IS NOT NULL
+            AND vpvisit."lastEditedAt"::date > (
+                SELECT MAX("reviewQADate") FROM vpreview
+                WHERE "reviewVisitId" = vpvisit."visitId"
+            )
+        )
+    )`;
 }
 
 function visitHasIndicator() {

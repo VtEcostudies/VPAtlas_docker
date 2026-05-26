@@ -4,8 +4,9 @@ const apiUrl = 'https://services1.arcgis.com/d3OaJoSAh2eh6OA9/ArcGIS/rest/servic
 module.exports = {
     getData,
     getAttachments,
-    getDirectAttachment, //query attachments directly attached to Surveys, ie. attachments to featureId==0
-    getRepeatAttachments //query attachments to repeatTables
+    getDirectAttachment,        //query attachments directly attached to Surveys, ie. attachments to featureId==0
+    getRepeatAttachments,       //query attachments to repeatTables
+    getFeatureAttachmentInfo    //hits ${srvId}/FeatureServer/${fetId}/${objId}/attachments; returns the InfoObjs the visit/survey upsert paths expect
   };
 
 /*
