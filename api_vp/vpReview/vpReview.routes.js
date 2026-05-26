@@ -2,10 +2,12 @@
 const router = express.Router();
 const service = require('./vpReview.service');
 const routes = require('../_helpers/routes');
+const convert = require('json-2-csv');
 
 // routes NOTE: routes with names for same method (ie. GET) must be above routes
 // for things like /:id, or they are missed/skipped.
 router.get('/geojson', getGeoJson);
+router.get('/csv', getCsv);
 router.get('/columns', getColumns);
 router.get('/routes', getRoutes);
 router.get('/count', getCount);
@@ -36,6 +38,29 @@ function getCount(req, res, next) {
 function getAll(req, res, next) {
     service.getAll(req.query)
         .then(items => res.json(items))
+        .catch(err => next(err));
+}
+
+// CSV variant of getAll — same JOIN + columns, json2csv'd. Used by the
+// admin Download dialog (download_dialog.js). Mirrors the pattern in
+// vpMapped / vpVisit routes.
+function getCsv(req, res, next) {
+    console.log('vpReview.routes | getCsv', req.query);
+    service.getAll(req.query)
+        .then(items => {
+            if (items.rows) {
+                convert.json2csv(items.rows, (err, csv) => {
+                    if (err) return next(err);
+                    if (req.query.download) {
+                        res.setHeader('Content-disposition', 'attachment; filename=vp_review.csv');
+                        res.setHeader('Content-type', 'text/csv');
+                        res.send(csv);
+                    } else {
+                        res.send(csv);
+                    }
+                });
+            } else { res.json(items); }
+        })
         .catch(err => next(err));
 }
 

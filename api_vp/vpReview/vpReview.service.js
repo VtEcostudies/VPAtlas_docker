@@ -15,8 +15,15 @@ module.exports = {
 };
 
 //file scope list of vpSurvey tables' columns retrieved at app startup (see 'getColumns()' below)
+// vpmapped + vpvisit added so the /review/csv endpoint (admin Download dialog)
+// can filter by mappedPoolStatus and other JOIN-table columns via pgUtil.
+// Column name collisions on createdAt/updatedAt exist (all three tables have
+// them) — don't pass those as filter params or PG will throw "ambiguous
+// column reference".
 const tables = [
   "vpreview",
+  "vpmapped",
+  "vpvisit",
   "vptown"
 ];
 for (i=0; i<tables.length; i++) {

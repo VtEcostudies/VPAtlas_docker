@@ -894,7 +894,7 @@
             if (user && user.userrole === 'admin') {
                 items.push({ divider: true });
                 items.push({ label: 'Users', href: '/admin/users_admin.html', icon: 'fa-users-cog' });
-                items.push({ label: 'Download…', icon: 'fa-download', action: () => openDownloadDialog(user) });
+                items.push({ label: 'Download…', icon: 'fa-download', action: () => openDownloadDialog(user, masterRows) });
                 items.push({ label: 'Import S123 Atlas Visits', href: '/admin/s123_visit_import.html', icon: 'fa-file-import' });
                 items.push({ label: 'Import S123 Monitoring Surveys', href: '/admin/s123_survey_import.html', icon: 'fa-file-import' });
             }

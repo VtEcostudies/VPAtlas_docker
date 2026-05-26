@@ -23,9 +23,13 @@
     GeoJSON support is planned but not in v1.
 */
 
-import { filters } from './url_state.js';
+import { filters, filterRowsByDataType } from './url_state.js';
 
-const config = window.appConfig;
+// appConfig is a top-level `const` in /js/config.js — a classic script loaded
+// BEFORE the module bundle. It exists as a lexical global, NOT as a property
+// of `window` (const/let don't attach to window). Match api.js's pattern and
+// bind it via the bare identifier, not `window.appConfig`.
+const config = appConfig;
 
 const ALL_STATUSES = ['Potential', 'Probable', 'Confirmed', 'Duplicate', 'Eliminated'];
 const ADMIN_ONLY_STATUSES = ['Duplicate', 'Eliminated'];
@@ -95,33 +99,47 @@ function injectStyles() {
     document.head.appendChild(style);
 }
 
-// Map dialog dataType + dataKind to the right (table, params) tuple.
-// Returns the API path and an array of `key=value` query parts (already
-// URI-encoded). The caller assembles the full URL.
-function buildParts({ dataType, dataKind, statuses, user }) {
+// Each data kind's path + the query-param name it uses to filter by
+// pool id. The dialog filters the POOL SET first (via the dataType radio
+// applied to masterRows), then asks each CSV endpoint for that kind's
+// records constrained to those pool ids. Mapped's pool-id column is
+// "mappedPoolId", visit's is "visitPoolId", and so on.
+const KIND_PATH = {
+    mapped:  { path: 'pools/mapped/csv', poolIdCol: 'mappedPoolId' },
+    visit:   { path: 'pools/visit/csv',  poolIdCol: 'visitPoolId'  },
+    survey:  { path: 'survey/csv',       poolIdCol: 'surveyPoolId' },
+    reviews: { path: 'review/csv',       poolIdCol: 'reviewPoolId' }
+};
+
+// Build the URL params for one (dataKind, pool-id-set) pair.
+//
+// Semantics: dataType (All / Mine / Review) filters the POOL SET. The
+// dialog has already done that work and passes `poolIds` (an array of
+// mappedPoolId strings) for Mine and Review, or `null` for All. Each
+// data kind then downloads its own records for THOSE pools — status
+// filter applies on top, same column (mappedPoolStatus) for every kind
+// since they all JOIN vpmapped.
+//
+// poolIds === null  → All: no pool-id filter sent (returns every record
+//                          matching the status filter).
+// poolIds.length===0→ Mine/Review with zero matching pools. Caller is
+//                          expected to short-circuit and not call us;
+//                          we still emit a sentinel that produces an
+//                          empty CSV if anyone does call.
+function buildParts({ dataKind, statuses, poolIds }) {
     let parts = [`download=1`];
     statuses.forEach(s => parts.push(`mappedPoolStatus=${encodeURIComponent(s)}`));
 
-    // dataType=Mine — filter by current user's id on the relevant column
-    // (matches the client-side filterRowsByDataType in url_state.js: it
-    // uses userId against visitUserId / mappedUserId / surveyUserId).
-    if (dataType === 'Mine' && user && user.id != null) {
-        if (dataKind === 'mapped') parts.push(`mappedUserId=${user.id}`);
-        if (dataKind === 'visit')  parts.push(`visitUserId=${user.id}`);
-        if (dataKind === 'survey') parts.push(`surveyUserId=${user.id}`);
+    let { path, poolIdCol } = KIND_PATH[dataKind];
+    if (Array.isArray(poolIds)) {
+        if (poolIds.length === 0) {
+            // Sentinel that will produce 0 rows. Should be rare — caller
+            // surfaces "no pools match" before getting here.
+            parts.push(`${poolIdCol}=__NO_MATCH__`);
+        } else {
+            poolIds.forEach(id => parts.push(`${poolIdCol}=${encodeURIComponent(id)}`));
+        }
     }
-
-    // dataType=Review — per-visit needs-review flag added in db_common.js
-    // visitNeedsReview() + vpVisit.service.getCsv. Only meaningful for the
-    // visit table; mapped/survey are not offered when Review is selected.
-    if (dataType === 'Review' && dataKind === 'visit') {
-        parts.push(`visitNeedsReview=1`);
-    }
-
-    let path;
-    if (dataKind === 'mapped') path = 'pools/mapped/csv';
-    if (dataKind === 'visit')  path = 'pools/visit/csv';
-    if (dataKind === 'survey') path = 'survey/csv';
     return { path, parts };
 }
 
@@ -148,7 +166,7 @@ function triggerDownload(url, filename) {
     setTimeout(() => { try { document.body.removeChild(a); } catch(_) {} }, 100);
 }
 
-export function openDownloadDialog(user) {
+export function openDownloadDialog(user, masterRows) {
     injectStyles();
 
     let userIsAdmin = !!(user && user.userrole === 'admin');
@@ -198,6 +216,7 @@ export function openDownloadDialog(user) {
                         <label data-kind="mapped"><input type="checkbox" class="dl-kind" value="mapped" checked> Mapped Pool records</label>
                         <label data-kind="visit"><input type="checkbox" class="dl-kind" value="visit"> Atlas Visits</label>
                         <label data-kind="survey"><input type="checkbox" class="dl-kind" value="survey"> Monitoring Surveys</label>
+                        <label data-kind="reviews"><input type="checkbox" class="dl-kind" value="reviews"> Reviews</label>
                     </div>
                     <div class="dl-note" id="dl-kinds-note">Output: one CSV file per data type checked. GeoJSON support coming later.</div>
                 </div>
@@ -211,38 +230,24 @@ export function openDownloadDialog(user) {
     `;
     document.body.appendChild(overlay);
 
-    let kindLabels = overlay.querySelectorAll('#dl-kinds label');
     let kindInputs = overlay.querySelectorAll('.dl-kind');
     let dtypeInputs = overlay.querySelectorAll('input[name="dl-dtype"]');
     let kindsNote = overlay.querySelector('#dl-kinds-note');
     let errEl = overlay.querySelector('#dl-error');
 
-    // Review is per-visit: gray out Mapped and Survey checkboxes when
-    // Review is selected, and force-check Visit. Restoring to All/Mine
-    // re-enables them but leaves whatever the user had checked.
+    // The "Which pools" radio filters the POOL SET. The "What data"
+    // checkboxes then pick which records to include for that pool set.
+    // So Review + Mapped = mapped records for the pools-needing-review
+    // set (= the same pools the home page's Review filter shows);
+    // Review + Visit = all visits OF those pools; etc.
     function syncDataKinds() {
         let dt = [...dtypeInputs].find(r => r.checked)?.value || 'All';
-        if (dt === 'Review') {
-            kindLabels.forEach(lbl => {
-                let kind = lbl.dataset.kind;
-                let cb = lbl.querySelector('input');
-                if (kind === 'visit') {
-                    lbl.classList.remove('disabled');
-                    cb.disabled = false;
-                    cb.checked = true;
-                } else {
-                    lbl.classList.add('disabled');
-                    cb.disabled = true;
-                    cb.checked = false;
-                }
-            });
-            kindsNote.textContent = 'Review means "needs review", which only applies to Atlas Visits. Mapped Pool records and Monitoring Surveys are not offered with Review.';
+        if (dt === 'Mine') {
+            kindsNote.textContent = '"Mine" filters the pool set to pools you have any role on (mapped, visited, or surveyed). Each checked data kind below downloads its records for that pool set.';
+        } else if (dt === 'Review') {
+            kindsNote.textContent = '"Review" filters the pool set to pools needing review — same as the home page\'s Review filter. Each checked data kind below downloads its records for that pool set.';
         } else {
-            kindLabels.forEach(lbl => {
-                lbl.classList.remove('disabled');
-                lbl.querySelector('input').disabled = false;
-            });
-            kindsNote.textContent = 'Output: one CSV file per data type checked. GeoJSON support coming later.';
+            kindsNote.textContent = 'Output: one CSV file per data kind checked. GeoJSON support coming later.';
         }
     }
     syncDataKinds();
@@ -262,10 +267,10 @@ export function openDownloadDialog(user) {
         errEl.style.display = 'none';
         let dataType = [...dtypeInputs].find(r => r.checked)?.value || 'All';
         let statuses = [...overlay.querySelectorAll('.dl-status:checked')].map(cb => cb.value);
-        let kinds = [...kindInputs].filter(cb => cb.checked && !cb.disabled).map(cb => cb.value);
+        let kinds = [...kindInputs].filter(cb => cb.checked).map(cb => cb.value);
 
         if (!kinds.length) {
-            errEl.textContent = 'Pick at least one data type to download.';
+            errEl.textContent = 'Pick at least one data kind to download.';
             errEl.style.display = 'block';
             return;
         }
@@ -275,12 +280,49 @@ export function openDownloadDialog(user) {
             return;
         }
 
+        // Resolve the pool-set filter. Mine and Review run the same
+        // filterRowsByDataType the home page uses, against masterRows
+        // (deduped, _visitMap-equipped pool rows). For All, no pool-id
+        // filter is sent — the CSV returns every record matching status.
+        let poolIds = null;
+        if (dataType === 'Mine' || dataType === 'Review') {
+            let rows = Array.isArray(masterRows) ? masterRows : [];
+            // Temporarily set filters.dataType so filterRowsByDataType
+            // does the right thing — it reads from the module-scoped
+            // `filters` object, not from a parameter.
+            let savedDataType = filters.dataType;
+            filters.dataType = dataType;
+            try {
+                let filtered = filterRowsByDataType(rows, user);
+                let ids = new Set();
+                filtered.forEach(r => {
+                    let id = r.mappedPoolId || r.poolId;
+                    if (id) ids.add(id);
+                });
+                poolIds = [...ids];
+            } finally {
+                filters.dataType = savedDataType;
+            }
+            if (poolIds.length === 0) {
+                errEl.textContent = `No pools match the "${dataType}" filter — nothing to download.`;
+                errEl.style.display = 'block';
+                return;
+            }
+            // Soft URL-length guard. ~14 chars overhead per param + ~8
+            // chars per pool ID × 4 endpoints. Above ~400 pools the URL
+            // approaches nginx's default 8 KB header buffer; warn but
+            // proceed.
+            if (poolIds.length > 400) {
+                console.warn(`[download] large pool set (${poolIds.length}) — request URL may be long.`);
+            }
+        }
+
         let stamp = todayStamp();
         // Trigger each download. Stagger by a short delay so browsers
         // handle the back-to-back navigations cleanly (Chrome especially
         // is happier with a small gap before the "allow multiple" prompt).
         kinds.forEach((kind, idx) => {
-            let { path, parts } = buildParts({ dataType, dataKind: kind, statuses, user });
+            let { path, parts } = buildParts({ dataKind: kind, statuses, poolIds });
             let url = `${config.api.fqdn}/${path}?${parts.join('&')}`;
             let filename = `vpatlas_${kind}_${stamp}.csv`;
             setTimeout(() => triggerDownload(url, filename), idx * 250);

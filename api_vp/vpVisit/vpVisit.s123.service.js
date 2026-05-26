@@ -312,56 +312,52 @@ Without a featureId, getAttachments loops over all featureIds for VPVisit.
 */
 function getAttachments(req) {
   return new Promise(async (resolve, reject) => {
-    var beg=1, end=maximumFeatureId, parentId=0, atchArr=[], atchErr=[];
+    var parentId = 0, atchArr = [], atchErr = [];
     if (!req.query.serviceId) {req.query.serviceId = defaultServiceId;}
-    //if (!req.query.featureId) {req.query.featureId = defaultFeatureId;}
-    if (req.query.featureId) {beg=req.query.featureId; end=req.query.featureId;}
-    else {beg=1; end=maximumFeatureId;}
 
-    // Step A — parent visit's OWN attachments (FeatureServer/0/<objId>/attachments).
-    // The VPVisit Survey123 form attaches photos directly to the parent visit
-    // (visitPoolPhoto, visitWoodFrogPhoto, etc.), NOT as child-feature records.
-    // Without this query we miss the photos on 99%+ of s123-imported visits —
-    // see CHANGELOG-2026-05-26 for the production diagnostic.
-    if (req.query.objectId) {
-      await vpS123Util.getFeatureAttachmentInfo(req.query.serviceId, 0, req.query.objectId)
-        .then(infos => {
-          // Parent attachments aren't tied to a repeat-table feature, so they
-          // don't get a featureServerId from getFeatureAttachmentInfo (it sets
-          // it to 0). Tag each as POOL so attachFeatureIds[8] → 'POOL' for
-          // visitPhotoSpecies. Keyword-based species classification (WOFR/SPSA/etc.)
-          // can be added later by parsing infos[i].keywords.
-          infos.forEach(a => { a.featureServerId = 8; });
-          parentId = req.query.objectId;
-          atchArr = atchArr.concat(infos);
-          console.log('vpVisit.s123.service::getAttachments | parent attachments:', infos.length);
+    // Discover the service's actual relationships at runtime. For VPVisit the
+    // relationshipId range is 9..16 (mapping to repeat-table layers 1..8),
+    // NOT 1..8 — Esri started numbering at 9 for this service for whatever
+    // reason. The hard-coded "loop 1..maximumFeatureId" was silently returning
+    // zero attachments for every visit because the queryRelatedRecords call
+    // for relationshipId=1..8 errored with "Unable to perform query." Using
+    // the discovered list works for any service layout, visit or survey.
+    var rels = [];
+    try {
+      rels = await vpS123Util.getRelationships(req.query.serviceId);
+    } catch (err) {
+      console.log('vpVisit.s123.service::getAttachments | getRelationships ERROR', err.message || err);
+      atchErr.push(`getRelationships: ${err.message || err}`);
+    }
+
+    // Caller can still scope to a single relationship via req.query.featureId.
+    if (req.query.featureId) {
+      rels = rels.filter(r => Number(r.id) === Number(req.query.featureId));
+    }
+
+    for (var i = 0; i < rels.length; i++) {
+      var rel = rels[i];
+      req.query.featureId = rel.id;                       // relationshipId on layer 0
+      req.query.attachmentLayerId = rel.relatedTableId;   // the actual table layer that owns the records + attachments
+      await vpS123Util.getRepeatAttachments(req.query)
+        .then(jsonParent => {
+          parentId = jsonParent.parentObjectId;
+          // Re-tag featureServerId to the relatedTableId so attachFeatureIds
+          // (keyed 1..8) resolves to the right species code in upsertAttachments.
+          (jsonParent.attachmentInfos || []).forEach(a => { a.featureServerId = rel.relatedTableId; });
+          atchArr = atchArr.concat(jsonParent.attachmentInfos);
+          console.log(`vpVisit.s123.service::getAttachments | rel ${rel.id} (${rel.name}) -> table ${rel.relatedTableId}: ${(jsonParent.attachmentInfos||[]).length} attachments`);
         })
         .catch(err => {
-          console.log('vpVisit.s123.service::getAttachments | parent attachments ERROR', err.message);
+          console.log(`vpVisit.s123.service::getAttachments | rel ${rel.id} (${rel.name}) ERROR`, err.message);
           atchErr.push(err.message);
         });
     }
 
-    // Step B — child-feature attachments (existing path). Loop relationshipId
-    // 1..maximumFeatureId; collects attachments on the species/repeat-table
-    // sub-records, if the form has any.
-    for (var i=beg; i<=end; i++) {
-      req.query.featureId=i;
-      await vpS123Util.getRepeatAttachments(req.query)
-        .then(jsonParent => {
-          console.log(i, '| vpVisit.s123.service::getAttachments | SUCCESS', jsonParent);
-          parentId = jsonParent.parentObjectId;
-          atchArr = atchArr.concat(jsonParent.attachmentInfos);
-        })
-        .catch(err => {
-          console.log(i, '| vpVisit.s123.service::getAttachments | ERROR', err.message);
-          atchErr.push(err.message);
-        }); //end getRepeatAttachments
-      } //end for-loop
-      console.log('vpVisit.s123.service::getAttachments | ERRORS', atchErr);
-      console.log('vpVisit.s123.service::getAttachments | RESULTS', `${atchArr.length} attachments for parentObjectId=${parentId}`);
-      resolve({parentObjectId:parentId, attachmentInfos:atchArr});
-    }); //end promise
+    console.log('vpVisit.s123.service::getAttachments | ERRORS', atchErr);
+    console.log('vpVisit.s123.service::getAttachments | RESULTS', `${atchArr.length} attachments for parentObjectId=${parentId}`);
+    resolve({ parentObjectId: parentId, attachmentInfos: atchArr });
+  }); //end promise
 }
 
 function getUpsertAttachments(req) {

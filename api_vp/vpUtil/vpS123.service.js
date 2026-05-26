@@ -6,8 +6,50 @@ module.exports = {
     getAttachments,
     getDirectAttachment,        //query attachments directly attached to Surveys, ie. attachments to featureId==0
     getRepeatAttachments,       //query attachments to repeatTables
-    getFeatureAttachmentInfo    //hits ${srvId}/FeatureServer/${fetId}/${objId}/attachments; returns the InfoObjs the visit/survey upsert paths expect
+    getFeatureAttachmentInfo,   //hits ${srvId}/FeatureServer/${fetId}/${objId}/attachments; returns the InfoObjs the visit/survey upsert paths expect
+    getRelationships            //discover the [{id, relatedTableId, name}] list from FeatureServer/0?f=pjson, cached per serviceId
   };
+
+// =============================================================================
+// RELATIONSHIP DISCOVERY
+// -----------------------------------------------------------------------------
+// FeatureServer/0's relationships[] tells us how `relationshipId` (used by
+// queryRelatedRecords on layer 0) maps to `relatedTableId` (the actual repeat-
+// table layer that holds the records AND their attachments). For VPSurvey the
+// two happen to be equal (1==1, 2==2, …, 7==7). For VPVisit they are NOT —
+// the visit service's relationship IDs start at 9 (9→1, 10→2, …, 16→8). The
+// old hard-coded "loop 1..maximumFeatureId" worked for surveys by luck and
+// silently fetched zero attachments for every visit.
+//
+// Cache per serviceId so we only hit the metadata endpoint once per process.
+// =============================================================================
+const _relationshipCache = {};
+
+function getRelationships(srvId) {
+  return new Promise((resolve, reject) => {
+    if (!srvId) return reject({ message: 'Please provide an S123 serviceId' });
+    if (_relationshipCache[srvId]) return resolve(_relationshipCache[srvId]);
+    const url = `${apiUrl}/${srvId}/FeatureServer/0?f=pjson`;
+    fetch(url)
+      .then(res => res.json())
+      .then(json => {
+        if (json.error) {
+          console.log('vpS123.service::getRelationships | ERROR', json.error);
+          return reject(json.error);
+        }
+        const rels = (json.relationships || []).map(r => ({
+          id: r.id,
+          relatedTableId: r.relatedTableId,
+          name: r.name
+        }));
+        _relationshipCache[srvId] = rels;
+        console.log(`vpS123.service::getRelationships | ${srvId} → ${rels.length} relationships`,
+          rels.map(r => `${r.id}->${r.relatedTableId}(${r.name})`).join(', '));
+        resolve(rels);
+      })
+      .catch(err => reject(err));
+  });
+}
 
 /*
 https://services1.arcgis.com/d3OaJoSAh2eh6OA9/ArcGIS/rest/services/
@@ -130,7 +172,16 @@ Sample result for parentObjectid==3 having 2 attachment objects:
 */
 function getRepeatAttachments (qry={}) {
   var srvId = qry.serviceId?qry.serviceId:''; //test: "service_e4f2a9746905471a9bb0d7a2d3d2c2a1"; //VPMonDataSheet
-  var fetId = qry.featureId?qry.featureId:''; //S123 attachments can be on featureLayers with values > 0
+  // `fetId` is the relationshipId on FeatureServer/0 used by queryRelatedRecords.
+  var fetId = qry.featureId?qry.featureId:'';
+  // `atchLayerId` is the actual FeatureServer layer the related records (and
+  // their attachments) live on. For VPSurvey it equals the relationshipId; for
+  // VPVisit it does NOT — so the caller must pass it explicitly when the two
+  // diverge. If absent, fall back to fetId (preserves the old behavior for
+  // services where they match).
+  var atchLayerId = (qry.attachmentLayerId !== undefined && qry.attachmentLayerId !== null && qry.attachmentLayerId !== '')
+    ? qry.attachmentLayerId
+    : fetId;
   var objId = qry.objectId?qry.objectId:'';
   var args = 'f=pjson';
 
@@ -146,7 +197,7 @@ function getRepeatAttachments (qry={}) {
         if (json.error) { //successful http query, incorrect query structure (eg. req attach from featureLayer==0 for service having none)
           json.error.hint = url;
           json.error.detail = json.error.details;
-          console.log(`vpS123.service::getRepeatAttachments | ERROR | parentObjectId:${objId} | featureId:${fetId}`, json);
+          console.log(`vpS123.service::getRepeatAttachments | ERROR | parentObjectId:${objId} | relationshipId:${fetId}`, json);
           reject(json.error);
         } else {
           if (json.relatedRecordGroups && json.relatedRecordGroups.length) { //there are attachments
@@ -156,24 +207,25 @@ function getRepeatAttachments (qry={}) {
             for (i=0; i<relRec.length; i++) {
               arrIds.push(relRec[i].attributes.objectid);
             }
-            console.log(`vpS123.service::getRepeatAttachments | SUCCESS | parentObjectId:${pObjId} | featureId:${fetId} | objectIds:`, arrIds);
+            console.log(`vpS123.service::getRepeatAttachments | SUCCESS | parentObjectId:${pObjId} | relationshipId:${fetId} | atchLayerId:${atchLayerId} | objectIds:`, arrIds);
             var arrInfo = [];
             for (let i=0; i<arrIds.length; i++) { //with await, here, the for entire for loop blocks until it's done
-              await getFeatureAttachmentInfo(srvId, fetId, arrIds[i])
+              // Attachments live on the related TABLE layer, not the relationship id.
+              await getFeatureAttachmentInfo(srvId, atchLayerId, arrIds[i])
                 .then(infos => {
                   arrInfo = arrInfo.concat(infos); //we expect an array of attachment infos
                 })
                 .catch(err => {console.log(err);})
             } //...which allows the resolve, below, to return an array of attachmentInfos
-            resolve({parentObjectId:pObjId,featureId:fetId,objectIds:arrIds,attachmentInfos:arrInfo});
+            resolve({parentObjectId:pObjId,featureId:fetId,attachmentLayerId:atchLayerId,objectIds:arrIds,attachmentInfos:arrInfo});
           } else {
             console.log('vpS123.service::getRepeatAttachments | NOT FOUND', json.relatedRecordGroups);
-            reject({message:`No related records found for parentObjectId:${objId} | featureId:${fetId}`, hint:url});
+            reject({message:`No related records found for parentObjectId:${objId} | relationshipId:${fetId}`, hint:url});
           }
         }
       })
       .catch(err => {
-        console.log(`vpS123.service::getRepeatAttachments | try-catch ERROR | parentObjectId:${objId} | featureId:${fetId}`, err.message);
+        console.log(`vpS123.service::getRepeatAttachments | try-catch ERROR | parentObjectId:${objId} | relationshipId:${fetId}`, err.message);
         reject(err);
       })
   });
