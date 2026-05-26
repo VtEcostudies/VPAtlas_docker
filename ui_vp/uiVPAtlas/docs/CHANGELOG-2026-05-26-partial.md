@@ -1,9 +1,13 @@
 # Changelog — Snapshot 2026-05-26 (partial)
 
-## v3.5.315 – v3.5.327
+## v3.5.315 – v3.5.328
 
 Partial day's work; additional changes may land later under a follow-up
 2026-05-26 changelog.
+
+### Service worker / build — deploy-to-prod wrap-up bump
+
+- `manifest.json` 3.5.327 → 3.5.328 via `deploy-prod.sh deploy` (which runs `sw-build.js patch` internally). The 3.5.328 deploy carries two pieces of work that had been built locally + entered into this changelog but never committed: (1) the `/review/geojson` ambiguous-column fix in [api_vp/vpReview/vpReview.service.js](api_vp/vpReview/vpReview.service.js) (described above in the "/review/geojson — fixed the ambiguous-column 400" section, originally tagged as 3.5.325 in the earlier SW/build section), and (2) the SW auto-update regression fix described below ([js/app.js](ui_vp/uiVPAtlas/js/app.js) cooldown stamp moved, `showUpdatePausedToast()` added, [SW_UPDATE_FLOW.md](SW_UPDATE_FLOW.md) maintainer doc, CLAUDE.md pointer, [howto_update_app.html](ui_vp/uiVPAtlas/docs/howto_update_app.html) bullet, originally tagged as 3.5.326). Both bumped manifest.json locally at the time but the actual ship version is 3.5.328 — that is the version users will see in the top bar.
 
 ### Public GeoJSON endpoints — strip every email from the response
 

@@ -3,14 +3,26 @@
 
   Single unified PWA with root-level /sw.js serving all pages (/explore, /survey, /admin).
 
-  FLOW:
-  1. On page load, check if a new SW is waiting
-  2. If waiting → tell it to activate → SW sends RELOAD after activation complete → reload
-  3. If not → register/check for updates → if update found → wait for install → activate → RELOAD
-  4. Only run initApp() when we're certain we have the latest version
+  FLOW (happy path):
+  1. On page load, check if a new SW is already waiting from a previous session.
+  2. If waiting → cooldown/cap guard → SKIP_WAITING → SW activates → SW broadcasts RELOAD → page reloads.
+  3. If not → register and (bandwidth permitting) check for updates.
+  4. updatefound → install → cooldown/cap guard → SKIP_WAITING → SW activates → SW broadcasts RELOAD → page reloads.
+  5. The page ONLY reloads via the SW's RELOAD broadcast (which fires AFTER clients.claim +
+     cache cleanup), guaranteeing the post-reload load hits the new code.
+  6. If no update is found, run initApp() on the current version.
 
-  The page ONLY reloads via SW's RELOAD BroadcastChannel message - this ensures activation
-  (claim + cache cleanup) is fully complete before the page reloads.
+  Reload-loop defense (iPhone):
+  - 30 s cooldown: any second auto-reload within 30 s of a real reload is suppressed.
+  - 3-in-5-min cap: after 3 auto-reloads in a 5-min window, further auto-reloads are suppressed
+    until the window clears.
+  - Both timestamps are stamped at the actual `window.location.reload()` call in the RELOAD
+    handler — NOT pre-emptively during activation (a previous version stamped before posting
+    SKIP_WAITING, which silently killed every legitimate single-deploy update).
+  - When the guards block activation, showUpdatePausedToast() surfaces a visible message
+    telling the user to tap Reset App. The user always has a recovery path.
+
+  See SW_UPDATE_FLOW.md for the full roadmap (gates, localStorage keys, diagnostics, recovery).
 
   Pages that include this script must define an initApp() function to start the app logic.
 */
@@ -172,9 +184,13 @@ try { sessionStorage.removeItem(RELOAD_TS_KEY); } catch(_) {}
     if (alreadyReloadedRecently()) {
       console.warn('app.js: SW is waiting but we auto-reloaded within the last ' + (RELOAD_COOLDOWN_MS/1000) + 's — leaving in waiting state to prevent install loop. Will pick up on next page load after the cooldown.');
       logReloadEvent('waiting-skipped', { why: 'cooldown' });
+      document.addEventListener('DOMContentLoaded', showUpdatePausedToast);
+      if (document.readyState !== 'loading') showUpdatePausedToast();
     } else if (reloadCapExceeded()) {
       console.warn('app.js: SW is waiting but reload cap exceeded (' + RELOAD_CAP_COUNT + ' in ' + (RELOAD_CAP_WINDOW_MS/60000) + ' min) — leaving in waiting state. Will pick up on a later launch outside the cap window.');
       logReloadEvent('waiting-skipped', { why: 'cap' });
+      document.addEventListener('DOMContentLoaded', showUpdatePausedToast);
+      if (document.readyState !== 'loading') showUpdatePausedToast();
     } else {
       console.log('app.js: Found waiting SW, activating...');
       logReloadEvent('waiting-activating');
@@ -242,6 +258,7 @@ async function registerAndCheckForUpdates() {
               logReloadEvent('install-skipped', { why: 'cooldown' });
               updateInProgress = false;
               hideUpdateUI();
+              showUpdatePausedToast();
               callInitApp();
             } else if (reloadCapExceeded()) {
               // Hard cap tripped: we've auto-reloaded RELOAD_CAP_COUNT
@@ -252,6 +269,7 @@ async function registerAndCheckForUpdates() {
               logReloadEvent('install-skipped', { why: 'cap' });
               updateInProgress = false;
               hideUpdateUI();
+              showUpdatePausedToast();
               callInitApp();
             } else {
               console.log('app.js: New SW installed and waiting, activating...');
@@ -345,10 +363,19 @@ async function registerAndCheckForUpdates() {
 // ACTIVATE WAITING SERVICE WORKER
 // =============================================================================
 function activateWaitingSW(worker) {
-  // Stamp the cooldown BEFORE posting skipWaiting. If the activation triggers
-  // another install + reload race, the post-reload code will see the recent
-  // timestamp and refuse to cycle again until the cooldown expires.
-  markReloadedNow();
+  // Do NOT stamp the cooldown here. We used to stamp before posting
+  // SKIP_WAITING (the rationale was "if activation triggers an install/
+  // reload race, the post-reload code refuses to cycle"). That stamp
+  // poisoned the very next step: the SW broadcasts RELOAD ~100 ms later,
+  // and the RELOAD handler's own `alreadyReloadedRecently()` guard saw
+  // the fresh timestamp and silently dropped the broadcast — so legitimate
+  // single-deploy updates never reloaded, leaving the page on old HTML
+  // with the new SW active. The actual reload at handleSwMessage('RELOAD')
+  // stamps the cooldown immediately before window.location.reload(), which
+  // is the right place: cooldown == "we just reloaded", not "we initiated
+  // an activation that might reload". Loop defense is unchanged: a real
+  // sub-second loop fires reload() repeatedly, each reload stamps before
+  // reloading, and the next iteration's install branch sees the stamp.
   worker.postMessage({ type: 'SKIP_WAITING' });
   // Safety timeout: if RELOAD message doesn't arrive within 5s, recover
   setTimeout(() => {
@@ -382,6 +409,38 @@ function showUpdateUI(message) {
 function hideUpdateUI() {
   const overlay = document.getElementById('sw-update-overlay');
   if (overlay) overlay.style.display = 'none';
+}
+
+// Small dismissible toast surfaced when the cooldown or cap blocks an
+// otherwise-legitimate auto-activation. Without this, the user just sees
+// the old version with no indication that an update is queued — which is
+// exactly the regression that prompted this fix. Persistent (no auto-
+// dismiss) until the user taps it.
+function showUpdatePausedToast() {
+  let toast = document.getElementById('sw-update-paused-toast');
+  if (toast) { toast.style.display = 'flex'; return; }
+  toast = document.createElement('div');
+  toast.id = 'sw-update-paused-toast';
+  toast.style.cssText = `
+    position: fixed; left: 12px; right: 12px; bottom: 12px;
+    background: #fff3cd; color: #664d03; border: 1px solid #ffecb5;
+    border-radius: 6px; padding: 10px 12px; font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 99998;
+    display: flex; align-items: center; gap: 10px; max-width: 640px;
+    margin-left: auto; margin-right: auto;
+  `;
+  const text = document.createElement('div');
+  text.style.flex = '1';
+  text.innerHTML = 'An update is ready, but auto-reload was paused to prevent a loop. Open the menu &rarr; <strong>Reset App</strong> on the Profile page to apply now, or reopen the app in a minute.';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.style.cssText = 'background:transparent;border:0;font-size:20px;line-height:1;cursor:pointer;color:#664d03;padding:0 4px;';
+  close.addEventListener('click', () => { toast.style.display = 'none'; });
+  toast.appendChild(text);
+  toast.appendChild(close);
+  document.body.appendChild(toast);
 }
 
 // =============================================================================

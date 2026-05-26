@@ -133,8 +133,8 @@ async function getGeoJson(body={}) {
       					"reviewQAPerson",
       					"reviewQADate",
       					"reviewQANotes",
-      					"createdAt",
-      					"updatedAt",
+      					vpreview."createdAt" AS "createdAt",
+      					vpreview."updatedAt" AS "updatedAt",
       					"reviewPoolStatus",
                 "visitLongitude",
                 "visitLatitude"

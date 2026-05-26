@@ -219,6 +219,20 @@ must never unregister the SW; the SW's cache-fallback handlers must stay
 cache-first. Full rules + required manual offline test in
 [`OFFLINE_CONTRACT.md`](OFFLINE_CONTRACT.md).
 
+## SW update flow — READ [`SW_UPDATE_FLOW.md`](SW_UPDATE_FLOW.md) BEFORE TOUCHING app.js update logic / sw_template.js
+
+Parallel rule for the update-path side of the same files. The page-side
+update logic in [`ui_vp/uiVPAtlas/js/app.js`](ui_vp/uiVPAtlas/js/app.js)
+has three loop-defense gates (30 s cooldown, 3-in-5-min cap, bandwidth
+probe). Each can silently block a legitimate update. The most recent
+regression — single deploys not showing the new version — came from a
+pre-emptive cooldown stamp inside `activateWaitingSW()` that poisoned
+the RELOAD broadcast's own cooldown check. **Cooldown must only be
+stamped at the actual `window.location.reload()` call, never during
+activation.** Full happy-path table, gate semantics, localStorage keys,
+diagnostic recipe, and required manual test in
+[`SW_UPDATE_FLOW.md`](SW_UPDATE_FLOW.md).
+
 ## Offline / Service Worker — REQUIRED workflow
 This is a public PWA used by volunteers in the field, often without connectivity. Every static asset the app needs offline must be precached.
 
