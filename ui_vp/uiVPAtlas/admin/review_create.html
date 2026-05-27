@@ -38,7 +38,8 @@
         .choice-group label:has(input:checked) {
             background: var(--primary-color); color: white; border-color: var(--primary-color);
         }
-        .choice-group input[type="radio"] { width: auto; margin: 0; accent-color: var(--primary-color); }
+        .choice-group input[type="radio"],
+        .choice-group input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--primary-color); }
         .msg { padding: 4px 10px; font-size: 14px; display: none; }
         .msg.show { display: block; }
         .msg.info { background: #d1ecf1; color: #0c5460; }
@@ -145,6 +146,23 @@
                 </div>
             </div>
 
+            <div class="form-section" id="reasons_section" style="display:none;">
+                <div class="form-section-title">Reasons</div>
+                <div class="choice-group" id="reasons_elim" style="display:none;">
+                    <label><input type="checkbox" class="reviewReason" data-set="elim" value="Non-vernal pool wetland"> Non-vernal pool wetland</label>
+                    <label><input type="checkbox" class="reviewReason" data-set="elim" value="Seep / spring"> Seep / spring</label>
+                    <label><input type="checkbox" class="reviewReason" data-set="elim" value="Bad remote detection"> Bad remote detection</label>
+                    <label><input type="checkbox" class="reviewReason" data-set="elim" value="Permanent water body (pond/lake/stream)"> Permanent water body</label>
+                    <label><input type="checkbox" class="reviewReason" data-set="elim" value="Other (see notes)"> Other (see notes)</label>
+                </div>
+                <div class="choice-group" id="reasons_unconf" style="display:none;">
+                    <label><input type="checkbox" class="reviewReason" data-set="unconf" value="Lacks landowner permission"> Lacks landowner permission</label>
+                    <label><input type="checkbox" class="reviewReason" data-set="unconf" value="Lacks indicator species"> Lacks indicator species</label>
+                    <label><input type="checkbox" class="reviewReason" data-set="unconf" value="Visit data incomplete / inconclusive"> Visit data incomplete / inconclusive</label>
+                    <label><input type="checkbox" class="reviewReason" data-set="unconf" value="Awaiting follow-up visit"> Awaiting follow-up visit</label>
+                </div>
+            </div>
+
             <div class="form-section">
                 <div class="form-section-title">Notes</div>
                 <div class="form-field"><label for="reviewQANotes">QA Notes</label><textarea id="reviewQANotes" rows="3"></textarea></div>
@@ -221,6 +239,10 @@
                 return;
             }
 
+            // Show/hide the Reasons section based on the selected pool status.
+            document.querySelectorAll('input[name="reviewPoolStatus"]').forEach(r =>
+                r.addEventListener('change', updateReasonsVisibility));
+
             if (isEdit) {
                 document.getElementById('page_title').textContent = `Edit Review ${reviewId}`;
                 try {
@@ -242,6 +264,7 @@
                 if (user) {
                     document.getElementById('reviewQAPerson').value = user.handle || user.username || '';
                 }
+                updateReasonsVisibility();
                 if (visitId) {
                     try {
                         let [vdata, photos] = await Promise.all([
@@ -360,6 +383,28 @@
                 let radio = document.querySelector(`input[name="${name}"][value="${val}"]`);
                 if (radio) radio.checked = true;
             });
+            let reasons = r.reviewReasons;
+            if (Array.isArray(reasons)) {
+                reasons.forEach(v => {
+                    let cb = document.querySelector(`.reviewReason[value="${CSS.escape(v)}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+            updateReasonsVisibility();
+        }
+
+        function updateReasonsVisibility() {
+            let status = document.querySelector('input[name="reviewPoolStatus"]:checked')?.value;
+            let showElim   = (status === 'Eliminated');
+            let showUnconf = (status === 'Probable' || status === 'Potential');
+            document.getElementById('reasons_section').style.display = (showElim || showUnconf) ? '' : 'none';
+            document.getElementById('reasons_elim').style.display    = showElim   ? '' : 'none';
+            document.getElementById('reasons_unconf').style.display  = showUnconf ? '' : 'none';
+            // Clear the hidden set so submitted reasons always match the visible set
+            document.querySelectorAll('.reviewReason').forEach(cb => {
+                if ((cb.dataset.set === 'elim'   && !showElim) ||
+                    (cb.dataset.set === 'unconf' && !showUnconf)) cb.checked = false;
+            });
         }
 
         function getFormData() {
@@ -376,6 +421,14 @@
                     body[name] = val;
                 }
             });
+            // reviewReasons — always send (even empty) so flipping to Confirmed clears stale rows.
+            let status = document.querySelector('input[name="reviewPoolStatus"]:checked')?.value;
+            let activeSet = (status === 'Eliminated') ? 'elim'
+                          : (status === 'Probable' || status === 'Potential') ? 'unconf'
+                          : null;
+            body.reviewReasons = activeSet
+                ? Array.from(document.querySelectorAll(`.reviewReason[data-set="${activeSet}"]:checked`)).map(cb => cb.value)
+                : [];
             return body;
         }
 

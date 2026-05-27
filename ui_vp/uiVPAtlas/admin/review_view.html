@@ -179,8 +179,13 @@
                 <tr><td><strong>QA Alt</strong></td><td>${r.reviewQAAlt || ''}</td></tr>
                 <tr><td><strong>QA Person</strong></td><td>${r.reviewQAPerson || ''}</td></tr>
                 <tr><td><strong>QA Date</strong></td><td>${formatDate(r.reviewQADate)}</td></tr>
-                <tr><td><strong>Pool Status</strong></td><td>${r.reviewPoolStatus || ''}</td></tr>
-                <tr><td><strong>Pool Locator</strong></td><td>${r.reviewPoolLocator || ''}</td></tr>
+                <tr><td><strong>Pool Status</strong></td><td>${r.reviewPoolStatus || ''}</td></tr>`;
+            if (Array.isArray(r.reviewReasons) && r.reviewReasons.length) {
+                html += `<tr><td><strong>Reasons</strong></td><td><ul style="margin:0; padding-left:18px;">${
+                    r.reviewReasons.map(v => `<li>${v}</li>`).join('')
+                }</ul></td></tr>`;
+            }
+            html += `<tr><td><strong>Pool Locator</strong></td><td>${r.reviewPoolLocator || ''}</td></tr>
                 <tr><td><strong>Reviewer</strong></td><td>${r.reviewUserName || ''}</td></tr>`;
             if (r.reviewQANotes) html += `<tr><td><strong>Notes</strong></td><td>${r.reviewQANotes}</td></tr>`;
             html += `<tr><td><strong>Created</strong></td><td>${formatDate(r.reviewCreatedAt || r.createdAt)}</td></tr>`;

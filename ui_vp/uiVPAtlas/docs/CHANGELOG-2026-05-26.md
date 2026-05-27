@@ -1,4 +1,4 @@
-# Changelog — Snapshot 2026-05-26 (partial)
+# Changelog — Snapshot 2026-05-26
 
 ## v3.5.329 – v3.5.330
 
@@ -35,9 +35,6 @@
 - `manifest.json` 3.5.328 → 3.5.329 via `node sw-build.js patch`. No new client-side files, so [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) is unchanged. **API change** — required rebuilding **both** `ui_vp` and `api_vp` (`up -d --build ui_vp api_vp`), not just `ui_vp`, so `api_vp`'s `staticColumns` array (loaded once at startup) picks up the new `reviewReasons` column.
 
 ## v3.5.315 – v3.5.328
-
-Partial day's work; additional changes may land later under a follow-up
-2026-05-26 changelog.
 
 ### Service worker / build — deploy-to-prod wrap-up bump
 

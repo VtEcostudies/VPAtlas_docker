@@ -42,7 +42,9 @@ function getColumns() {
 }
 
 async function getCount(body={}) {
-    const where = pgUtil.whereClause(body, staticColumns);
+    // reviewReasons is text[] — whereClause emits `= $1` which errors against an array column.
+    const { reviewReasons: _r, ...filterBody } = body;
+    const where = pgUtil.whereClause(filterBody, staticColumns);
     const text = `select count(*) from vpreview ${where.text};`;
     console.log(text, where.values);
     return await query(text, where.values);
@@ -55,7 +57,8 @@ async function getAll(params={}) {
         var dir = params.orderBy.split("|")[1]; dir = dir ? dir : '';
         orderClause = `order by "${col}" ${dir}`;
     }
-    const where = pgUtil.whereClause(params, staticColumns);
+    const { reviewReasons: _r, ...filterParams } = params;
+    const where = pgUtil.whereClause(filterParams, staticColumns);
     const text = `
         SELECT
         "townId",
@@ -105,7 +108,8 @@ async function getById(id) {
 }
 
 async function getGeoJson(body={}) {
-    const where = pgUtil.whereClause(body, staticColumns);
+    const { reviewReasons: _r, ...filterBody } = body;
+    const where = pgUtil.whereClause(filterBody, staticColumns);
     const sql = `
       SELECT
           row_to_json(fc) AS geojson
