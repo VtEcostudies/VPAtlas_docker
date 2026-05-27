@@ -430,7 +430,13 @@ export async function loadBoundaryOverlays(map) {
         boundaries.town = L.geoJSON(await res.json(), {
             style: { color: '#4682B4', weight: 1, fillOpacity: 0 },
             onEachFeature: function(feature, layer) {
-                let name = feature.properties.TOWNNAME || feature.properties.townName || feature.properties.NAME || '';
+                // Mixed Case is the canonical form for towns (matches the
+                // DB's vptown.townName + the /vtinfo/towns API response that
+                // the filter dropdown uses). TOWNNAME (UPPERCASE) is also
+                // present in this GeoJSON but using it here caused the
+                // filter chips to treat 'Strafford' (from dropdown) and
+                // 'STRAFFORD' (from map click) as separate towns.
+                let name = feature.properties.TOWNNAMEMC || feature.properties.townName || feature.properties.TOWNNAME || feature.properties.NAME || '';
                 if (name) layer.bindTooltip(name, { sticky: true, direction: 'top', offset: [0, -20], className: 'boundary-tooltip' });
                 layer.on('click', function() {
                     map.fitBounds(layer.getBounds(), { padding: [30, 30] });

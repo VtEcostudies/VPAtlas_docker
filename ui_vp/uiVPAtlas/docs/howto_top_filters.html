@@ -45,6 +45,8 @@
 
     <h2>Town and County</h2>
     <p>The <span class="ui">Town&hellip;</span> and <span class="ui">County&hellip;</span> boxes let you type to search and pick one or more. Each choice appears as a removable chip &mdash; tap its &times; to clear it.</p>
+    <p><strong>NOTE:</strong> Choosing a Town <strong>and</strong> a County is handled as a logical <strong>AND</strong> condition. That means if you filter by Town and County, and the Town is not within that County, you will see zero results. However, choosing multiple Towns, or multiple Counties, is handled as a logical <strong>OR</strong> condition. That means if you filter by multiple Towns, you will see results from all of them.</p>
+    <p>Also note that, when a map boundary layer is toggled on, clicking within a layer element toggles that element's selection as a filter. For example, with <span class="ui">Town Boundaries</span> selected, clicking within a Town on the map filters results to that Town (and adds a filter chip for that Town name). Click that Town again to remove its filter chip. Map clicks and the dropdown produce the same chip text, so either method can remove a chip added by the other &mdash; for example, picking <span class="ui">Strafford</span> from the dropdown and then clicking the Strafford polygon clears the chip.</p>
 
     <h2>Indicator Spp</h2>
     <p>Tick <span class="ui">Indicator Spp</span> to show only pools whose visits recorded an indicator species.</p>

@@ -3,7 +3,28 @@
 Partial day's work; additional changes may land later under a follow-up
 2026-05-27 changelog.
 
-## v3.5.331 – v3.5.333
+## v3.5.331 – v3.5.336
+
+### "Top of the Home Page" how-to — Town/County AND-vs-OR logic + boundary-click toggle
+
+- **The gap.** [docs/howto_top_filters.html](ui_vp/uiVPAtlas/docs/howto_top_filters.html) had a one-sentence "Town and County" section that didn't explain (a) that Town + County combine as a logical AND while multiple Towns / multiple Counties combine as an OR, or (b) that you can add a Town to the filter by clicking its polygon on the map when the Town Boundaries layer is on. Field volunteers were trying combinations like "Strafford + Addison County" and seeing zero results without knowing why.
+- **The fix.** Two new paragraphs in the Town and County section, plus an explicit note that map clicks and dropdown picks produce the same chip text (so either method can remove a chip added by the other) &mdash; the casing-unification shipped in 3.5.335 makes that promise actually true.
+
+### Service worker / build
+
+- `manifest.json` 3.5.335 → 3.5.336 via `node sw-build.js patch`. UI-only.
+
+### Home filter — clicking a town on the map now matches the dropdown's casing
+
+- **The bug.** Two ways to add a town to the home-page filter produced different casings, so the filter-chip set treated them as different towns. Choosing **Strafford** from the town dropdown produced `Strafford` (Mixed Case — the canonical form from `/vtinfo/towns` and `vptown.townName` in the DB), but clicking the Strafford polygon on the map produced `STRAFFORD` (UPPERCASE). Both chips would coexist; toggling the polygon off didn't remove the dropdown-added chip and vice versa.
+- **The cause.** [js/map_common.js:433](ui_vp/uiVPAtlas/js/map_common.js) was reading `feature.properties.TOWNNAME` from [geojson/Polygon_VT_Town_Boundaries.geo.json](ui_vp/uiVPAtlas/geojson/Polygon_VT_Town_Boundaries.geo.json), which stores names UPPERCASE (e.g. `"CANAAN"`). The same features carry a second property, `TOWNNAMEMC` (`"Canaan"`), that matches the canonical Mixed Case used by the API / dropdown / DB.
+- **The fix.** Prefer `TOWNNAMEMC` on the town overlay's `onEachFeature` reader. The fallback chain (`townName`, then `TOWNNAME`, then `NAME`) is kept harmless. Counties are intentionally UPPERCASE in both paths (per CLAUDE.md: *"County names in DB are UPPERCASE"*) — the county handler at [map_common.js:418](ui_vp/uiVPAtlas/js/map_common.js) is unchanged, still reads `CNTYNAME`.
+- **What this changes visibly.** Map-click filter chips now match dropdown chips — `Strafford` from both paths. Hover tooltips on town polygons also switch from UPPERCASE to Mixed Case for consistency.
+- **Stale state.** Anyone who already has an UPPERCASE town in their filter (from before this fix) will see that stale chip persist in IndexedDB; remove it with the `×` on the chip, or via Reset App on the Profile page. New map clicks always produce Mixed Case.
+
+### Service worker / build
+
+- `manifest.json` 3.5.334 → 3.5.335 via `node sw-build.js patch`. UI-only.
 
 ### s123 survey ingest — stop creating phantom "Obs 2" rows in vpsurvey_amphib
 
