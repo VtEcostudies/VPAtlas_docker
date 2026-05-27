@@ -205,6 +205,23 @@ function upsertSurvey(req, jsonData) {
         }
 */
       });
+      // Strip placeholder observer slots before stuffing the JSONB column.
+      // Survey123 emits an Obs 2 sub-object for every single-observer survey
+      // (the form has a fixed two-slot structure). Without this filter the
+      // sub-object lands as { surveyAmphibObsEmail: null/"null", counts: null }
+      // and the AFTER INSERT trigger materializes a phantom row in
+      // vpsurvey_amphib. Migration 018 also guards on the SQL side as a
+      // safety net; this is the primary fix so the JSONB column itself is
+      // clean for anyone reading vpsurvey.surveyAmphibJson directly.
+      Object.keys(amphibRow).forEach(k => {
+        const obs = amphibRow[k] || {};
+        const email = obs.surveyAmphibObsEmail;
+        const cleanedEmail = (typeof email === 'string' && email.trim().toLowerCase() !== 'null')
+          ? email.trim()
+          : null;
+        if (!cleanedEmail) delete amphibRow[k];
+        else obs.surveyAmphibObsEmail = cleanedEmail; // collapse 'null' string to real null upstream too
+      });
       surveyRow['surveyAmphibJson'] = amphibRow; //set the vpsurvey jsonb column value for survey_amphib table
       surveyRow['surveyMacroJson'] = macroRow; //set the vpsurvey jsonb column value for survey_macro table
       surveyRow['surveyYearJson'] = yearRow; //set the vpsurvey jsonb column value for survey_year table
