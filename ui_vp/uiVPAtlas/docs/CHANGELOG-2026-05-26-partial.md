@@ -1,5 +1,39 @@
 # Changelog — Snapshot 2026-05-26 (partial)
 
+## v3.5.329 – v3.5.330
+
+### Survey view — drop placeholder observer rows that were rendering as phantom "null" with all-zero counts
+
+- **The bug.** The egg-mass table on [survey_view.html](ui_vp/uiVPAtlas/explore/survey_view.html) was rendering a second observer row even when the survey only had one. Reproduced on [survey 6083](https://vpatlas.org/explore/survey_view.html?surveyId=6083): observer column showed *"null"*, all four species columns showed *0*. There's a real difference between *"second observer counted zero egg masses"* and *"there was no second observer"* — but the table presented them identically.
+- **The cause.** `vpsurvey_amphib` has one row per Survey123 observer slot (Obs 1, Obs 2). The schema has **NOT NULL DEFAULT 0** on every count column, so an unfilled slot lands as a row with `surveyAmphibObsId` NULL, `surveyAmphibObsEmail` literally the four-letter string `"null"` (Survey123 serializes JS null that way), and counts all 0. Indistinguishable from a real "observer reported 0s" row by looking at the counts alone. The user's manual workaround had been to open the Survey123 record and delete the empty Obs 2 row before re-import.
+- **The fix.** [explore/survey_view.html](ui_vp/uiVPAtlas/explore/survey_view.html) `renderAmphibSection` now filters the amphib list through a new `isRealAmphibObserver()` helper before rendering. Real observer = has a `surveyAmphibObsId` set, OR has a `surveyAmphibObsEmail` that isn't empty/missing/the literal string `"null"`. Placeholder rows are dropped entirely, which also stops the Mean row from firing when only one real observer is present. Real-observer rows with genuine 0 counts still display 0, exactly as they should.
+- **Out of scope.** The placeholder row is still in the DB. If we want to stop it landing at ingest time, that's a fix to [api_vp/vpSurvey/vpSurvey.s123.service.js](api_vp/vpSurvey/vpSurvey.s123.service.js) `upsertAmphib` (skip the second observer's row when its Survey123 fields are empty); display-side fix is enough to unblock the user reporting today.
+
+### Service worker / build
+
+- `manifest.json` 3.5.329 → 3.5.330 via `node sw-build.js patch`. UI rebuild only; no API or DB change. Built and verified locally; not deployed to prod yet.
+
+### Reviews — multi-select "Reasons" alongside QA Notes
+
+- **The gap.** The admin review form ([admin/review_create.html](ui_vp/uiVPAtlas/admin/review_create.html)) only had the free-text **QA Notes** textarea to record *why* a reviewer made a decision. Downstream you couldn't tell a non-vernal-pool wetland from a seep from a bad remote detection without re-reading every note, and couldn't tally how many pools are stuck at Probable because we lack landowner permission vs. because we lack indicator species.
+- **The feature.** New conditionally-visible **Reasons** section between Pool Status and Notes. The checkbox set switches based on the selected pool status: **Eliminated** shows five elimination reasons (*Non-vernal pool wetland, Seep / spring, Bad remote detection, Permanent water body (pond/lake/stream), Other (see notes)*); **Probable** or **Potential** shows four unconfirmed-status reasons (*Lacks landowner permission, Lacks indicator species, Visit data incomplete / inconclusive, Awaiting follow-up visit*); **Confirmed** or **Duplicate** hides the section entirely. QA Notes stays — it's complementary for free-form detail, especially when "Other" is checked.
+- **Status flips clear stale reasons.** `getFormData()` always serializes `reviewReasons` from the *currently visible* checkbox set (and sends an explicit empty array when no set is visible), so editing a review and switching from Eliminated to Confirmed clears the array on save rather than leaving stale reason text behind.
+- **Edit-path round-trip.** `populateForm()` checks any matching boxes when the existing review row has values in `reviewReasons` (null-guarded with `Array.isArray`, so the many existing rows that have `null` for the new column don't break the form).
+
+### API — vpReview filter scrub
+
+- **The latent bug.** [api_vp/vpReview/vpReview.service.js](api_vp/vpReview/vpReview.service.js) routes filter params through `pgUtil.whereClause`, which emits `WHERE "col" = $1`. A user hitting `/review?reviewReasons=foo` would trip `operator does not exist: text[] = text` at runtime (500). The new `reviewReasons` column is now in `staticColumns` so the danger went live the moment migration 017 applied.
+- **The fix.** All three `whereClause` callers (`getCount`, `getAll`, `getGeoJson`) destructure `reviewReasons` out of the filter params before calling `whereClause`. If a future feature needs to filter on the array, it should add a separate singular `?reviewReason=…` param with a custom `ANY(...)` clause rather than re-enabling the broken default.
+
+### Database
+
+- New migration [db_migrate/migrations/017_add_review_reasons.sql](db_migrate/migrations/017_add_review_reasons.sql) — adds `vpreview."reviewReasons" text[] DEFAULT '{}'::text[]`. Idempotent (`ADD COLUMN IF NOT EXISTS`); applied via the existing `db_migrate_vp` compose service, which tracks it in `schema_migrations` and checksum-verifies it on future runs.
+- **Backfill.** None. Existing rows get `'{}'` from the column default; we did not auto-extract structured reasons from historical `reviewQANotes` text.
+
+### Service worker / build
+
+- `manifest.json` 3.5.328 → 3.5.329 via `node sw-build.js patch`. No new client-side files, so [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) is unchanged. **API change** — required rebuilding **both** `ui_vp` and `api_vp` (`up -d --build ui_vp api_vp`), not just `ui_vp`, so `api_vp`'s `staticColumns` array (loaded once at startup) picks up the new `reviewReasons` column.
+
 ## v3.5.315 – v3.5.328
 
 Partial day's work; additional changes may land later under a follow-up

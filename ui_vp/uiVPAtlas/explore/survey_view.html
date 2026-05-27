@@ -335,7 +335,30 @@
             } catch(err) { console.warn('survey photos load failed', err); }
         }
 
+        // A vpsurvey_amphib row exists for every observer slot in the
+        // Survey123 form, even when the slot wasn't filled. The schema has
+        // NOT NULL DEFAULT 0 on every count column, so the placeholder row
+        // arrives looking identical to a real "observer saw 0 of everything"
+        // — but with no obsId and an email that's missing, empty, or the
+        // literal four-letter string "null" (Survey123 serializes JS null
+        // that way). Drop placeholders before rendering so 0s only appear
+        // when a real observer reported them.
+        function isRealAmphibObserver(o) {
+            if (!o) return false;
+            if (o.surveyAmphibObsId) return true;
+            const e = o.surveyAmphibObsEmail;
+            if (typeof e !== 'string') return false;
+            const t = e.trim().toLowerCase();
+            return t !== '' && t !== 'null';
+        }
+
         function renderAmphibSection(amphib, survey) {
+            // Filter to rows with a real observer; everything below operates
+            // on the cleaned list so totals/means and observer labels stay
+            // consistent with what gets rendered.
+            amphib = (amphib || []).filter(isRealAmphibObserver);
+            if (!amphib.length) return '';
+
             let html = `<div class="detail-section">
                 <div class="detail-section-title">Egg Mass Survey</div>`;
 
