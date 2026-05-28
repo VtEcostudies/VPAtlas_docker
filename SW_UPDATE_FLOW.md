@@ -71,7 +71,7 @@ lifecycle.
 | Gate | Where | Triggers when | If it fires |
 |---|---|---|---|
 | **Config opt-out** | [app.js:146](ui_vp/uiVPAtlas/js/app.js#L146) | `appConfig.useServiceWorker === false` on this page | Skip the update check; existing SW stays registered and continues serving offline. **Does not unregister** (intentional — unregistering broke offline for every other page). |
-| **Bandwidth** | [app.js:283-333](ui_vp/uiVPAtlas/js/app.js#L283-L333) | Probe + `navigator.connection.downlink` MIN below 1500 kbps | Skip `registration.update()` call entirely. Console-only; no toast. Rationale: don't burn a slow user's data on an SW check; they'll get the update next time bandwidth is OK. |
+| **Bandwidth** | `bandwidthOk()` helper at [app.js](ui_vp/uiVPAtlas/js/app.js); called from the explicit `registration.update()` site AND from the `statechange === 'installed'` site AND from the cold-load waiting-SW site | Probe + `navigator.connection.downlink` MIN below `BANDWIDTH_GATE_KBPS` (1500 kbps) | At update site: skip our `registration.update()` call. At install/waiting sites: leave the new SW in `waiting`, log `install-skipped`/`waiting-skipped` `why: bandwidth`, surface `showUpdatePausedToast()`. Pairs with `register('/sw.js', { updateViaCache: 'all' })` and `Cache-Control: max-age=86400` on sw.js — combined, the browser's automatic update fetch is throttled to ~once per day per device AND any install that does happen on slow cellular won't activate-reload until bandwidth recovers. |
 | **30 s cooldown** | [app.js:172, 237, 411](ui_vp/uiVPAtlas/js/app.js#L172) | A real `window.location.reload()` happened within the last 30 s (stamp in `vpa_sw_last_reload_ts`) | New SW left in `waiting`; no auto-activation; `showUpdatePausedToast()` surfaces a recovery message. Catches genuine sub-second loops. |
 | **3-in-5-min cap** | [app.js:175, 246, 416](ui_vp/uiVPAtlas/js/app.js#L175) | `vpa_sw_reload_events` has ≥ 3 entries inside the last 5 min | Same as cooldown — new SW left waiting, toast surfaced. Catches loops that fire above the cooldown threshold. |
 
@@ -119,6 +119,8 @@ Map `reason` to root cause:
 | `install-activating` | New SW installed and activation initiated. Normal. |
 | `install-skipped`, `why: cooldown` | New SW installed but reloaded < 30 s ago. Wait, or Reset App. |
 | `install-skipped`, `why: cap` | New SW installed but cap exceeded. Wait, or Reset App. |
+| `install-skipped`, `why: bandwidth` | New SW installed but bandwidth is below the gate (1500 kbps). The browser found new bytes on slow cellular; we won't activate-reload mid-session on a weak link. Update applies next launch on good wifi. |
+| `waiting-skipped`, `why: bandwidth` | Cold load found a waiting SW but bandwidth is too low to safely reload. Same recovery as the install-skipped variant. |
 | `broadcast-reload` | SW's RELOAD broadcast was honored — page reloaded. Normal. |
 | `broadcast-skipped`, `why: cooldown` | RELOAD arrived during cooldown. **Should not happen during a single legitimate deploy** after the regression fix. If you see this on first-update, the regression has returned — check `activateWaitingSW()` for a pre-emptive stamp. |
 | `broadcast-skipped`, `why: cap` | RELOAD arrived but cap exceeded. Real loop suppression — investigate `sw.js` byte stability if reported by a user. |

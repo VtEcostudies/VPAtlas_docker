@@ -134,6 +134,55 @@ function logReloadEvent(reason, extra) {
   } catch(_) {}
 }
 
+// =============================================================================
+// BANDWIDTH GATE
+// -----------------------------------------------------------------------------
+// One helper used at BOTH gate points: (a) the explicit registration.update()
+// call we make ourselves, and (b) the activate decision when an install
+// completes. Previously only (a) was gated, which let the browser's own
+// automatic SW update fetch (every navigation with updateViaCache:'none')
+// trigger a multi-MB precache install on slow cellular — disabling the app
+// for many minutes while the SW saturated the connection. Switching to
+// updateViaCache:'all' addresses the FETCH frequency; this helper addresses
+// the ACTIVATE decision after install completes.
+//
+// navigator.connection.downlink is bucketed and unreliable on cold tabs
+// (Chrome can carry a "WiFi" reading into a fresh cell session). Take MIN
+// of the connection-api value AND the ResourceTiming probe so a false
+// fast-yes from the API can't sneak past the gate.
+//
+// The bandwidth probe caches in sessionStorage for ~5 min, so calling
+// bandwidthOk() multiple times in one navigation is cheap (one probe).
+// =============================================================================
+const BANDWIDTH_GATE_KBPS = 1500;
+
+async function bandwidthOk() {
+  let connKbps = navigator.connection?.downlink ? navigator.connection.downlink * 1000 : null;
+  let kbps = null;
+  let source = null;
+
+  if (window.bandwidthMonitor) {
+    let probeKbps = await window.bandwidthMonitor.measureBandwidth();
+    if (probeKbps == null) {
+      kbps = connKbps;
+      source = connKbps != null ? 'connection-api-probe-null' : null;
+    } else if (connKbps != null) {
+      kbps = Math.min(connKbps, probeKbps);
+      source = (kbps === probeKbps) ? 'download-test' : 'connection-api';
+    } else {
+      kbps = probeKbps;
+      source = 'download-test';
+    }
+  } else if (connKbps != null) {
+    // No probe module — trust the API as before. Rare (bandwidth_monitor.js
+    // is in urlsToCache so should always load); kept for graceful degradation.
+    kbps = connKbps;
+    source = connKbps > BANDWIDTH_GATE_KBPS ? 'connection-api' : 'connection-api-low';
+  }
+
+  return { ok: (kbps !== null && kbps >= BANDWIDTH_GATE_KBPS), kbps, source };
+}
+
 // Clean up the legacy session-lock flag from app.js < 3.5.222 in case
 // IndexedDB/sessionStorage on an existing PWA install still has it. With
 // the flag still set, the new logic would never let an auto-reload run.
@@ -191,6 +240,14 @@ try { sessionStorage.removeItem(RELOAD_TS_KEY); } catch(_) {}
       logReloadEvent('waiting-skipped', { why: 'cap' });
       document.addEventListener('DOMContentLoaded', showUpdatePausedToast);
       if (document.readyState !== 'loading') showUpdatePausedToast();
+    } else if (!(await bandwidthOk()).ok) {
+      // Waiting SW from a previous online session, but user is now on
+      // slow cellular. Activating now would reload mid-session on a
+      // weak link. Wait for the next launch on good wifi.
+      console.warn('app.js: SW is waiting but bandwidth is below the ' + BANDWIDTH_GATE_KBPS + ' kbps gate — leaving in waiting state. Will pick up on a later launch with better bandwidth.');
+      logReloadEvent('waiting-skipped', { why: 'bandwidth' });
+      document.addEventListener('DOMContentLoaded', showUpdatePausedToast);
+      if (document.readyState !== 'loading') showUpdatePausedToast();
     } else {
       console.log('app.js: Found waiting SW, activating...');
       logReloadEvent('waiting-activating');
@@ -235,8 +292,15 @@ function callInitApp() {
 // =============================================================================
 async function registerAndCheckForUpdates() {
   try {
-    // updateViaCache:'none' ensures browsers bypass HTTP cache for sw.js
-    let registration = await navigator.serviceWorker.register(SW_PATH, { updateViaCache: 'none' });
+    // updateViaCache:'all' lets the browser respect HTTP cache headers on
+    // sw.js (the server sets Cache-Control: max-age=86400). Previously we
+    // used 'none', which forced the browser to re-fetch sw.js on every
+    // navigation — defeating any bandwidth-based throttle and letting
+    // multi-MB precache installs fire on slow cellular. 'all' caps the
+    // browser's automatic update check at roughly once per day per device.
+    // Explicit immediate-update paths still work: the forceSWUpdate()
+    // console helper, and the user-side Reset App on /admin/profile.html.
+    let registration = await navigator.serviceWorker.register(SW_PATH, { updateViaCache: 'all' });
     console.log('app.js: SW registered', registration);
 
     registration.addEventListener('updatefound', () => {
@@ -245,7 +309,7 @@ async function registerAndCheckForUpdates() {
       showUpdateUI('Downloading update...');
       updateInProgress = true;
 
-      newWorker.addEventListener('statechange', () => {
+      newWorker.addEventListener('statechange', async () => {
         console.log('app.js: SW state changed to:', newWorker.state);
 
         if (newWorker.state === 'installed') {
@@ -271,6 +335,20 @@ async function registerAndCheckForUpdates() {
               hideUpdateUI();
               showUpdatePausedToast();
               callInitApp();
+            } else if (!(await bandwidthOk()).ok) {
+              // Bandwidth was insufficient at install time (because the
+              // browser's own automatic update fetch found new bytes on a
+              // slow cellular connection). Leave the new SW in `waiting`;
+              // it will activate naturally the next time the user is on
+              // good wifi. The precache install itself has already finished
+              // by this point — what we're suppressing here is the reload
+              // that would otherwise interrupt the user mid-session.
+              console.warn('app.js: New SW installed but bandwidth is below the ' + BANDWIDTH_GATE_KBPS + ' kbps gate — staying on current version. Will activate when bandwidth is sufficient.');
+              logReloadEvent('install-skipped', { why: 'bandwidth' });
+              updateInProgress = false;
+              hideUpdateUI();
+              showUpdatePausedToast();
+              callInitApp();
             } else {
               console.log('app.js: New SW installed and waiting, activating...');
               logReloadEvent('install-activating');
@@ -287,64 +365,18 @@ async function registerAndCheckForUpdates() {
       });
     });
 
-    // Skip update check on slow connections.
-    //
-    // navigator.connection.downlink (Network Information API) is bucketed and
-    // notoriously unreliable on cold tabs — Chrome can report 1.5 Mbps on a
-    // 50 Mbps WiFi connection until it has accumulated enough recent traffic
-    // to recompute. We use it only as a fast YES path: when it reports
-    // safely above the threshold, accept it and skip the probe. When it
-    // reports at/below the threshold (or is unavailable), fall through to
-    // the real ResourceTiming-based bandwidth_monitor probe before deciding
-    // to throttle.
+    // Bandwidth-gate the explicit update check (covers OUR call to
+    // registration.update()). The activate branch above also re-runs
+    // bandwidthOk() so an install kicked off by the browser's own update
+    // schedule won't activate on slow cellular either.
     if (navigator.serviceWorker.controller) {
-      const GATE_KBPS = 1500;
-      let bandwidthKbps = null;
-      let bandwidthSource = null;
-
-      let connKbps = navigator.connection?.downlink ? navigator.connection.downlink * 1000 : null;
-      if (window.bandwidthMonitor) {
-        // Always run the real probe, even when connection-api reports
-        // above the gate. On iOS Safari standalone PWA,
-        // navigator.connection.downlink is bucketed and notoriously
-        // stale — it can carry a "WiFi" reading into a fresh cell-only
-        // session and let a no-update-needed cell session run an SW
-        // update check that triggers the install/activate cycle the
-        // user sees as the flashing loop. Take MIN of the two so a
-        // false fast-yes from the API can't sneak past the gate.
-        let probeKbps = await window.bandwidthMonitor.measureBandwidth();
-        if (probeKbps == null) {
-          bandwidthKbps = connKbps;
-          bandwidthSource = connKbps != null ? 'connection-api-probe-null' : null;
-        } else if (connKbps != null) {
-          bandwidthKbps = Math.min(connKbps, probeKbps);
-          bandwidthSource = (bandwidthKbps === probeKbps) ? 'download-test' : 'connection-api';
-          if (connKbps > GATE_KBPS && probeKbps <= GATE_KBPS) {
-            console.log(`app.js: connection API reported ${connKbps} kbps (>${GATE_KBPS} gate) but probe = ${Math.round(probeKbps)} kbps — trusting probe`);
-          } else {
-            console.log(`app.js: bandwidth conn=${connKbps} kbps probe=${Math.round(probeKbps)} kbps → using ${Math.round(bandwidthKbps)} kbps (${bandwidthSource})`);
-          }
-        } else {
-          bandwidthKbps = probeKbps;
-          bandwidthSource = 'download-test';
-        }
-      } else if (connKbps != null) {
-        // No probe module available — trust the API as before. Rare
-        // path (the bandwidth monitor is in urlsToCache so should
-        // always load), kept for graceful degradation.
-        bandwidthKbps = connKbps;
-        bandwidthSource = connKbps > GATE_KBPS ? 'connection-api' : 'connection-api-low';
-      }
-
-      if (bandwidthKbps === null) {
+      let bw = await bandwidthOk();
+      if (bw.kbps === null) {
         console.log('app.js: Skipping update check - bandwidth unknown (offline?)');
-      } else if (bandwidthKbps < GATE_KBPS) {
-        // Bandwidth probe caches in sessionStorage for 5 min. If we surfaced a
-        // toast here, it would re-fire on every navigation for the whole TTL —
-        // which is what users actually see in the field. Console only.
-        console.log(`app.js: Skipping update check - bandwidth too low (${Math.round(bandwidthKbps)} kbps < ${GATE_KBPS} kbps; source=${bandwidthSource})`);
+      } else if (!bw.ok) {
+        console.log(`app.js: Skipping update check - bandwidth too low (${Math.round(bw.kbps)} kbps < ${BANDWIDTH_GATE_KBPS} kbps; source=${bw.source})`);
       } else {
-        console.log(`app.js: Bandwidth OK (${Math.round(bandwidthKbps)} kbps; source=${bandwidthSource}), checking for SW updates...`);
+        console.log(`app.js: Bandwidth OK (${Math.round(bw.kbps)} kbps; source=${bw.source}), checking for SW updates...`);
         registration.update().catch(err => {
           console.warn('app.js: Update check failed:', err);
         });

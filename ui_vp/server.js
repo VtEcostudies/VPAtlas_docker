@@ -16,6 +16,30 @@ console.log('server.js=>config', config);
 // Allow all origins (API handles auth)
 app.use(cors({ origin: '*' }));
 
+// Cache-Control policy. Set BEFORE the static handlers so the static
+// middleware preserves these headers when sending the file.
+//
+// - /sw.js: max-age=86400 (24h). Pairs with the page-side
+//   `register('/sw.js', { updateViaCache: 'all' })` to throttle the
+//   browser's own automatic SW update check to ~once per day per device.
+//   Previously the page registered with updateViaCache:'none' and we set
+//   no header here, so every navigation re-fetched sw.js — defeating the
+//   bandwidth-based update gate on slow cellular.
+// - /manifest.json: no-cache. Carries the user-visible version number;
+//   must always be fresh so the top-bar version reflects what's actually
+//   installed.
+// - HTML pages: no-cache. The SW serves them from precache via the
+//   cache-fallback handler; this ensures the browser's own cache layer
+//   doesn't stash an old HTML page above the SW.
+app.use((req, res, next) => {
+    if (req.path === '/sw.js') {
+        res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+    } else if (req.path === '/manifest.json' || req.path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+    next();
+});
+
 // Serve common content (shared images, js, css)
 app.use('/', express.static(path.join(__dirname, 'uiVPAtlas')));
 
