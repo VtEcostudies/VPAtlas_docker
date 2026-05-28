@@ -3,7 +3,37 @@
 Partial day's work; additional changes may land later under a follow-up
 2026-05-27 changelog.
 
-## v3.5.331 – v3.5.336
+## v3.5.331 – v3.5.339
+
+### Visit form — Pool Disturbance section restored (4g on the original datasheet)
+
+- **The gap.** The original paper datasheet's section **4g) Pool Disturbance** never made it back into the docker rewrite of [survey/visit_create.html](ui_vp/uiVPAtlas/survey/visit_create.html). The DB columns were carried over from the legacy schema (`visitDisturbSiltation`, `visitDisturbDumping`, `visitDisturbVehicleRuts`, `visitDisturbRunoff`, `visitDisturbDitching`, `visitDisturbOther`) and the read-only visit card already rendered all six in its **Disturbances** row, but the form had no inputs — so volunteers couldn't enter the values in the first place.
+- **The fix.** New **Pool Disturbance** form-section in the Verify tab, immediately after Surrounding Habitat. Five checkboxes for *Siltation*, *Dumping*, *Vehicle Ruts*, *Agriculture Runoff*, *Ditching/Draining* plus a free-text *Other* field, wired into the existing load (populate from row on edit) and save (post body) field lists. No API or DB change — the columns were already there waiting; visit_card.js's render lines 149-186 already cover the display side.
+
+### Service worker / build
+
+- `manifest.json` 3.5.338 → 3.5.339 via `node sw-build.js patch`. UI rebuild only; no API or DB change. NOT deployed to prod yet.
+
+### Visit form — save-as-you-type, plus last-chance saves before any reset
+
+- **The user report.** *"It seems that I'm increasingly having an issue where a visit resets itself in the middle of adding data, wiping everything that was already entered."* Reproduced on **iPhone in airplane mode** — so the cause is NOT a service-worker auto-update (no network → no `registration.update()` → nothing can install or reload). The remaining automatic mechanism in airplane mode is **iOS WebKit standalone-PWA process eviction**: under memory pressure, iOS discards the WebView; on resume, iOS re-loads the URL and the page cold-starts. The app shell still looks like it's running (the user thought eviction would close the app entirely — it doesn't; iOS PWAs feel like apps but are still webviews underneath, and webviews can be recycled independently of the wrapping shell).
+- **The bug.** [survey/visit_create.html](ui_vp/uiVPAtlas/survey/visit_create.html) only autosaved drafts to IndexedDB every **30 seconds**, with no `pagehide` / `visibilitychange` / `beforeunload` saves. That 30-second gap was the data-loss window: anything typed since the last tick was gone after any reset (iOS eviction, SW reload, refresh, JS error).
+- **The fix — save-as-you-type, ~500 ms after the last input.** One delegated `input` listener + one delegated `change` listener on `document`, debounced via `setTimeout`. Reuses the existing `saveLocal('draft')` function at [visit_create.html:1988](ui_vp/uiVPAtlas/survey/visit_create.html#L1988) (already verified safe — reads form values, never re-populates the DOM). The 30-second timer stays as a backstop.
+- **The fix — last-chance lifecycle saves.** `pagehide`, `beforeunload`, and `visibilitychange` (when `document.hidden`) all call `saveLocal('draft')`. iOS fires `pagehide` reliably before WebKit evicts the WebView. Three independent hooks so a save runs even if one event doesn't fire on a particular iOS / browser version.
+- **Why this is a simplification, not added complexity.** The earlier suggestion — "lock SW updates while a form is open" — was a coordination layer between two subsystems. This fix instead closes the data-loss window in the *one* subsystem where it lives. The form becomes durable against any reset, not just SW-update reset.
+
+### SW update path — bandwidth gate now covers the whole update flow, not just our explicit check
+
+- **The user report.** *"I had thought that we had added a low-bandwidth guard to prevent App updates when they would take a long time. In addition to this bug, updates are still happening with low bandwidth, causing the App to be disabled by very long-running updates."*
+- **The hole.** The existing bandwidth gate at [app.js:282-333](ui_vp/uiVPAtlas/js/app.js#L282-L333) only guarded *our* `registration.update()` call. It did **not** guard (a) the browser's own SW update fetch (which previously fired on every navigation because the registration used `updateViaCache: 'none'`), nor (b) the install/activate sequence once new sw.js bytes were detected. So on slow cellular the browser still found the new sw.js, install still ran, and the SW saturated the connection downloading the ~148-entry, ~17 MB precache list — making the app feel disabled for several minutes.
+- **Fix 1 — `updateViaCache: 'none'` → `'all'`.** [app.js:295](ui_vp/uiVPAtlas/js/app.js) now registers with `'all'`, which lets the browser respect HTTP cache headers on sw.js. Combined with a new `Cache-Control: max-age=86400` header on `/sw.js` (set by a tiny middleware in [ui_vp/server.js](ui_vp/server.js) before the static handlers), the browser's automatic SW update check is throttled to **at most once per day per device**. `forceSWUpdate()` console helper and Reset App still force an immediate check.
+- **Fix 2 — bandwidth probe now gates ACTIVATE too, not just UPDATE.** The bandwidth-probe block was extracted into a small `bandwidthOk()` helper. It's now called from three places: the explicit `registration.update()` site (unchanged), the cold-load waiting-SW activation site, AND the `statechange === 'installed'` site. If bandwidth is below the 1500 kbps gate at any of those points, the new SW is left in `waiting`, the existing `showUpdatePausedToast()` appears, and the user keeps the OLD version. New diagnostic log values: `install-skipped why: bandwidth` and `waiting-skipped why: bandwidth` — documented in the updated [SW_UPDATE_FLOW.md](SW_UPDATE_FLOW.md) gates table and diagnostic recipe.
+- **Cache-Control middleware.** [ui_vp/server.js](ui_vp/server.js) gets a 12-line middleware that sets `max-age=86400` on `/sw.js`, `no-cache` on `/manifest.json` and all `*.html` pages, and leaves everything else to the static handler's defaults. The middleware runs BEFORE the static mounts so the static middleware preserves the headers when sending the file. `manifest.json` *must* stay `no-cache` because it carries the user-visible version number.
+- **User-facing how-to updated.** [howto_update_app.html](ui_vp/uiVPAtlas/docs/howto_update_app.html) gains two sentences explaining that auto-updates may take up to a day to appear, and that the app intentionally pauses the auto-reload on slow cellular so the user can keep working — with **Reset App** as the override.
+
+### Service worker / build
+
+- `manifest.json` 3.5.337 → 3.5.338 via `node sw-build.js patch`. **Full-stack** change (server.js change must reach the ui_vp container — deploy via `deploy-prod.sh deploy`).
 
 ### "Top of the Home Page" how-to — Town/County AND-vs-OR logic + boundary-click toggle
 

@@ -860,6 +860,21 @@
                         <textarea id="visitHabitatComment" rows="2"></textarea>
                     </div>
                 </div>
+                <div class="form-section">
+                    <div class="form-section-title">Pool Disturbance</div>
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">Select all that apply</label>
+                    <div class="choice-group">
+                        <label><input type="checkbox" id="visitDisturbSiltation"> Siltation</label>
+                        <label><input type="checkbox" id="visitDisturbDumping"> Dumping</label>
+                        <label><input type="checkbox" id="visitDisturbVehicleRuts"> Vehicle Ruts</label>
+                        <label><input type="checkbox" id="visitDisturbRunoff"> Agriculture Runoff</label>
+                        <label><input type="checkbox" id="visitDisturbDitching"> Ditching/Draining</label>
+                    </div>
+                    <div class="form-field" style="margin-top:6px;">
+                        <label for="visitDisturbOther">Other</label>
+                        <input type="text" id="visitDisturbOther">
+                    </div>
+                </div>
             </div>
 
             <!-- POOL TAB -->
@@ -1763,12 +1778,46 @@
                 }
             }
 
-            // Auto-save every 30 seconds (drafts only)
+            // Auto-save every 30 seconds (drafts only) — backstop.
             autoSaveTimer = setInterval(async () => {
                 if (currentVisitState && currentVisitState.status === 'draft') {
                     await saveLocal('draft');
                 }
             }, 30000);
+
+            // Save-as-you-type: debounced ~500 ms after the last keystroke /
+            // checkbox tick / dropdown change. Closes the 30-second data-loss
+            // window that left field users vulnerable to iOS WebKit standalone-
+            // PWA process eviction (which cold-reloads the page on resume).
+            let inputSaveTimer = null;
+            document.addEventListener('input', () => {
+                if (!currentVisitState || currentVisitState.status !== 'draft') return;
+                clearTimeout(inputSaveTimer);
+                inputSaveTimer = setTimeout(() => { saveLocal('draft'); }, 500);
+            });
+            document.addEventListener('change', () => {
+                if (!currentVisitState || currentVisitState.status !== 'draft') return;
+                clearTimeout(inputSaveTimer);
+                inputSaveTimer = setTimeout(() => { saveLocal('draft'); }, 500);
+            });
+
+            // Last-chance saves before iOS eviction / page reload / nav-away.
+            // pagehide is the iOS-reliable signal fired before WebKit discards
+            // the WebView; visibilitychange-to-hidden covers backgrounding;
+            // beforeunload covers same-tab navigation. All three call the same
+            // saveLocal so a save runs even if one event doesn't fire.
+            let lifecycleSave = () => {
+                if (!currentVisitState || currentVisitState.status !== 'draft') return;
+                clearTimeout(inputSaveTimer);
+                // Fire-and-forget: saveLocal is async but the IDB write will
+                // queue and complete even if the page is being torn down.
+                saveLocal('draft');
+            };
+            window.addEventListener('pagehide', lifecycleSave);
+            window.addEventListener('beforeunload', lifecycleSave);
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) lifecycleSave();
+            });
 
             // Save Draft — local only
             document.getElementById('btn_save_draft').addEventListener('click', async () => {
@@ -2033,7 +2082,8 @@
              'visitFairyShrimp','visitFairyShrimpNotes',
              'visitFingerNailClams','visitFingerNailClamsNotes',
              'visitSpeciesOtherName','visitSpeciesOtherCount','visitSpeciesOtherNotes',
-             'visitSpeciesComments','visitHabitatComment','visitPoolCharComments'
+             'visitSpeciesComments','visitHabitatComment','visitPoolCharComments',
+             'visitDisturbOther'
             ].forEach(f => {
                 let el = document.getElementById(f);
                 if (el && v[f] != null && v[f] !== 'None') el.value = v[f];
@@ -2042,6 +2092,8 @@
             ['visitLandownerPermission',
              'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
+             'visitDisturbSiltation','visitDisturbDumping','visitDisturbVehicleRuts',
+             'visitDisturbRunoff','visitDisturbDitching',
              'visitAmphibianDisease','visitFish'
             ].forEach(f => {
                 let el = document.getElementById(f);
@@ -2151,11 +2203,14 @@
              'visitFingerNailClams','visitFingerNailClamsNotes',
              'visitSpeciesOtherName','visitSpeciesOtherCount','visitSpeciesOtherNotes',
              'visitWoodFrogEggHow','visitSpsEggHow','visitJesaEggHow','visitBssaEggHow',
-             'visitSpeciesComments','visitHabitatComment','visitPoolCharComments'
+             'visitSpeciesComments','visitHabitatComment','visitPoolCharComments',
+             'visitDisturbOther'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.value; });
             ['visitLandownerPermission',
              'visitHabitatAgriculture','visitHabitatLightDev','visitHabitatHeavyDev',
              'visitHabitatPavedRd','visitHabitatDirtRd','visitHabitatPowerline',
+             'visitDisturbSiltation','visitDisturbDumping','visitDisturbVehicleRuts',
+             'visitDisturbRunoff','visitDisturbDitching',
              'visitAmphibianDisease','visitFish'
             ].forEach(f => { let el = document.getElementById(f); if (el) body[f] = el.checked; });
             // Landowner info as JSONB
