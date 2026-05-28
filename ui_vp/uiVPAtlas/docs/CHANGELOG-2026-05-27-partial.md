@@ -3,7 +3,7 @@
 Partial day's work; additional changes may land later under a follow-up
 2026-05-27 changelog.
 
-## v3.5.331 – v3.5.339
+## v3.5.331 – v3.5.340
 
 ### Visit form — Pool Disturbance section restored (4g on the original datasheet)
 
@@ -12,7 +12,7 @@ Partial day's work; additional changes may land later under a follow-up
 
 ### Service worker / build
 
-- `manifest.json` 3.5.338 → 3.5.339 via `node sw-build.js patch`. UI rebuild only; no API or DB change. NOT deployed to prod yet.
+- `manifest.json` 3.5.338 → 3.5.340 — entry was first written at 3.5.339 (local sw-build patch) but the actual deploy ran sw-build a second time as part of `deploy-prod.sh ui`, shipping at 3.5.340. UI rebuild only; no API or DB change.
 
 ### Visit form — save-as-you-type, plus last-chance saves before any reset
 
