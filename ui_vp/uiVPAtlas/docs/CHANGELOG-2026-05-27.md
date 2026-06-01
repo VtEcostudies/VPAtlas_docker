@@ -1,18 +1,6 @@
-# Changelog — Snapshot 2026-05-27 (partial)
+# Changelog — Snapshot 2026-05-27
 
-Partial day's work; additional changes may land later under a follow-up
-2026-05-27 changelog.
-
-## v3.5.331 – v3.5.340
-
-### Visit form — Pool Disturbance section restored (4g on the original datasheet)
-
-- **The gap.** The original paper datasheet's section **4g) Pool Disturbance** never made it back into the docker rewrite of [survey/visit_create.html](ui_vp/uiVPAtlas/survey/visit_create.html). The DB columns were carried over from the legacy schema (`visitDisturbSiltation`, `visitDisturbDumping`, `visitDisturbVehicleRuts`, `visitDisturbRunoff`, `visitDisturbDitching`, `visitDisturbOther`) and the read-only visit card already rendered all six in its **Disturbances** row, but the form had no inputs — so volunteers couldn't enter the values in the first place.
-- **The fix.** New **Pool Disturbance** form-section in the Verify tab, immediately after Surrounding Habitat. Five checkboxes for *Siltation*, *Dumping*, *Vehicle Ruts*, *Agriculture Runoff*, *Ditching/Draining* plus a free-text *Other* field, wired into the existing load (populate from row on edit) and save (post body) field lists. No API or DB change — the columns were already there waiting; visit_card.js's render lines 149-186 already cover the display side.
-
-### Service worker / build
-
-- `manifest.json` 3.5.338 → 3.5.340 — entry was first written at 3.5.339 (local sw-build patch) but the actual deploy ran sw-build a second time as part of `deploy-prod.sh ui`, shipping at 3.5.340. UI rebuild only; no API or DB change.
+## v3.5.331 – v3.5.338
 
 ### Visit form — save-as-you-type, plus last-chance saves before any reset
 
