@@ -3,6 +3,13 @@
 Partial day's work; additional changes may land later under a follow-up
 2026-06-03 changelog.
 
+## v3.5.349
+
+### Visit form + Pool Finder — map height fix (round 2): bind html/body to the dynamic viewport too
+
+- **What was still wrong.** Earlier today's 3.5.346 set `height: 100dvh` on `.visit-app` and `.pf-app` so they tracked the iOS Safari dynamic viewport. The map *still* didn't fill the available vertical screen height on iPhone. The diagnosis missed the parent: [explore/css/common.css:11-22](ui_vp/uiVPAtlas/explore/css/common.css#L11-L22) sets `html, body { display: flex; flex-direction: column; height: 100% }`, and on iOS Safari `height: 100%` on html resolves to the LARGE/layout viewport (URL bar hidden). So body extended behind the URL bar; `.pf-app` / `.visit-app` at `100dvh` sat as a flex child inside an oversized parent, and the math didn't yield "map fills the visible area" reliably.
+- **The fix.** Override the height chain at the top: `html, body { height: 100vh; height: 100dvh }` in the page-local `<style>` of both [survey/visit_create.html](ui_vp/uiVPAtlas/survey/visit_create.html) and [survey/find_pool.html](ui_vp/uiVPAtlas/survey/find_pool.html). Now html, body, and the outer flex container are all bound to the dynamic viewport — no parent/child mismatch. `.visit-app` / `.pf-app` keep their existing `height: 100dvh` belt-and-braces. `display: flex; flex-direction: column` on body from explore/css/common.css stays untouched; only the height override is needed.
+
 ## v3.5.346 – v3.5.347
 
 ### GPS how-to — corrected the "No location" troubleshooting bullet for PWAs
@@ -13,6 +20,7 @@ Partial day's work; additional changes may land later under a follow-up
 ### Service worker / build
 
 - `manifest.json` 3.5.346 → 3.5.347 via `node sw-build.js patch`. Docs-only change.
+- `manifest.json` 3.5.348 → 3.5.349 via `node sw-build.js patch`. Visit form / Pool Finder map-height round-2 fix (`html, body` bound to dvh). UI-only.
 
 ## v3.5.346
 
