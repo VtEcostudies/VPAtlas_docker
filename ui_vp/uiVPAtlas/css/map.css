@@ -86,7 +86,10 @@ label.pool-legend-toggle:hover {
     display: none;
 }
 
-/* Collapsible legend — toggle always visible so users can expand/collapse */
+/* Collapsible legend — toggle anchored at the BOTTOM of the legend so it
+   stays visible on small screens even when the body overflows the map
+   height (the legend is positioned 'bottomleft', so its bottom edge is
+   always inside the visible map area). */
 .pool-legend-toggle-header {
     display: flex;
     justify-content: space-between;
@@ -97,21 +100,21 @@ label.pool-legend-toggle:hover {
     color: #555;
     padding: 2px 0;
     user-select: none;
-    border-bottom: 1px solid #ccc;
-    margin-bottom: 4px;
-    padding-bottom: 4px;
+    border-top: 1px solid #ccc;
+    margin-top: 4px;
+    padding-top: 4px;
 }
 .pool-legend-arrow {
     font-size: 14px;
     transition: transform 0.2s;
 }
 .pool-legend-collapsible.collapsed .pool-legend-toggle-header {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 2px;
+    border-top: none;
+    margin-top: 0;
+    padding-top: 2px;
 }
 .pool-legend-collapsible.collapsed .pool-legend-arrow {
-    transform: rotate(-90deg);
+    transform: rotate(180deg);
 }
 .pool-legend-collapsible.collapsed .pool-legend-body {
     display: none;

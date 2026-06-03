@@ -16,22 +16,27 @@
     <style>
         .dv-tabs { display: none; }
         @media (max-width: 900px) {
-            .dv-pane { display: none !important; height: calc(100dvh - 90px - 52px) !important; max-height: none !important; min-height: 0; }
+            .dv-pane { display: none !important; height: calc(100dvh - 90px - 60px - env(safe-area-inset-bottom, 0px)) !important; max-height: none !important; min-height: 0; }
             .dv-content[data-active-tab="detail"] .dv-pane-detail { display: block !important; }
             .dv-content[data-active-tab="map"]    .dv-pane-map    { display: block !important; }
             .dv-content[data-active-tab] .dv-pane { flex: 0 0 100%; max-width: 100%; }
+            /* Match the home page's .explore-tab-btn: 60 px operable height per
+               button + env(safe-area-inset-bottom) below the bar so the home-
+               indicator gesture strip never overlaps the tap targets. */
             .dv-tabs {
                 display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
                 border-top: 1px solid #ddd; background: white; box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+                padding-bottom: env(safe-area-inset-bottom, 0px);
             }
             .dv-tab-btn {
                 flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-                padding: 6px 2px; border: none; background: white; color: var(--text-secondary);
-                font-size: 11px; cursor: pointer; border-radius: 0;
+                height: 60px; padding: 6px 2px; border: none; background: white; color: var(--text-secondary);
+                font-size: 12px; cursor: pointer; border-radius: 0;
+                -webkit-tap-highlight-color: transparent;
             }
-            .dv-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+            .dv-tab-btn i { font-size: 20px; margin-bottom: 3px; }
             .dv-tab-btn.active { color: var(--primary-color); border-top: 2px solid var(--primary-color); font-weight: 600; }
-            body { padding-bottom: 52px; }
+            body { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
         }
     </style>
     <script src="/js/home_button.js" defer></script>

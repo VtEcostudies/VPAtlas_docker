@@ -461,14 +461,6 @@ async function initStatusControl() {
             // Restore collapsed state from shared settings
             if (settings.legendCollapsed) div.classList.add('collapsed');
 
-            // Collapse toggle header
-            let toggle = L.DomUtil.create('div', 'pool-legend-toggle-header', div);
-            toggle.innerHTML = '<span>Legend</span><span class="pool-legend-arrow">&#9660;</span>';
-            toggle.addEventListener('click', () => {
-                div.classList.toggle('collapsed');
-                saveSettings({ legendCollapsed: div.classList.contains('collapsed') });
-            });
-
             let body = L.DomUtil.create('div', 'pool-legend-body', div);
 
             // ── Status checkboxes ──
@@ -580,6 +572,16 @@ async function initStatusControl() {
                 else if (state === 'error') parcelStatus.textContent = count ? ` (${count} cached)` : ' (error)';
                 else if (count) parcelStatus.textContent = ` (${count.toLocaleString()})`;
                 else parcelStatus.textContent = '';
+            });
+
+            // Collapse toggle footer — anchored at the bottom of the legend so
+            // it stays visible on small screens even when the body overflows
+            // the map height (legend is positioned 'bottomleft').
+            let toggle = L.DomUtil.create('div', 'pool-legend-toggle-header', div);
+            toggle.innerHTML = '<span>Legend</span><span class="pool-legend-arrow">&#9650;</span>';
+            toggle.addEventListener('click', () => {
+                div.classList.toggle('collapsed');
+                saveSettings({ legendCollapsed: div.classList.contains('collapsed') });
             });
 
             return div;

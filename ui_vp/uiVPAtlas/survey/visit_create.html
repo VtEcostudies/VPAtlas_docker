@@ -20,7 +20,8 @@
         .visit-app {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: 100vh;      /* fallback for older browsers */
+            height: 100dvh;     /* dynamic viewport — tracks iOS Safari URL bar show/hide so bottom tabs stay on-screen */
         }
 
         /* Header */
@@ -96,15 +97,25 @@
             padding: 10px;
         }
         .visit-tab.active { display: block; }
-        .visit-tab-map { padding: 0; }
+        /* Map tab fills its container edge-to-edge and must never scroll —
+           the map is the whole point of the tab. Overlays inside (zoom
+           buttons, GPS, instruction pill) are position:absolute so they sit
+           on top of the map without affecting layout. */
+        .visit-tab-map { padding: 0; overflow: hidden; }
         .visit-tab-map #map { height: 100%; width: 100%; }
 
-        /* Bottom tab bar */
+        /* Bottom tab bar — match the home page's .explore-tab-btn: 60 px
+           operable height per button + env(safe-area-inset-bottom) below the
+           bar so the home-indicator gesture strip never overlaps the tap
+           targets. .visit-tabs is a flex child of .visit-app (not position-
+           fixed like pool_view / visit_view), so the bar's height is just
+           the button height + the safe-area padding. */
         .visit-tabs {
             display: flex;
             flex-shrink: 0;
             border-top: 1px solid #ddd;
             background: white;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
         }
         .visit-tab-btn {
             flex: 1;
@@ -112,15 +123,17 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            height: 60px;
             padding: 6px 2px;
             border: none;
             background: white;
             color: var(--text-secondary);
-            font-size: 11px;
+            font-size: 12px;
             cursor: pointer;
             border-radius: 0;
+            -webkit-tap-highlight-color: transparent;
         }
-        .visit-tab-btn i { font-size: 18px; margin-bottom: 2px; }
+        .visit-tab-btn i { font-size: 20px; margin-bottom: 3px; }
         .visit-tab-btn.active {
             color: var(--primary-color);
             border-top: 2px solid var(--primary-color);
@@ -695,10 +708,9 @@
             padding-top: 8px;
         }
 
-        @media (max-width: 500px) {
-            .visit-tab-btn { font-size: 10px; padding: 4px 1px; }
-            .visit-tab-btn i { font-size: 16px; }
-        }
+        /* No < 500px override — keep parity with the home page's
+           .explore-tab-btn, which stays at 60 px / 12 px / 20 px icon
+           across all widths. 5 tabs × ~64 px fits a 320 px screen. */
     </style>
     <script src="/js/home_button.js" defer></script>
 </head>

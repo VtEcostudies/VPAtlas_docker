@@ -502,14 +502,6 @@ export async function addLegend(map, position = 'bottomleft') {
             // Restore collapsed state from shared settings
             if (settings.legendCollapsed) div.classList.add('collapsed');
 
-            // Collapse toggle header
-            let toggle = L.DomUtil.create('div', 'pool-legend-toggle-header', div);
-            toggle.innerHTML = '<span>Legend</span><span class="pool-legend-arrow">&#9660;</span>';
-            toggle.addEventListener('click', () => {
-                div.classList.toggle('collapsed');
-                saveSettings({ legendCollapsed: div.classList.contains('collapsed') });
-            });
-
             let body = L.DomUtil.create('div', 'pool-legend-body', div);
             body.innerHTML = `
                 <div class="pool-legend-title">Pool Status</div>
@@ -558,6 +550,17 @@ export async function addLegend(map, position = 'bottomleft') {
                     saveSettings({ parcelsVisible: cb.checked });
                 });
             }
+
+            // Collapse toggle footer — anchored at the bottom of the legend so
+            // it stays visible on small screens even when the body overflows
+            // the map height (legend is positioned 'bottomleft').
+            let toggle = L.DomUtil.create('div', 'pool-legend-toggle-header', div);
+            toggle.innerHTML = '<span>Legend</span><span class="pool-legend-arrow">&#9650;</span>';
+            toggle.addEventListener('click', () => {
+                div.classList.toggle('collapsed');
+                saveSettings({ legendCollapsed: div.classList.contains('collapsed') });
+            });
+
             return div;
         }
     });

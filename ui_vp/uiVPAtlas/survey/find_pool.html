@@ -16,7 +16,11 @@
     <link rel="stylesheet" href="/survey/css/visit_queue.css">
     <style>
         html, body { height: 100%; overflow: hidden; }
-        .pf-app { display: flex; flex-direction: column; height: 100vh; }
+        .pf-app {
+            display: flex; flex-direction: column;
+            height: 100vh;      /* fallback for older browsers */
+            height: 100dvh;     /* dynamic viewport — tracks iOS Safari URL bar show/hide so map fills the visible area */
+        }
 
         /* Header */
         .pf-header {
