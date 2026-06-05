@@ -3,7 +3,7 @@
 Partial day's work; additional changes may land later under a follow-up
 2026-06-05 changelog.
 
-## v3.5.356
+## v3.5.356 – v3.5.357
 
 ### Reviews — Pool Locator checkbox now actually moves the pool on the map
 
@@ -19,4 +19,4 @@ Partial day's work; additional changes may land later under a follow-up
 
 ### Service worker / build
 
-- `manifest.json` 3.5.355 → 3.5.356 via `node sw-build.js patch`. **DB-only** behavior change — no JS/HTML/CSS files changed for the fix itself. The version bump is solely to invalidate clients' cached copy of [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) and [docs/index.html](ui_vp/uiVPAtlas/docs/index.html), which were edited only to add today's changelog file and finalize yesterday's. NOT deployed to prod yet.
+- `manifest.json` 3.5.355 → 3.5.357 via `node sw-build.js patch` (two bumps: 3.5.356 was the local sw-build after the urlsToCache changelog-list edit; 3.5.357 was the additional patch bump that `deploy-prod.sh deploy` runs internally). **DB-only** behavior change — no JS/HTML/CSS files changed for the fix itself. The version bump is solely to invalidate clients' cached copy of [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) and [docs/index.html](ui_vp/uiVPAtlas/docs/index.html), which were edited only to add today's changelog file and finalize yesterday's. **Shipped to prod** at 2026-06-05 15:14 UTC; migration 018 applied via `db_migrate_vp_prod` (60 ms, 0 failures).
