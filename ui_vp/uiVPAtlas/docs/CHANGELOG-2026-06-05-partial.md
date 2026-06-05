@@ -3,6 +3,19 @@
 Partial day's work; additional changes may land later under a follow-up
 2026-06-05 changelog.
 
+## v3.5.358
+
+### Reviews — same-day edit-then-review no longer leaves the pool stuck on the Review list
+
+- **The user report.** Pool LDR2651 (visit 3103, review 2693) kept showing on the [Review list](https://vpatlas.org/explore/?dataType=Review&poolId=LDR2651&status=Potential%2CProbable%2CConfirmed) after being reviewed. The visit's `lastEditedAt` was `2026-06-04T19:42:37.477Z` and the review's `reviewUpdatedAt` was `2026-06-04T19:42:54.684Z` — review was created **17 seconds after** the edit, so the pool should have come off the queue.
+- **The cause — page-side filter (over-flag).** [explore/js/url_state.js](ui_vp/uiVPAtlas/explore/js/url_state.js) `case 'Review'` compared the visit's precise `lastEditedAt` against `maxReviewQADate`. `reviewQADate` is just a date (`"2026-06-04"`), and `new Date("2026-06-04").getTime()` resolves to **midnight UTC** of that day. So every same-day edit looked like `19:42 > 00:00 → edited after the review`. Every visit reviewed the same day it was edited got false-flagged.
+- **The cause — SQL helper (under-flag).** The mirror SQL in [api_vp/_helpers/db_common.js](api_vp/_helpers/db_common.js) `visitNeedsReview()` had the *opposite* bug: it cast `lastEditedAt::date > MAX("reviewQADate")` — date-vs-date. A visit edited at 19:00 same-day as a review created at 14:00 fell on the same date, so the genuine re-review need was missed. Only relevant when the admin Download dialog picks `dataType=Review + Visit` (no client-side feature uses it yet), but worth fixing for consistency.
+- **The fix.** Compare against the review's actual timestamp on both sides:
+  - [explore/js/pool_list.js](ui_vp/uiVPAtlas/explore/js/pool_list.js) dedupe now tracks `maxReviewUpdatedAt` per-visit (in addition to the existing `maxReviewQADate`, kept as a fallback for legacy cached pools).
+  - [explore/js/url_state.js](ui_vp/uiVPAtlas/explore/js/url_state.js) filter prefers `maxReviewUpdatedAt`; falls back to `maxReviewQADate` for pools dedupe-d before this fix (no `POOL_CACHE_KEY` bump per the locked decision).
+  - [api_vp/_helpers/db_common.js](api_vp/_helpers/db_common.js) SQL now uses `MAX("reviewUpdatedAt")` directly (no `::date` cast on either side).
+- **What changes for cached clients.** Pools last dedupe-d before this fix only have `maxReviewQADate`. They keep using the old date-only comparison until the next pool-data refresh rebuilds `_visitMap` with the new field. New pool fetches after this version use the precise comparison from the first dedupe. The user-side **Reset App** affordance also forces a fresh dedupe.
+
 ## v3.5.356 – v3.5.357
 
 ### Reviews — Pool Locator checkbox now actually moves the pool on the map
@@ -20,3 +33,4 @@ Partial day's work; additional changes may land later under a follow-up
 ### Service worker / build
 
 - `manifest.json` 3.5.355 → 3.5.357 via `node sw-build.js patch` (two bumps: 3.5.356 was the local sw-build after the urlsToCache changelog-list edit; 3.5.357 was the additional patch bump that `deploy-prod.sh deploy` runs internally). **DB-only** behavior change — no JS/HTML/CSS files changed for the fix itself. The version bump is solely to invalidate clients' cached copy of [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) and [docs/index.html](ui_vp/uiVPAtlas/docs/index.html), which were edited only to add today's changelog file and finalize yesterday's. **Shipped to prod** at 2026-06-05 15:14 UTC; migration 018 applied via `db_migrate_vp_prod` (60 ms, 0 failures).
+- `manifest.json` 3.5.357 → 3.5.358 via `node sw-build.js patch`. **API + UI** rebuild (the Review filter fix above touches both [api_vp/_helpers/db_common.js](api_vp/_helpers/db_common.js) SQL and [explore/js/pool_list.js](ui_vp/uiVPAtlas/explore/js/pool_list.js) + [explore/js/url_state.js](ui_vp/uiVPAtlas/explore/js/url_state.js) on the page side). NOT deployed to prod yet.

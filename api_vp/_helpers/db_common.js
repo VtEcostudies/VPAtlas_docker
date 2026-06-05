@@ -11,8 +11,18 @@ module.exports = {
 // SQL fragment matching the per-visit Review filter used by the home page
 // (explore/js/url_state.js case 'Review'). A visit needs (re)review when
 // it has NO review at all, OR it was user-edited (lastEditedAt) after its
-// newest review's reviewQADate. Used by the admin Download dialog when
+// newest review's actual timestamp. Used by the admin Download dialog when
 // the admin picks dataType=Review + Visit.
+//
+// Compare against MAX("reviewUpdatedAt") — a precise timestamp — NOT
+// MAX("reviewQADate") (just a date). The previous form cast lastEditedAt
+// to ::date for a date-vs-date comparison, which under-flagged: a visit
+// edited at 19:00 same-day as a review created at 14:00 looks unchanged
+// (both fall on the same date), so the re-review need was missed.
+// Symmetrically, the page-side JS filter used to compare a precise
+// lastEditedAt against reviewQADate-as-midnight and OVER-flagged
+// (every same-day edit-then-review looked like edit-after-review).
+// reviewUpdatedAt fixes both cases with one source of truth.
 function visitNeedsReview() {
     return `(
         NOT EXISTS (
@@ -20,8 +30,8 @@ function visitNeedsReview() {
         )
         OR (
             vpvisit."lastEditedAt" IS NOT NULL
-            AND vpvisit."lastEditedAt"::date > (
-                SELECT MAX("reviewQADate") FROM vpreview
+            AND vpvisit."lastEditedAt" > (
+                SELECT MAX("reviewUpdatedAt") FROM vpreview
                 WHERE "reviewVisitId" = vpvisit."visitId"
             )
         )

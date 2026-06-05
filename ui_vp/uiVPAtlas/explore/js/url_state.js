@@ -151,16 +151,29 @@ export function filterRowsByDataType(rows, userInfo=null) {
             // Per-visit, because reviews are tied to a specific visit
             // (vpreview.reviewVisitId = vpvisit.visitId). pool_list.js
             // dedupe builds r._visitMap[visitId] =
-            //   { lastEditedAt, hasReview, maxReviewQADate }.
+            //   { lastEditedAt, hasReview, maxReviewUpdatedAt, maxReviewQADate }.
             // A visit needs (re)review when:
             //   * it has NO review at all  → first review needed; OR
             //   * it WAS user-edited (lastEditedAt set) AND that edit is
-            //     newer than its newest review's QA date → re-review.
+            //     newer than its newest review's actual timestamp → re-review.
+            //
+            // Use `maxReviewUpdatedAt` (precise ISO timestamp the review
+            // row was last touched), NOT `maxReviewQADate`. The QA date is
+            // user-entered as a date string ("2026-06-04"), and parsing it
+            // through new Date() resolves to MIDNIGHT UTC of that day —
+            // which makes every same-day edit-then-review pair look like
+            // "edited after the review" (edit at 19:42 > review at 00:00).
+            // reviewUpdatedAt is set by the DB on insert/update and carries
+            // sub-second precision, so the same-day comparison is correct.
+            // maxReviewQADate is retained for legacy cached pools whose
+            // dedupe pre-dated this fix.
+            //
             // lastEditedAt is NULL until a user edits the visit through the
             // app (no DEFAULT, no trigger — migration 016), so legacy /
             // imported / never-touched reviewed visits are NOT flagged
             // regardless of any migration-tainted updatedAt. reviewQADate
-            // is NOT NULL after migration 015.
+            // is NOT NULL after migration 015; reviewUpdatedAt is set by
+            // the row's INSERT/UPDATE.
             //
             // Cache compatibility: rows written by an older dedupe have no
             // _visitMap. Fall back to "visit exists but no review" using
@@ -184,8 +197,12 @@ export function filterRowsByDataType(rows, userInfo=null) {
                     if (!v.hasReview) return true;                 // never reviewed
                     let edited = toMs(v.lastEditedAt);
                     if (edited == null) return false;              // not user-edited since baseline
-                    let qa = toMs(v.maxReviewQADate) ?? -8.64e15;  // ~year -271821; coalesce(qa,'1900')
-                    return edited > qa;                            // edited after the review
+                    // Prefer the precise timestamp. Legacy cached visits
+                    // dedupe-d before this fix only have maxReviewQADate;
+                    // fall back to it so the queue isn't broken until the
+                    // freshness refetch heals the cache.
+                    let reviewedAt = toMs(v.maxReviewUpdatedAt) ?? toMs(v.maxReviewQADate) ?? -8.64e15;
+                    return edited > reviewedAt;                    // edited after the review
                 });
             });
         case 'All':

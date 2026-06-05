@@ -356,16 +356,24 @@ function deduplicateByPoolId(rows) {
         // specific visit (vpreview.reviewVisitId = vpvisit.visitId), and the
         // /pools LEFT JOIN is `ON "reviewVisitId"="visitId"`, so each joined
         // row's review (if any) belongs to THAT row's visit. Build
-        // _visitMap[visitId] = { lastEditedAt, hasReview, maxReviewQADate }
-        // so the filter can ask "does any one visit need (re)review?"
-        // instead of comparing pool-wide maxes (which could pair visit-A's
-        // edit against visit-B's review).
+        // _visitMap[visitId] = { lastEditedAt, hasReview,
+        // maxReviewUpdatedAt, maxReviewQADate } so the filter can ask
+        // "does any one visit need (re)review?" instead of comparing
+        // pool-wide maxes (which could pair visit-A's edit against
+        // visit-B's review).
+        //
+        // We track BOTH maxReviewUpdatedAt (precise ISO timestamp the review
+        // row was last touched) and maxReviewQADate (the user-entered QA
+        // date, no time component). The filter prefers maxReviewUpdatedAt;
+        // maxReviewQADate stays for legacy cached pools whose dedupe
+        // pre-dated this fix.
         function rollupVisit(target, r) {
             if (!r.visitId) return;
             let vm = target._visitMap || (target._visitMap = {});
             let v = vm[r.visitId] || (vm[r.visitId] = {
                 lastEditedAt: r.lastEditedAt || null,
                 hasReview: false,
+                maxReviewUpdatedAt: null,
                 maxReviewQADate: null,
             });
             // lastEditedAt is a per-visit column — identical across this
@@ -373,7 +381,8 @@ function deduplicateByPoolId(rows) {
             if (!v.lastEditedAt && r.lastEditedAt) v.lastEditedAt = r.lastEditedAt;
             if (r.reviewId) {
                 v.hasReview = true;
-                v.maxReviewQADate = maxTs(v.maxReviewQADate, r.reviewQADate);
+                v.maxReviewUpdatedAt = maxTs(v.maxReviewUpdatedAt, r.reviewUpdatedAt);
+                v.maxReviewQADate    = maxTs(v.maxReviewQADate,    r.reviewQADate);
             }
         }
 
