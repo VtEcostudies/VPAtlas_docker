@@ -15,14 +15,11 @@
     <link rel="stylesheet" href="/css/map.css">
     <style>
         /* Mobile-first visit form layout */
-        /* On iOS Safari, `height: 100%` on html resolves to the LARGE/layout
-           viewport (URL bar hidden), so body extends behind the URL bar and
-           any 100dvh child sits inside an oversized parent — the bottom of
-           the map ends up below the visible area. Forcing the whole chain
-           (html, body, .visit-app) to 100dvh binds every level to the
-           visible viewport. Overrides the height:100% set by
-           explore/css/common.css. The 100vh declaration is the fallback for
-           browsers that don't understand dvh (pre-iOS 15.4). */
+        /* Force the whole chain (html, body, .visit-app) to 100dvh so the
+           bottom tabs stay inside the iOS Safari visible viewport. Overrides
+           the height:100% set by explore/css/common.css. The 100vh
+           declaration is the fallback for browsers that don't understand
+           dvh (pre-iOS 15.4). */
         html, body {
             height: 100vh;
             height: 100dvh;
@@ -34,6 +31,16 @@
             flex-direction: column;
             height: 100vh;      /* fallback for older browsers */
             height: 100dvh;     /* dynamic viewport — tracks iOS Safari URL bar show/hide so bottom tabs stay on-screen */
+        }
+
+        /* explore/css/common.css's mobile rule sets `body { padding-bottom:
+           var(--tabbar-h) }` (~60 px) to reserve space for the home page's
+           POSITION-FIXED bottom tab bar. visit_create's .visit-tabs is an
+           IN-FLOW flex child of .visit-app — no fixed bar — so that body
+           padding only shrinks the flex layout, leaving a 60 px empty gap
+           below the in-flow tabs. Override it to 0 here. */
+        @media (max-width: 1150px) {
+            body { padding-bottom: 0; }
         }
 
         /* Header */

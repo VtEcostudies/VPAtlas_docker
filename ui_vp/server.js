@@ -19,12 +19,18 @@ app.use(cors({ origin: '*' }));
 // Cache-Control policy. Set BEFORE the static handlers so the static
 // middleware preserves these headers when sending the file.
 //
-// - /sw.js: max-age=86400 (24h). Pairs with the page-side
-//   `register('/sw.js', { updateViaCache: 'all' })` to throttle the
-//   browser's own automatic SW update check to ~once per day per device.
-//   Previously the page registered with updateViaCache:'none' and we set
-//   no header here, so every navigation re-fetched sw.js — defeating the
-//   bandwidth-based update gate on slow cellular.
+// - /sw.js: no-cache, must-revalidate. The browser MUST revalidate sw.js
+//   on every navigation; that's what makes auto-update actually work.
+//   We previously used max-age=86400 (24h) to throttle browser auto-fetches
+//   on slow cellular, but that closed the auto-update window for 24h after
+//   each successful update — users got stuck on whatever version they
+//   activated until they manually tapped Reset App. The bandwidth gate in
+//   app.js (`bandwidthOk()` called at the explicit-update site AND at
+//   `statechange === 'installed'`) is what actually protects cellular users
+//   — it leaves the new SW in `waiting` and skips the activate-reload when
+//   bandwidth is low, regardless of how often the browser checks sw.js.
+//   The sw.js file itself is small (~12 KB); re-fetching on every
+//   navigation is not a meaningful bandwidth burden.
 // - /manifest.json: no-cache. Carries the user-visible version number;
 //   must always be fresh so the top-bar version reflects what's actually
 //   installed.
@@ -33,7 +39,7 @@ app.use(cors({ origin: '*' }));
 //   doesn't stash an old HTML page above the SW.
 app.use((req, res, next) => {
     if (req.path === '/sw.js') {
-        res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     } else if (req.path === '/manifest.json' || req.path.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
