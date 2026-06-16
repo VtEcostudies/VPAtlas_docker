@@ -1,12 +1,13 @@
 # Changelog — Snapshot 2026-06-07
 
-## v3.5.363
+## v3.5.363 – v3.5.364
 
 ### Reviews — Reassign Visit button is now visible without clicking a suggestion
 
 - **The bug.** First-pass implementation of the Reassign Visit feature only revealed the **Reassign Visit** action button after the admin clicked a dropdown suggestion. If you typed the target pool ID directly (e.g. `MLS255`) without clicking the suggestion, nothing happened — no button, no way to apply the change. User report: *"After entering a reassign-to poolID, there was no action button or other way to apply that change."*
 - **The fix.** [admin/review_create.html](ui_vp/uiVPAtlas/admin/review_create.html) `wireReassign()` now reveals the fate radios and the Reassign button as soon as the input has ≥ 2 characters, regardless of whether a suggestion was clicked. The button validates that the typed pool ID exists on click (the API already returns 404 if the target doesn't exist; the validation surfaces naturally through the existing error path). The suggestion dropdown is still helpful — clicking a suggestion now just fills the input and re-renders the same button — but it's no longer a *gate*.
 - **No backend change.** The transaction logic, the admin guard, and the trigger-safety analysis are all unchanged. Verified end-to-end on review 1713 / visit 1764 / NEW397 → MLS1716 earlier; that path still works identically.
+- **Shipped to prod** at 2026-06-16 13:16 UTC as `manifest.json` 3.5.364 (the deploy-prod.sh patch bumped 363 → 364 as part of the ship). All of today's work — the reassign feature (3.5.361–362) plus this visibility fix (3.5.363) — landed on prod in a single deploy.
 
 ## v3.5.361 – v3.5.362
 
