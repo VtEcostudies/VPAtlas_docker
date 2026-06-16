@@ -11,6 +11,7 @@ module.exports = {
     getGeoJson,
     create,
     update,
+    reassign,
     delete: _delete
 };
 
@@ -188,6 +189,60 @@ async function update(id, body) {
         })
         .catch(err => {reject(err);});
     })
+}
+
+// Reassign a visit (and its review) to a different mapped pool, optionally
+// disposing of the now-orphaned source pool. One atomic transaction:
+//   1. vpvisit.visitPoolId    → newPoolId
+//   2. vpreview.reviewPoolId  → newPoolId   (review follows the visit)
+//   3a. fate=duplicate → vpmapped[oldPool].mappedPoolStatus = 'Duplicate'
+//   3b. fate=delete    → DELETE vpmapped[oldPool]   (only if no other refs)
+//   3c. fate=leave     → no change to the old pool
+async function reassign(reviewId, body) {
+    const newPoolId = body && body.newPoolId;
+    const fate = (body && body.fate) || 'duplicate';
+    if (!newPoolId) throw { status: 400, message: 'newPoolId required' };
+    if (!['duplicate', 'delete', 'leave'].includes(fate))
+        throw { status: 400, message: `Unknown fate '${fate}' (expected duplicate|delete|leave)` };
+
+    const r = await query(`
+        SELECT v."visitId", v."visitPoolId" AS "oldPoolId"
+        FROM vpreview rev JOIN vpvisit v ON v."visitId"=rev."reviewVisitId"
+        WHERE rev."reviewId"=$1`, [reviewId]);
+    if (!r.rows.length) throw { status: 404, message: `Review ${reviewId} not found` };
+    const { visitId, oldPoolId } = r.rows[0];
+
+    if (newPoolId === oldPoolId)
+        throw { status: 400, message: `newPoolId ${newPoolId} is the same as current pool` };
+
+    const np = await query(`SELECT 1 FROM vpmapped WHERE "mappedPoolId"=$1`, [newPoolId]);
+    if (!np.rows.length) throw { status: 404, message: `Target pool ${newPoolId} not found` };
+
+    // Hard refuse delete if the old pool still has other visits / reviews / surveys.
+    if (fate === 'delete') {
+        const g = await query(`
+            SELECT
+              (SELECT count(*) FROM vpvisit  WHERE "visitPoolId"=$1  AND "visitId"<>$2)  AS other_visits,
+              (SELECT count(*) FROM vpreview WHERE "reviewPoolId"=$1 AND "reviewId"<>$3) AS other_reviews,
+              (SELECT count(*) FROM vpsurvey WHERE "surveyPoolId"=$1)                    AS surveys`,
+            [oldPoolId, visitId, reviewId]);
+        const o = g.rows[0];
+        if (Number(o.other_visits) || Number(o.other_reviews) || Number(o.surveys)) {
+            throw { status: 409, message:
+                `Cannot delete ${oldPoolId}: still referenced by ${o.other_visits} other visit(s), ${o.other_reviews} other review(s), ${o.surveys} survey(s). Use 'Duplicate' or 'Leave' instead.` };
+        }
+    }
+
+    return db.pgpDb.tx(async t => {
+        await t.none(`UPDATE vpvisit  SET "visitPoolId"=$1  WHERE "visitId"=$2`, [newPoolId, visitId]);
+        await t.none(`UPDATE vpreview SET "reviewPoolId"=$1 WHERE "reviewId"=$2`, [newPoolId, reviewId]);
+        if (fate === 'duplicate') {
+            await t.none(`UPDATE vpmapped SET "mappedPoolStatus"='Duplicate' WHERE "mappedPoolId"=$1`, [oldPoolId]);
+        } else if (fate === 'delete') {
+            await t.none(`DELETE FROM vpmapped WHERE "mappedPoolId"=$1`, [oldPoolId]);
+        }
+        return { reviewId: Number(reviewId), visitId, oldPoolId, newPoolId, fate };
+    });
 }
 
 async function _delete(id) {

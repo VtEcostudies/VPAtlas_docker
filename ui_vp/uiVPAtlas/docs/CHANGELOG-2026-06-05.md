@@ -1,9 +1,6 @@
-# Changelog — Snapshot 2026-06-05 (partial)
+# Changelog — Snapshot 2026-06-05
 
-Partial day's work; additional changes may land later under a follow-up
-2026-06-05 changelog.
-
-## v3.5.358
+## v3.5.358 – v3.5.359
 
 ### Reviews — same-day edit-then-review no longer leaves the pool stuck on the Review list
 
@@ -33,4 +30,4 @@ Partial day's work; additional changes may land later under a follow-up
 ### Service worker / build
 
 - `manifest.json` 3.5.355 → 3.5.357 via `node sw-build.js patch` (two bumps: 3.5.356 was the local sw-build after the urlsToCache changelog-list edit; 3.5.357 was the additional patch bump that `deploy-prod.sh deploy` runs internally). **DB-only** behavior change — no JS/HTML/CSS files changed for the fix itself. The version bump is solely to invalidate clients' cached copy of [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js) and [docs/index.html](ui_vp/uiVPAtlas/docs/index.html), which were edited only to add today's changelog file and finalize yesterday's. **Shipped to prod** at 2026-06-05 15:14 UTC; migration 018 applied via `db_migrate_vp_prod` (60 ms, 0 failures).
-- `manifest.json` 3.5.357 → 3.5.358 via `node sw-build.js patch`. **API + UI** rebuild (the Review filter fix above touches both [api_vp/_helpers/db_common.js](api_vp/_helpers/db_common.js) SQL and [explore/js/pool_list.js](ui_vp/uiVPAtlas/explore/js/pool_list.js) + [explore/js/url_state.js](ui_vp/uiVPAtlas/explore/js/url_state.js) on the page side). NOT deployed to prod yet.
+- `manifest.json` 3.5.357 → 3.5.359 via `node sw-build.js patch` (two bumps: 3.5.358 was the local sw-build after the Review filter code change; 3.5.359 was the additional patch bump that `deploy-prod.sh deploy` runs internally). **API + UI** rebuild (the Review filter fix above touches both [api_vp/_helpers/db_common.js](api_vp/_helpers/db_common.js) SQL and [explore/js/pool_list.js](ui_vp/uiVPAtlas/explore/js/pool_list.js) + [explore/js/url_state.js](ui_vp/uiVPAtlas/explore/js/url_state.js) on the page side). **Shipped to prod** at 2026-06-05 — vpatlas.org `manifest.json` reads `3.5.359`.

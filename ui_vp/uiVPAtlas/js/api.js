@@ -174,6 +174,7 @@ export async function fetchReviewById(id) { return fetchApiRoute(`review/${id}`)
 export async function fetchReviewsByVisit(visitId) { return fetchApiRoute('review', `reviewVisitId=${visitId}`); }
 export async function createReview(body) { return postApiRoute('review', body); }
 export async function updateReview(id, body) { return putApiRoute(`review/${id}`, body); }
+export async function reassignReview(id, body) { return postApiRoute(`review/${id}/reassign`, body); }
 
 // =============================================================================
 // SURVEYS (vpsurvey / monitoring)

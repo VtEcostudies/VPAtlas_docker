@@ -46,6 +46,21 @@
         .msg.success { background: #d4edda; color: #155724; }
         .msg.error { background: #f8d7da; color: #721c24; }
 
+        /* Reassign Visit — destructive admin action, distinct from normal save */
+        .reassign-section { border-color: #c44; background: #fff8f8; }
+        .reassign-btn { background: #c44; color: white; }
+        .reassign-btn:hover { background: #a33; }
+        .suggestion-box {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #ccc; border-radius: 4px;
+            max-height: 200px; overflow-y: auto; z-index: 10; display: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .suggestion-item { padding: 6px 10px; cursor: pointer; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: var(--primary-light); }
+        .suggestion-empty { padding: 6px 10px; font-size: 13px; color: #888; font-style: italic; }
+
         /* Two-pane: review form left, visit detail right */
         .rc-pane { max-height: 85vh; overflow-y: auto; padding: 10px; }
 
@@ -167,6 +182,29 @@
                 <div class="form-section-title">Notes</div>
                 <div class="form-field"><label for="reviewQANotes">QA Notes</label><textarea id="reviewQANotes" rows="3"></textarea></div>
             </div>
+
+            <!-- Reassign Visit: admin-only, edit-mode-only. Moves the visit AND the review to a different mapped pool (one atomic transaction) and optionally marks the orphan pool 'Duplicate' or deletes it. -->
+            <div class="form-section reassign-section" id="reassign_section" style="display:none;">
+                <div class="form-section-title" style="color:#c44;">Reassign Visit (admin)</div>
+                <p style="font-size:13px; color:var(--text-secondary); margin:4px 0 8px;">
+                    Move this visit and review to a different existing pool. Use when a volunteer created a duplicate <code>NEW####</code> pool on top of a real one.
+                </p>
+                <div class="form-field" style="position:relative;">
+                    <label for="reassign_target">Target pool ID</label>
+                    <input type="text" id="reassign_target" placeholder="Type pool ID — e.g. MLS255" autocomplete="off">
+                    <div id="reassign_suggestions" class="suggestion-box"></div>
+                </div>
+                <div id="reassign_preview" style="display:none; font-size:13px; padding:6px 10px; background:#fff3cd; border-radius:4px; margin:6px 0;"></div>
+                <div id="reassign_fate_group" style="display:none; margin:6px 0;">
+                    <label style="font-size:13px; font-weight:600; color:var(--text-secondary);">After moving the visit, the original pool should:</label>
+                    <div class="choice-group">
+                        <label><input type="radio" name="reassign_fate" value="duplicate" checked> Set to <strong>Duplicate</strong></label>
+                        <label><input type="radio" name="reassign_fate" value="delete"> Delete</label>
+                    </div>
+                </div>
+                <button id="btn_reassign" class="action-button reassign-btn" style="display:none; font-size:14px; padding:6px 14px;">Reassign Visit</button>
+                <div id="reassign_msg" class="msg" style="margin-top:8px;"></div>
+            </div>
         </div>
 
         <!-- Right: Full visit view with Detail/Map inner tabs -->
@@ -193,7 +231,7 @@
     <script src="/js/app_messaging.js"></script>
 
     <script type="module">
-        import { fetchReviewById, fetchVisitById, fetchVisitPhotos, createReview, updateReview } from '/js/api.js';
+        import { fetchReviewById, fetchVisitById, fetchVisitPhotos, createReview, updateReview, reassignReview, fetchPools } from '/js/api.js';
         import { requireAuth, getUser } from '/js/auth.js';
         import { createMap, addPoolMarker } from '/js/map_common.js';
         import { setupProfileIcon } from '/js/profile_icon.js';
@@ -305,7 +343,122 @@
                     showMsg('Save failed: ' + (err.message || JSON.stringify(err)), 'error');
                 }
             });
+
+            // ─── Reassign Visit (admin, edit-mode only) ──────────────────
+            // Only show the destructive section on an existing review for admin users.
+            if (isEdit && user && user.userrole === 'admin') {
+                document.getElementById('reassign_section').style.display = '';
+                wireReassign();
+            }
         });
+
+        // ─── Reassign helpers ────────────────────────────────────────────
+
+        function wireReassign() {
+            const inp = document.getElementById('reassign_target');
+            const sugBox = document.getElementById('reassign_suggestions');
+            const preview = document.getElementById('reassign_preview');
+            const fateGroup = document.getElementById('reassign_fate_group');
+            const btn = document.getElementById('btn_reassign');
+            let lastFetch = 0;
+
+            // Show the fate radios + Reassign button as soon as the input has any
+            // content. The button validates the pool exists on click (rather than
+            // gating visibility on suggestion-click), so users who type the ID
+            // directly aren't stuck.
+            function reflectInputState() {
+                let text = inp.value.trim();
+                let hasText = text.length >= 2;
+                let oldPool = document.getElementById('reviewPoolId').value;
+                if (hasText) {
+                    preview.innerHTML = `<strong>Will attempt:</strong> move visit ${document.getElementById('reviewVisitId').value} from <code>${oldPool}</code> → <code>${text}</code>. The review (<code>${reviewId}</code>) follows the visit automatically.`;
+                    preview.style.display = 'block';
+                    fateGroup.style.display = 'block';
+                    btn.style.display = 'inline-block';
+                } else {
+                    preview.style.display = 'none';
+                    fateGroup.style.display = 'none';
+                    btn.style.display = 'none';
+                }
+            }
+
+            inp.addEventListener('input', async () => {
+                reflectInputState();
+                const text = inp.value.trim();
+                if (text.length < 2) { sugBox.style.display = 'none'; return; }
+                const stamp = ++lastFetch;
+                try {
+                    let data = await fetchPools(`mappedPoolId|ILIKE=%${encodeURIComponent(text)}%&limit=15`);
+                    if (stamp !== lastFetch) return;
+                    let rows = (data && data.rows) || [];
+                    let currentPoolId = document.getElementById('reviewPoolId').value;
+                    let seen = new Set();
+                    let html = '';
+                    rows.forEach(row => {
+                        let pid = row.mappedPoolId || row.poolId || '';
+                        if (!pid || pid === currentPoolId || seen.has(pid)) return;
+                        seen.add(pid);
+                        let status = row.mappedPoolStatus || '';
+                        let town = row.townName || '';
+                        html += `<div class="suggestion-item" data-pool="${pid}" data-status="${status}" data-town="${town}">
+                            <strong>${pid}</strong>
+                            <span style="color:#888; font-size:12px;"> ${status}${town ? ' • ' + town : ''}</span>
+                        </div>`;
+                    });
+                    if (!html) { sugBox.innerHTML = '<div class="suggestion-empty">No matching pools</div>'; sugBox.style.display = 'block'; return; }
+                    sugBox.innerHTML = html;
+                    sugBox.style.display = 'block';
+                    sugBox.querySelectorAll('.suggestion-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            inp.value = item.dataset.pool;
+                            sugBox.style.display = 'none';
+                            reflectInputState();
+                            inp.focus();
+                        });
+                    });
+                } catch(err) {
+                    sugBox.style.display = 'none';
+                }
+            });
+
+            // Close the dropdown on outside click
+            document.addEventListener('click', (e) => {
+                if (!sugBox.contains(e.target) && e.target !== inp) sugBox.style.display = 'none';
+            });
+
+            btn.addEventListener('click', async () => {
+                let target = inp.value.trim();
+                let oldPool = document.getElementById('reviewPoolId').value;
+                if (!target) { showReassignMsg('Type a target pool ID first.', 'error'); return; }
+                if (target === oldPool) { showReassignMsg(`Already on ${target}. Pick a different pool.`, 'error'); return; }
+                let fate = document.querySelector('input[name="reassign_fate"]:checked').value;
+                let confirmMsg =
+                    `Move visit ${document.getElementById('reviewVisitId').value} and review ${reviewId} from ${oldPool} → ${target}.\n\n` +
+                    (fate === 'duplicate'
+                        ? `Then set ${oldPool} status to 'Duplicate'.`
+                        : `Then DELETE ${oldPool} from the atlas (only succeeds if no other visits/reviews/surveys reference it).`) +
+                    `\n\nProceed?`;
+                if (!window.confirm(confirmMsg)) return;
+                btn.disabled = true;
+                showReassignMsg('Reassigning…', 'info');
+                try {
+                    let result = await reassignReview(reviewId, { newPoolId: target, fate });
+                    showReassignMsg(`Done. Visit and review now on ${result.newPoolId}. Reloading…`, 'success');
+                    setTimeout(() => {
+                        window.location.href = `/admin/review_create.html?reviewId=${reviewId}`;
+                    }, 1200);
+                } catch(err) {
+                    btn.disabled = false;
+                    showReassignMsg('Reassign failed: ' + (err.message || JSON.stringify(err)), 'error');
+                }
+            });
+        }
+
+        function showReassignMsg(text, type) {
+            let el = document.getElementById('reassign_msg');
+            el.textContent = text;
+            el.className = 'msg show ' + type;
+        }
 
         // ─── Visit pane: shared tabbed/card renderer + Map tab ───
 

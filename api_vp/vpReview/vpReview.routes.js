@@ -15,6 +15,7 @@ router.get('/count', getCount);
 router.get('/', getAll);
 router.get('/:id', getById);
 router.post('/', create);
+router.post('/:id/reassign', reassign);
 router.put('/:id', update);
 router.delete('/:id', _delete);
 
@@ -125,4 +126,19 @@ function _delete(req, res, next) {
     service.delete(req.params.id)
         .then(() => res.json({}))
         .catch(err => next(err));
+}
+
+// Admin-only. Reassign the visit attached to this review (and the review itself)
+// to a different mapped pool, optionally setting the old pool to Duplicate or
+// deleting it. See service.reassign() for the transaction body.
+function reassign(req, res, next) {
+    let isAdmin = (req.user && req.user.role === 'admin')
+               || (req.dbUser && req.dbUser.userrole === 'admin');
+    if (!isAdmin) return res.status(403).json({ message: 'Admin required for reassign.' });
+    service.reassign(req.params.id, req.body)
+        .then(result => res.json(result))
+        .catch(err => {
+            if (err && err.status) return res.status(err.status).json({ message: err.message });
+            next(err);
+        });
 }
