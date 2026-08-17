@@ -7,6 +7,27 @@ const pgUtil = require('_helpers/db_pg_util');
 const sendmail = require('./sendmail');
 var staticColumns = []; //file scope list of vpuser table columns retrieved on app startup (see 'getColumns()' below)
 
+/*
+  Translate an outbound-mail failure into something a user can act on.
+
+  Nodemailer surfaces server-side misconfiguration as jargon — an empty
+  EMAIL_PASSWORD becomes `EAUTH: Missing credentials for "PLAIN"`, which the
+  error-handler forwards verbatim as a 400 and the UI prints as-is. Users saw
+  that string on the reset page for weeks with no idea it meant "the server
+  can't log in to its mailbox". Non-mail errors pass through untouched.
+*/
+function mailError(err, what='email') {
+  const mailCodes = ['EAUTH', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EENVELOPE', 'EDNS', 'EMAILCONFIG'];
+  if (!err || !mailCodes.includes(err.code)) {return err;}
+  console.log(`vpUser.service.pg.js::mailError | outbound ${what} mail FAILED |`, err.code, err.message);
+  const wrapped = new Error(
+    `We couldn't send the ${what} email right now — this is a problem on our end, not with your account. ` +
+    `Nothing has been changed. Please try again shortly, and contact a VPAtlas administrator if it keeps failing.`);
+  wrapped.name = 'Mail Delivery Error';
+  wrapped.code = err.code;
+  return wrapped;
+}
+
 module.exports = {
     authenticate,
     getColumns,
@@ -285,9 +306,19 @@ function register(body) {
         query(text, queryColumns.values)
           .then(res => {
             console.log('vpUser.service.pg.js::register | rowCount, user id ', res.rowCount, res.rows[0].id);
+            const newId = res.rows[0].id;
             sendmail.register(body.email, body.token)
               .then(ret => {resolve(ret);})
-              .catch(err => {reject(err)});
+              .catch(err => {
+                // Mail failed, so the row we just wrote is unusable: the user
+                // never got a confirmation token, can't confirm, and a retry
+                // would collide with the unique username/email constraint.
+                // Drop it so registering again actually works.
+                query(`delete from vpuser where id=$1;`, [newId])
+                  .then(() => console.log('vpUser.service.pg.js::register | rolled back user', newId))
+                  .catch(delErr => console.log('vpUser.service.pg.js::register | ROLLBACK FAILED for user', newId, delErr.message))
+                  .finally(() => reject(mailError(err, 'registration')));
+              });
           })
           .catch(err => {
               console.log('vpUser.service.pg.js::register | ERROR ', err.message);
@@ -366,30 +397,45 @@ function test(email) {
   send an email with reset link containing a reset token.
 
   - verify user email. if found:
-  - set db reset token (for comparison on /confirm route)
   - send email with url and reset token
+  - only then set db reset token (for comparison on /confirm route)
+
+  ORDER MATTERS. This used to flip status='reset' + token BEFORE sending, and
+  never rolled back when the send failed. A mail outage therefore locked the
+  account out of normal login ("complete the password reset process using your
+  emailed reset token") with no token ever delivered — 12 prod accounts were
+  stranded that way by an empty EMAIL_PASSWORD. The DB is now touched only
+  after the mail is out the door, so a send failure leaves the user exactly as
+  they were and they can just log in again or retry.
+
+  Lookup is case-insensitive to match authenticate(). The JWT carries the
+  CANONICAL db email (not what the user typed) because confirm() matches on
+  `where "email"=payload.email` exactly.
 */
 function reset(email) {
-    return new Promise((resolve, reject) => {
-      const token = jwt.sign({ reset:true, email:email }, config.secret, { expiresIn: config.token.resetExpiry });
-      text = `update vpuser set token=$2,status='reset' where "email"=$1 returning id,email,token;`;
-      console.log(text, [email, token]);
-      query(text, [email, token])
-        .then(res => {
-          console.log('vpUser.service.pg.js::reset | rowCount ', res.rowCount);
-          if (res.rowCount == 1) {
-            sendmail.reset(res.rows[0].email, res.rows[0].token)
-              .then(ret => {resolve(ret);})
-              .catch(err => {reject(err)});
-          } else {
-            console.log('vpUser.service.pg.js::reset | ERROR', `email ${email} NOT found.`);
-            reject(new Error(`email ${email} NOT found.`));
-          }
-        })
-        .catch(err => {
-          console.log('vpUser.service.pg.js::reset | ERROR ', err.message);
-          reject(err.message);
-        });
+    return new Promise(async (resolve, reject) => {
+      try {
+        const sel = await query(
+          `select id, email from vpuser where LOWER(email)=LOWER($1);`, [email]);
+        if (sel.rowCount != 1) {
+          console.log('vpUser.service.pg.js::reset | ERROR', `email ${email} NOT found.`);
+          return reject(new Error(`email ${email} NOT found.`));
+        }
+        const user = sel.rows[0];
+        const token = jwt.sign({ reset:true, email:user.email }, config.secret, { expiresIn: config.token.resetExpiry });
+
+        // Send first — nothing is mutated if this throws.
+        await sendmail.reset(user.email, token);
+
+        const upd = await query(
+          `update vpuser set token=$2,status='reset' where id=$1 returning id,email,token;`,
+          [user.id, token]);
+        console.log('vpUser.service.pg.js::reset | rowCount ', upd.rowCount);
+        resolve({ message: `Reset email sent to ${user.email}.` });
+      } catch (err) {
+        console.log('vpUser.service.pg.js::reset | ERROR ', err.message);
+        reject(mailError(err, 'password reset'));
+      }
     });
 }
 
@@ -432,11 +478,22 @@ function new_email(id, email) {
         if (res.rowCount !== 1) {
           return reject(new Error(`user id ${id} NOT found.`));
         }
-        const sent = await sendmail.new_email(res.rows[0].email, res.rows[0].token);
-        resolve(sent);
+        try {
+          const sent = await sendmail.new_email(res.rows[0].email, res.rows[0].token);
+          resolve(sent);
+        } catch (mailErr) {
+          // Undelivered token => the pending address is dead weight that also
+          // blocks anyone else from claiming it. Clear it so a retry is clean.
+          await query(
+            `update vpuser
+                set "pendingEmail"=null, "pendingEmailToken"=null, "pendingEmailRequestedAt"=null
+              where id=$1;`, [id])
+            .catch(rbErr => console.log('vpUser.service.pg.js::new_email | ROLLBACK FAILED for user', id, rbErr.message));
+          throw mailErr;
+        }
       } catch (err) {
         console.log('vpUser.service.pg.js::new_email | ERROR ', err.message);
-        reject(err);
+        reject(mailError(err, 'email change'));
       }
     });
 }

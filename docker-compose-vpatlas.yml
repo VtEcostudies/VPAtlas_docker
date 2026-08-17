@@ -75,6 +75,11 @@ services:
       API_HOST: localhost
       API_PORT: 4010
 
+      # NOTE: API_SECRET is deliberately NOT passed through here, and that is a
+      # known open item rather than an oversight. Introducing it changes the JWT
+      # signing key, which signs every active user out at once. Do not add it
+      # without agreeing a deploy window for that forced logout first.
+
       # UI host config (used to build confirmation email URLs).
       # Override these in .env when developing locally (e.g. UI_HOST=localhost UI_PORT=8090).
       UI_PROT: ${UI_PROT:-https}

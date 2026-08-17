@@ -6,7 +6,6 @@
       "Bash(curl -s \"http://localhost:4010/survey/pool/LDR3174\")",
       "Bash(curl -s \"http://localhost:4010/survey/field/5977\")",
       "Bash(curl -s \"http://localhost:4010/pools?visitHasIndicator=true&limit=5\" -w \"\\\\n%{http_code}\")",
-
       "Bash(node ui_vp/uiVPAtlas/sw-build.js patch)",
       "Bash(node ui_vp/uiVPAtlas/sw-build.js patch && *)",
       "Bash(docker compose -f docker-compose-vpatlas.yml build *)",
@@ -14,10 +13,8 @@
       "Bash(docker compose -f docker-compose-vpatlas.yml restart *)",
       "Bash(docker compose -f docker-compose-vpatlas.yml ps*)",
       "Bash(docker compose -f docker-compose-vpatlas.yml logs *)",
-
       "Bash(ssh -i ~/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org *)",
       "Bash(ssh -i /home/jloomis/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org *)",
-
       "Bash(curl -s* 'https://api.dev.vpatlas.org/*)",
       "Bash(curl -s* https://api.dev.vpatlas.org/*)",
       "Bash(curl -s* 'https://dev.vpatlas.org/*)",
@@ -28,12 +25,10 @@
       "Bash(curl -I* 'https://api.dev.vpatlas.org/*)",
       "Bash(curl -I* https://dev.vpatlas.org/*)",
       "Bash(curl -I* 'https://dev.vpatlas.org/*)",
-
       "Bash(docker exec db_vp psql -U postgres -d vpatlas -c *)",
       "Bash(docker exec api_vp *)",
       "Bash(docker exec ui_vp *)",
       "Bash(docker logs *)",
-
       "Bash(curl -s* http://localhost:4010/*)",
       "Bash(curl -s* 'http://localhost:4010/*)",
       "Bash(curl -s* \"http://localhost:4010/*)",
@@ -47,23 +42,16 @@
       "Bash(curl -s 'http://localhost:8090/*)",
       "Bash(curl -s \"http://localhost:8090/*)",
       "Bash(curl -s \"http://localhost:8090/* | grep -oE *)",
-
       "Bash(convert -version*)",
       "Bash(magick -version*)",
-
       "Bash(for f in /home/jloomis/VPAtlas/VPAtlas_docker/*; do echo *grep*)",
-
       "Bash(/home/jloomis/VPAtlas/VPAtlas_docker/deploy/deploy-dev.sh logs *)",
       "Bash(/home/jloomis/VPAtlas/VPAtlas_docker/deploy/deploy-dev.sh deploy *)",
       "Bash(/home/jloomis/VPAtlas/VPAtlas_docker/deploy/deploy-dev.sh ui *)",
-
       "Bash(node /home/jloomis/VPAtlas/VPAtlas_docker/ui_vp/uiVPAtlas/sw-build.js*)",
       "Bash(docker compose -f /home/jloomis/VPAtlas/VPAtlas_docker/docker-compose-vpatlas.yml up *)",
-
       "Bash(echo \"=== GPS button icon ===\";*)",
-
       "Bash(diff -q /home/jloomis/VPAtlas/VPAtlas_docker/*)",
-
       "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker log*)",
       "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker show*)",
       "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker status*)",
@@ -71,16 +59,36 @@
       "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker diff *)",
       "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker diff * -- *)",
       "Bash(git -C /home/jloomis/VPAtlas/VPAtlas_docker diff *; *)",
-
       "Bash(echo \"===*; for sha in*)",
       "Bash(for sha in *; do *git -C /home/jloomis/VPAtlas/VPAtlas_docker*)",
-
       "Bash(grep -nE * /home/jloomis/VPAtlas/VPAtlas_docker/*)",
-
       "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker*)",
       "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker* -exec grep -l *)",
       "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker/*)",
-      "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker/* -exec grep -l *)"
+      "Bash(find /home/jloomis/VPAtlas/VPAtlas_docker/* -exec grep -l *)",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=20 -i /home/jloomis/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org ' *)",
+      "Bash(grep -n \"^[a-z][a-z-]*\\)$\" deploy/deploy-prod.sh)",
+      "Bash(bash -n deploy/deploy-prod.sh)",
+      "Bash(node --check api_vp/users/vpUser.service.pg.js)",
+      "Bash(node --check api_vp/users/sendmail.js)",
+      "Bash(node --check api_vp/secrets.js)",
+      "Bash(ssh -o *)",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=30 -i /home/jloomis/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org 'cat > /tmp/fix_stranded_resets.sql')",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=30 -i /home/jloomis/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org ' *)",
+      "Bash(awk -F= '/^API_SECRET=/{print $1\" [len=\"length\\($2\\)\"]\"}')",
+      "Bash(curl -s -o /tmp/claude-1001/-home-jloomis-VPAtlas-VPAtlas-docker/13aebdc0-3425-4c8b-a699-5a8aa65009c9/scratchpad/r_unknown.json -w 'HTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/reset -H 'Content-Type: application/json' -d '{\"email\":\"definitely-not-a-user@example.invalid\"}')",
+      "Bash(EMAIL_PASSWORD= docker compose -f docker-compose-vpatlas.yml up -d --no-deps api_vp)",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/reset -H 'Content-Type: application/json' -d '{\"email\":\"JTLoomis@Gmail.com\"}')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/reset -H 'Content-Type: application/json' -d '{\"email\":\"VPAtlas+VPSelfTest@VTEcostudies.org\"}')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/confirm -H 'Content-Type: application/json' -d '{\"token\":\"__TRACKED_VAR__\",\"password\":\"SelfTestPassword123!\"}')",
+      "Bash(curl -s -o /dev/null -w 'POST /users/authenticate -> HTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/authenticate -H 'Content-Type: application/json' -d '{\"username\":\"zz_claude_selftest\",\"password\":\"SelfTestPassword123!\"}')",
+      "Bash(./test_stack.sh)",
+      "Bash(./deploy/deploy-prod.sh preflight *)",
+      "Bash(echo \"\\(exit: $?\\)\")",
+      "Bash(awk -F= '/^EMAIL_PASSWORD=/{print \"EMAIL_PASSWORD [len=\"length\\($2\\)\"]\"}')",
+      "Bash(curl -s -o /dev/null -w 'POST /users/authenticate -> HTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/authenticate -H 'Content-Type: application/json' -d '{\"username\":\"nobody_here\",\"password\":\"x\"}')",
+      "Bash(curl -s -w ' | HTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/reset -H 'Content-Type: application/json' -d '{\"email\":\"definitely-not-a-user@example.invalid\"}')",
+      "Bash(./deploy/deploy-prod.sh deploy 'Fix prod registration/password-reset email outage; harden the mail failure paths *)"
     ]
   }
 }

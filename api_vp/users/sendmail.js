@@ -7,6 +7,24 @@ const uiFqdn = (config.ui.host === 'localhost')
   ? `${config.ui.protocol}://${config.ui.host}:${config.ui.port}`
   : `${config.ui.protocol}://${config.ui.host}`;
 
+/*
+  Loud startup warning when outbound mail can't possibly work.
+
+  A missing EMAIL_PASSWORD is silent until the first user tries to register or
+  reset — then nodemailer says `Missing credentials for "PLAIN"` from deep in
+  the SMTP stack. That is exactly what happened in prod: a dangling .env
+  symlink emptied EMAIL_PASSWORD and every registration/reset email failed for
+  weeks with nothing in the startup log to hint at it.
+*/
+if (!config.vceEmail || !config.vcePassW) {
+  console.warn('*'.repeat(78));
+  console.warn('sendmail.js | OUTBOUND EMAIL IS DISABLED — credentials missing.');
+  console.warn(`sendmail.js | APP_EMAIL=${config.vceEmail ? 'set' : 'MISSING'} EMAIL_PASSWORD=${config.vcePassW ? 'set' : 'MISSING'}`);
+  console.warn('sendmail.js | Registration and password-reset emails WILL FAIL.');
+  console.warn('sendmail.js | Fix: set APP_EMAIL / EMAIL_PASSWORD in the compose project .env and recreate api_vp.');
+  console.warn('*'.repeat(78));
+}
+
 module.exports = {
     test: (userMail, interval) => reset(userMail, interval, 'test'), //use 'token' to pass 'interval'
     register: (userMail, token) => reset(userMail, token, 'registration'),
@@ -18,6 +36,16 @@ module.exports = {
 Send registration or reset email with token.
 */
 function reset(userMail, token, type='registration') {
+
+  // Fail before we reach the SMTP layer so callers get a diagnosable code
+  // instead of nodemailer's `Missing credentials for "PLAIN"`.
+  if (!config.vceEmail || !config.vcePassW) {
+    const err = new Error('Outbound email is not configured on this server (APP_EMAIL / EMAIL_PASSWORD missing).');
+    err.name = 'Mail Configuration Error';
+    err.code = 'EMAILCONFIG';
+    console.log('sendmail.js | refusing to send:', err.message);
+    return Promise.reject(err);
+  }
 
   var transporter = nodemailer.createTransport({
     service: 'gmail',

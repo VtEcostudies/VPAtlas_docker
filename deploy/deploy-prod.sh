@@ -28,12 +28,59 @@ set -e
 SSH_KEY="/home/jloomis/.ssh/vpatlas_aws_key_pair.pem"
 SSH_HOST="ubuntu@vpatlas.org"
 REMOTE_DIR="/home/ubuntu/VPAtlas_docker_production"
-DEV_DIR="/home/ubuntu/VPAtlas_docker"  # symlink target for shared .env
+# Legacy location of the shared .env. The prod dir's .env used to be a symlink
+# into here. The directory on the host is actually spelled "developement" — the
+# path below was wrong for months, so the symlink dangled, compose interpolated
+# every ${VAR} to empty, and prod ran with EMAIL_PASSWORD="" (all registration
+# and password-reset mail silently failed). Kept only so `clone` can migrate an
+# old symlink; new installs get a real file, not a link into another checkout.
+DEV_DIR="/home/ubuntu/VPAtlas_docker_developement"
 COMPOSE_FILES="-f docker-compose-vpatlas.yml -f docker-compose-prod.yml"
 GIT_REPO="https://github.com/VtEcostudies/VPAtlas_docker.git"
 
 ssh_cmd() {
     ssh -i "$SSH_KEY" "$SSH_HOST" "$@"
+}
+
+# Refuse to recreate api_vp against a broken or placeholder .env.
+#
+# This is the interlock that would have caught the outage this function exists
+# because of: prod's .env was a dangling symlink, so compose interpolated
+# EMAIL_PASSWORD to "" and every registration / password-reset email failed
+# with `Missing credentials for "PLAIN"` for months, with nothing in the deploy
+# output to suggest anything was wrong. Values are never echoed — only whether
+# they are present and non-placeholder.
+#
+# API_SECRET is intentionally NOT checked here: it isn't passed into the
+# container at all (see docker-compose-vpatlas.yml), so its value in .env is
+# inert. Adding it to this list would block every deploy over a setting we have
+# deliberately decided not to change.
+preflight_env() {
+    echo "→ Preflight: validating $REMOTE_DIR/.env"
+    ssh_cmd "cd '$REMOTE_DIR' && \
+      if [ ! -e .env ]; then \
+        echo '  ✗ .env missing or unresolvable'; \
+        [ -L .env ] && echo '    (dangling symlink -> '\$(readlink .env)')'; \
+        exit 1; \
+      fi; \
+      fail=0; \
+      for v in EMAIL_PASSWORD APP_EMAIL DB_PASSWORD; do \
+        val=\$(grep -E \"^\$v=\" .env | head -1 | cut -d= -f2-); \
+        case \"\$val\" in \
+          '') echo \"  ✗ \$v is empty or absent\"; fail=1 ;; \
+          change-me-in-production|changeme) \
+             echo \"  ✗ \$v is a published placeholder value\"; fail=1 ;; \
+          *) echo \"  ✓ \$v set (\${#val} chars)\" ;; \
+        esac; \
+      done; \
+      exit \$fail" || {
+        echo ""
+        echo "ABORTING: prod .env is incomplete. Fix it on the host before deploying —"
+        echo "an empty EMAIL_PASSWORD silently kills registration and"
+        echo "password-reset email, which is exactly the outage this check exists for."
+        exit 1
+      }
+    echo "→ Preflight OK"
 }
 
 # Auto-commit any local changes before pushing (matches deploy-dev.sh).
@@ -93,14 +140,36 @@ clone)
                 git clone '$GIT_REPO' '$REMOTE_DIR'; \
              fi"
 
-    # Symlink the shared .env from dev's directory (one source of truth).
-    ssh_cmd "if [ -e '$REMOTE_DIR/.env' ] && [ ! -L '$REMOTE_DIR/.env' ]; then \
-                echo 'WARNING: $REMOTE_DIR/.env exists and is not a symlink. Skipping symlink.'; \
+    # Ensure prod has a usable .env.
+    #
+    # The old version of this block tested `[ -L .env ]` and reported ".env
+    # symlink already present" — true even when the link was DANGLING, which
+    # is how prod ran for months with an empty EMAIL_PASSWORD. Existence of a
+    # symlink is not evidence of a readable file; `-e` (which follows links)
+    # is. Prod now gets a real file so it can't be broken by something that
+    # happens in a different checkout.
+    ssh_cmd "if [ -f '$REMOTE_DIR/.env' ] && [ ! -L '$REMOTE_DIR/.env' ]; then \
+                echo '.env present (real file).'; \
+             elif [ -L '$REMOTE_DIR/.env' ] && [ -e '$REMOTE_DIR/.env' ]; then \
+                echo 'Converting .env symlink -> real file (target: '\$(readlink '$REMOTE_DIR/.env')')'; \
+                cp -L '$REMOTE_DIR/.env' '$REMOTE_DIR/.env.tmp' && mv -f '$REMOTE_DIR/.env.tmp' '$REMOTE_DIR/.env' && \
+                chmod 600 '$REMOTE_DIR/.env' && echo '.env is now a real file.'; \
              elif [ -L '$REMOTE_DIR/.env' ]; then \
-                echo '.env symlink already present.'; \
+                echo 'ERROR: $REMOTE_DIR/.env is a DANGLING symlink -> '\$(readlink '$REMOTE_DIR/.env'); \
+                if [ -f '$DEV_DIR/.env' ]; then \
+                  rm -f '$REMOTE_DIR/.env' && cp '$DEV_DIR/.env' '$REMOTE_DIR/.env' && chmod 600 '$REMOTE_DIR/.env' && \
+                  echo 'Recovered .env from $DEV_DIR.'; \
+                else \
+                  echo 'No source to recover from. Create $REMOTE_DIR/.env from .env.example.'; exit 1; \
+                fi; \
+             elif [ -f '$DEV_DIR/.env' ]; then \
+                cp '$DEV_DIR/.env' '$REMOTE_DIR/.env' && chmod 600 '$REMOTE_DIR/.env' && echo '.env seeded from $DEV_DIR.'; \
              else \
-                ln -s '$DEV_DIR/.env' '$REMOTE_DIR/.env' && echo '.env symlinked from dev.'; \
+                echo 'ERROR: no .env at $REMOTE_DIR and none to copy from.'; \
+                echo 'Create it from .env.example — API_SECRET and EMAIL_PASSWORD are required.'; exit 1; \
              fi"
+
+    preflight_env
 
     # photo_data: fresh empty dir owned by container's api user (uid 1001).
     ssh_cmd "cd '$REMOTE_DIR' && mkdir -p photo_data && sudo chown -R 1001:1001 photo_data && sudo chmod -R u+rwX,g+rwX photo_data"
@@ -323,6 +392,9 @@ backup-lifecycle)
 deploy)
     echo "=== App update (full stack): local + prod ==="
 
+    # 0. Prod .env must be sane BEFORE we recreate api_vp with it.
+    preflight_env
+
     # 1. Bump SW patch (regenerates sw.js, runs precache validator).
     echo "→ Bumping SW patch version + regen sw.js"
     ( cd ui_vp && node uiVPAtlas/sw-build.js patch )
@@ -488,6 +560,11 @@ rollback)
     ;;
 
 # ─── Status ───
+# ─── Read-only: validate prod's .env without deploying anything ───
+preflight)
+    preflight_env
+    ;;
+
 status)
     echo "=== Remote prod status ==="
     ssh_cmd "cd $REMOTE_DIR && $COMPOSE ps"
@@ -505,7 +582,7 @@ logs)
 
 help|*)
     cat <<EOF
-Usage: $0 {ui|deploy|status|logs|db-dump-from-live|db-restore-from-live|backup-install|backup-lifecycle|setup|clone|inspect-legacy-nginx|cutover|rollback}
+Usage: $0 {ui|deploy|preflight|status|logs|db-dump-from-live|db-restore-from-live|backup-install|backup-lifecycle|setup|clone|inspect-legacy-nginx|cutover|rollback}
 
 == Day-to-day app updates ==
 

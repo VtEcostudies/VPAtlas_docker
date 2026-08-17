@@ -1,8 +1,13 @@
 db_data_vp/
 db_backup/
 
-# Environment file with secrets (use .env.example as template)
+# Environment file with secrets (use .env.example as template).
+# The .env.* glob catches ad-hoc backups (.env.bak, .env.prod) that would
+# otherwise sail straight into a public repo; .env.example is re-included
+# because it holds only placeholders.
 .env
+.env.*
+!.env.example
 
 # Local photo uploads (mounted to api_vp:/opt/api/photos)
 photo_data/
