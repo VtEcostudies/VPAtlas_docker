@@ -2,7 +2,7 @@
 
 Partial day's work; additional changes may land later under a follow-up 2026-09-02 changelog.
 
-## v3.5.368
+## v3.5.368 – v3.5.369
 
 ### Public visit GeoJSON — loadable by ArcGIS Online, and no longer carrying landowner PII
 
@@ -17,7 +17,7 @@ Partial day's work; additional changes may land later under a follow-up 2026-09-
 
 ### Service worker / build
 
-- `manifest.json` 3.5.367 → 3.5.368 via `node sw-build.js patch`. **API rebuild required** (`api_vp/**` changed): `docker compose -f docker-compose-vpatlas.yml up -d --build api_vp`.
+- `manifest.json` 3.5.367 → 3.5.368 via `node sw-build.js patch`, then → **3.5.369** by `deploy-prod.sh deploy`, which bumps again as its first step. **3.5.369 is the version live at vpatlas.org.** **API rebuild required** (`api_vp/**` changed).
 - No `urlsToCache.js` changes — no new client-side files.
 
 ## v3.5.367
@@ -30,7 +30,7 @@ Partial day's work; additional changes may land later under a follow-up 2026-09-
 - **Verified.** All three endpoints return HTTP 200 with a valid gzipped tar carrying the complete five-file shapefile set (`.cpg`, `.dbf`, `.prj`, `.shp`, `.shx`) — `/mapped/shapefile?mappedPoolStatus=Confirmed` 108 KB, `/visit/shapefile` 382 KB, `/survey/shapefile` 254 KB.
 - **Why it matters.** The shapefile endpoints are the most practical route for pushing VPAtlas data into ArcGIS Online, which cannot consume our API as a live data source and has to ingest an uploaded file.
 
-### OGC API - Features endpoint — live feature access for ArcGIS Online (new, dev only)
+### OGC API - Features endpoint — live feature access for ArcGIS Online (new)
 
 - **The problem it solves.** ArcGIS Online cannot use the VPAtlas REST API as a live data source. It can only ingest an uploaded file, or *reference* a service speaking ArcGIS REST FeatureServer or OGC API - Features. That is why the AGOL pool layers are hosted copies that go stale until something overwrites them. This is the other option: a standards-compliant feature service AGOL reads through to Postgres on every draw, with no copy to keep in sync.
 - **What was added.** A `pg_featureserv` container (`ogc_vp`, image `pramsey/pg_featureserv`) in [docker-compose-vpatlas.yml](docker-compose-vpatlas.yml), serving a new curated `ogc` schema. Two collections: `ogc.mapped_pools` (13,465 features) from [migration 019](db_migrate/migrations/019_add_ogc_features_views.sql) and `ogc.pool_visits` (2,058 features) from [migration 020](db_migrate/migrations/020_add_ogc_pool_visits_view.sql). Reachable in dev at `http://localhost:9010`. No Node code — the API is unchanged.
@@ -44,6 +44,7 @@ Partial day's work; additional changes may land later under a follow-up 2026-09-
 - **CORS for the OGC path is scoped to that location.** The api vhost pins `Access-Control-Allow-Origin` to `https://vpatlas.org` at server level, which would block ArcGIS Online — its Map Viewer fetches cross-origin from arcgis.com. Because `add_header` in a location replaces inherited server-level directives rather than combining with them, the `/ogc/` block overrides it with `*`. One known caveat is documented inline: the server-level `if ($request_method = OPTIONS)` runs before location selection, so a CORS *preflight* to `/ogc/` would still get the vhost-wide origin. Simple GETs — what OGC clients issue — are not preflighted, so this should not bite; if it does, the fix is to move OPTIONS handling into the locations.
 - **The deploy is now self-contained.** Previously, setting `PGFS_PASSWORD` in prod `.env` was *not* sufficient: migration 019 creates `pgfs_reader` with a dev password (migrations are in git and must carry no secrets), so the container would fail authentication and restart-loop after an otherwise green deploy. [Migration 021](db_migrate/migrations/021_set_pgfs_reader_password.sql) closes that gap by reading `PGFS_PASSWORD` at migration time via psql `\getenv` (PostgreSQL 16+; this stack is 17.5) and issuing the matching `ALTER ROLE`. Verified all three paths: the password is set from the environment, `pgfs_reader` then authenticates and reads 13,465 rows, and an unset variable leaves the existing password untouched instead of erroring under `ON_ERROR_STOP=1`. Rotation remains manual — the migration runs once, tracked by filename.
 - **`PGFS_PASSWORD` is a required prod `.env` variable.** Enforced twice: `${PGFS_PASSWORD:?…}` in the prod compose override aborts with a named error, and it is added to `preflight_env` in [deploy/deploy-prod.sh](deploy/deploy-prod.sh) so the deploy fails before the remote build rather than during it.
+- **Shipped and verified live.** Migrations 019/020/021 applied cleanly on prod, `ogc_vp_prod` came up, and the endpoint answers through nginx at `https://api.vpatlas.org/ogc/`: landing page, `/conformance` and `/collections` all 200, self-links correctly carrying the `/ogc` prefix, and both collections listed. `ogc.mapped_pools` returns all 13,485 features (7.0 MB), `ogc.pool_visits` all 2,203 (3.7 MB), and a bbox subset 4,438. CORS scoping confirmed in production: `Access-Control-Allow-Origin: *` on `/ogc/` for ArcGIS Online, still `https://vpatlas.org` on the rest of the API — the location-level override does not bleed. `https://vpatlas.org` and `https://api.vpatlas.org/mapped/columns` both unaffected.
 
 ### Service worker / build
 
