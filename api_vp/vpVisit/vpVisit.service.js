@@ -315,7 +315,25 @@ async function getGeoJson(params={}) {
             SELECT
                 'Feature' AS type,
                 ST_AsGeoJSON("mappedPoolLocation")::json as geometry,
-                (SELECT row_to_json(p) FROM
+                -- Properties come from SELECT * on three tables, then get fixed up as
+                -- jsonb so the payload is loadable by flat GeoJSON readers (ArcGIS
+                -- Online Data Pipelines et al.), which have no attribute type for a
+                -- JSON array or a nested object:
+                --   - visitLandowner (jsonb: name / address / phone / email) is
+                --     dropped outright. It is landowner PII and this endpoint is
+                --     unauthenticated; nothing public should carry it.
+                --   - reviewReasons (text[]) is collapsed to a comma-delimited
+                --     string. NULL and empty arrays both come out NULL, not ''.
+                -- Casting to jsonb additionally de-duplicates the "createdAt" and
+                -- "updatedAt" keys that vpmapped/vpvisit/vpreview each contribute:
+                -- json emitted all three copies, and every parser already took the
+                -- last one, so consumers see no change.
+                (SELECT (row_to_json(p)::jsonb - 'visitLandowner'::text)
+                        || jsonb_build_object(
+                             'reviewReasons',
+                             NULLIF(array_to_string(COALESCE(p."reviewReasons", '{}'::text[]), ', '), '')
+                           )
+                 FROM
                   (SELECT
                     "mappedPoolId" AS "poolId",
                     "mappedPoolStatus" AS "poolStatus",

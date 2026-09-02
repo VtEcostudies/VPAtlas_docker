@@ -64,7 +64,7 @@ preflight_env() {
         exit 1; \
       fi; \
       fail=0; \
-      for v in EMAIL_PASSWORD APP_EMAIL DB_PASSWORD; do \
+      for v in EMAIL_PASSWORD APP_EMAIL DB_PASSWORD PGFS_PASSWORD; do \
         val=\$(grep -E \"^\$v=\" .env | head -1 | cut -d= -f2-); \
         case \"\$val\" in \
           '') echo \"  ✗ \$v is empty or absent\"; fail=1 ;; \

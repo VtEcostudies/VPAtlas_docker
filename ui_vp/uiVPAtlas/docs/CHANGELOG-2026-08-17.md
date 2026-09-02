@@ -1,6 +1,4 @@
-# Changelog — Snapshot 2026-08-17 (partial)
-
-Partial day's work; additional changes may land later under a follow-up 2026-08-17 changelog.
+# Changelog — Snapshot 2026-08-17
 
 ## v3.5.365 – v3.5.366
 
@@ -36,4 +34,4 @@ Partial day's work; additional changes may land later under a follow-up 2026-08-
 ### Service worker / build
 
 - `manifest.json` 3.5.364 → 3.5.366 via `node sw-build.js patch` (3.5.365 locally while verifying, 3.5.366 on the prod ship). **API + UI** rebuild (`api_vp/**` changed).
-- [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js): added `/docs/CHANGELOG-2026-08-17-partial.md`; [docs/index.html](ui_vp/uiVPAtlas/docs/index.html) `DOCS` array updated to match.
+- [urlsToCache.js](ui_vp/uiVPAtlas/urlsToCache.js): added `/docs/CHANGELOG-2026-08-17.md`; [docs/index.html](ui_vp/uiVPAtlas/docs/index.html) `DOCS` array updated to match.

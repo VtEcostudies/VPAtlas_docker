@@ -46,6 +46,11 @@ services:
       - PGPASSWORD=postgres
       - PGDATABASE=vpatlas
       - MIGRATIONS_DIR=/db_migrate/migrations
+      # Consumed by migration 021 via psql \getenv, so the pgfs_reader login
+      # password matches what the ogc_vp container connects with. Dev default
+      # mirrors migration 019; prod .env must set a real value (enforced by
+      # ${PGFS_PASSWORD:?...} in docker-compose-prod.yml and by preflight_env).
+      - PGFS_PASSWORD=${PGFS_PASSWORD:-pgfs_dev_only}
     depends_on:
       db_vp:
         condition: service_healthy
@@ -91,6 +96,59 @@ services:
       APP_EMAIL: ${APP_EMAIL:-vpatlas@vtecostudies.org}
     ports:
       - 4010:4010
+    depends_on:
+      db_vp:
+        condition: service_healthy
+      db_migrate_vp:
+        condition: service_completed_successfully
+
+  # OGC API - Features server (pg_featureserv) over the curated `ogc` schema.
+  #
+  # Exists so ArcGIS Online can REFERENCE VPAtlas data live instead of ingesting
+  # a periodically-overwritten copy. AGOL can only reference services speaking
+  # ArcGIS REST FeatureServer or OGC API - Features; this provides the latter.
+  #
+  # SECURITY: pg_featureserv publishes every relation its DB role can SELECT,
+  # unauthenticated. It connects as `pgfs_reader`, which has SELECT on the
+  # curated ogc.* views ONLY -- never on public.* base tables, which carry
+  # landowner PII. See db_migrate/migrations/019_add_ogc_features_views.sql.
+  ogc_vp:
+    container_name: ogc_vp
+    image: pramsey/pg_featureserv:latest
+    restart: unless-stopped
+    environment:
+      # Least-privilege reader created by migration 019. Dev password matches
+      # this file's dev convention; prod overrides PGFS_PASSWORD via .env AND
+      # must run: ALTER ROLE pgfs_reader PASSWORD '<same value>';
+      DATABASE_URL: "postgres://pgfs_reader:${PGFS_PASSWORD:-pgfs_dev_only}@db_vp:5432/vpatlas?sslmode=disable"
+
+      # UrlBase must be the PUBLIC origin: OGC API - Features responses are full
+      # of self/next/items links, and clients (AGOL included) follow them. If it
+      # is wrong, paging and collection traversal break for external callers.
+      PGFS_SERVER_URLBASE: "${PGFS_URLBASE:-http://localhost:9010}"
+      PGFS_SERVER_HTTPPORT: 9000
+
+      # AGOL's Map Viewer fetches cross-origin from arcgis.com. Esri: "The server
+      # must support CORS; otherwise, layers hosted on the server will not
+      # function as expected." Data here is already public, so * is appropriate.
+      PGFS_SERVER_CORSORIGINS: "*"
+
+      # LIMITDEFAULT keeps casual/unparameterised requests small.
+      #
+      # LIMITMAX must stay ABOVE the largest collection's feature count. This
+      # build of pg_featureserv emits neither `numberMatched` nor a `next` link,
+      # so a client that asks for more than LIMITMAX gets a silently truncated
+      # page with nothing indicating features are missing. `offset` paging works
+      # but is undiscoverable, so the ceiling is the only real guard.
+      # ogc.mapped_pools is ~13.5k features; 50000 leaves ~3.7x headroom.
+      # RAISE THIS if a collection ever approaches it.
+      PGFS_PAGING_LIMITDEFAULT: 1000
+      PGFS_PAGING_LIMITMAX: 50000
+
+      PGFS_METADATA_TITLE: "VPAtlas OGC API - Features"
+      PGFS_METADATA_DESCRIPTION: "Vermont Vernal Pool Atlas - live feature access for GIS clients"
+    ports:
+      - 9010:9000
     depends_on:
       db_vp:
         condition: service_healthy

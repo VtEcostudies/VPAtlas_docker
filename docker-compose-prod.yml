@@ -60,3 +60,26 @@ services:
       # UI_PORT stays 8090 from base compose (internal listen port)
     ports: !override
       - "8091:8090"
+
+  # OGC API - Features (pg_featureserv). Present in the base compose file, so it
+  # WOULD start on prod without this override -- inheriting dev's container name
+  # and dev's 9010 host port, both of which collide with the dev stack on this
+  # same host. Hence the _prod suffix and shifted port, matching every other
+  # service here.
+  ogc_vp:
+    container_name: ogc_vp_prod
+    environment:
+      # Fail the deploy loudly if the password is not in prod .env rather than
+      # silently falling back to the dev default. This repo has already lost
+      # months to an env var that interpolated to empty without complaint.
+      DATABASE_URL: "postgres://pgfs_reader:${PGFS_PASSWORD:?PGFS_PASSWORD must be set in the prod .env}@db_vp:5432/vpatlas?sslmode=disable"
+
+      # Published as a PATH on the existing api.vpatlas.org vhost -- no extra
+      # DNS record and no extra certificate. Must include the /ogc prefix:
+      # OGC responses are full of self/items links that clients (AGOL included)
+      # follow verbatim, and nginx strips the prefix before proxying.
+      PGFS_SERVER_URLBASE: "https://api.vpatlas.org/ogc"
+    # Loopback only -- reachable solely by nginx on the same host, never
+    # directly from the internet. Keep the 127.0.0.1 prefix.
+    ports: !override
+      - "127.0.0.1:9011:9000"

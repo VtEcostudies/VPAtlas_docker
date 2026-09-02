@@ -88,7 +88,10 @@
       "Bash(awk -F= '/^EMAIL_PASSWORD=/{print \"EMAIL_PASSWORD [len=\"length\\($2\\)\"]\"}')",
       "Bash(curl -s -o /dev/null -w 'POST /users/authenticate -> HTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/authenticate -H 'Content-Type: application/json' -d '{\"username\":\"nobody_here\",\"password\":\"x\"}')",
       "Bash(curl -s -w ' | HTTP %{http_code}\\\\n' -X POST http://localhost:4010/users/reset -H 'Content-Type: application/json' -d '{\"email\":\"definitely-not-a-user@example.invalid\"}')",
-      "Bash(./deploy/deploy-prod.sh deploy 'Fix prod registration/password-reset email outage; harden the mail failure paths *)"
+      "Bash(./deploy/deploy-prod.sh deploy 'Fix prod registration/password-reset email outage; harden the mail failure paths *)",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=25 -i /home/jloomis/.ssh/vpatlas_aws_key_pair.pem ubuntu@vpatlas.org ' *)",
+      "Bash(curl -s https://vpatlas.org/manifest.json)",
+      "Bash(curl -s -o /dev/null -w \"docs/CHANGELOG-2026-08-17-partial.md -> HTTP %{http_code}\\\\n\" https://vpatlas.org/docs/CHANGELOG-2026-08-17-partial.md)"
     ]
   }
 }

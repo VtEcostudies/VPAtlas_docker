@@ -192,9 +192,10 @@ function getGeoJson(req, res, next) {
         .then(items => {
             if (items.rows && items.rows[0].geojson) {
               // Public endpoint — strip emails from every feature's
-              // properties (mappedLandownerEmail, the visitLandowner JSONB's
-              // visitLandownerEmail key, and any user column whose value
-              // happens to be an email address). Walks nested objects.
+              // properties (mappedLandownerEmail, and any user column whose
+              // value happens to be an email address). Walks nested objects.
+              // The visitLandowner JSONB no longer reaches here at all — the
+              // getGeoJson SQL drops that key before the row is returned.
               scrubEmails(items.rows[0].geojson);
               if (req.query.download) {
                     var file = JSON.stringify(items.rows[0].geojson);
