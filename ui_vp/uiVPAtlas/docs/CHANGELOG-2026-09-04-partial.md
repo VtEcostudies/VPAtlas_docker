@@ -2,6 +2,21 @@
 
 Partial day's work; additional changes may land later under a follow-up 2026-09-04 changelog.
 
+## v3.5.381 – v3.5.382
+
+### Field sizes are now discoverable on every interface
+
+`maxLength` was already published in the JSON Schema at `/schema/{group}` and in `/openapi.json`, but the OGC route carried only name, type and description — so a client pointed there had to infer field widths, and an inferred width is 4000, which is what inflated the published ArcGIS layers in the first place. Closed three ways.
+
+- **OGC API - Features Part 5 schema resource.** [Part 5 (Schemas)](https://docs.ogc.org/DRAFTS/23-058r1.html) defines `/collections/{id}/schema`; pg_featureserv 1.3.1 implements none. nginx now routes `/ogc/collections/{id}/schema` to the Node API instead ([nginx-api.vpatlas.org.conf](deploy/nginx-api.vpatlas.org.conf) — a regex location takes precedence over the `/ogc/` prefix), so the OGC service answers the standard resource from the same dictionary every other format is built from. Properties carry `x-ogc-role` marking the identifier and primary geometry.
+- **Constraints embedded in the column comments.** pg_featureserv publishes a column comment verbatim as the field's description and nothing else, so [migration 027](db_migrate/migrations/027_publish_constraints_in_column_comments.sql) appends the constraint to each: `Dominant pool substrate… [max 20 characters; allowed values: Leaf litter, Mud, Sand/Gravel, Bedrock, Other]`. Inelegant, but it is the only channel that reaches every OGC client, including a person reading the collection page. Authored description text is unchanged — the constraint is appended at generation time.
+- **`x-` extensions carrying what JSON Schema cannot express.** Each property now publishes `x-dbfName`, `x-dbfType`, `x-dbfWidth`, `x-dbfDecimals`, `x-esriType`, `x-esriLength`, `x-pgType` and `x-measuredMaxLength`. Numeric fields get `x-precision` and `x-scale` — `maxLength` describes a string, and JSON Schema offers nothing for the precision and scale of a number, which is exactly what a DBF writer and an ArcGIS field definition both need. One document is now sufficient; a consumer no longer has to fetch three endpoints and join them by field name.
+
+### Service worker / build
+
+- `manifest.json` → 3.5.382 via `node sw-build.js patch`. **API rebuild and `deploy-prod.sh setup` both required** — the nginx vhost changes, and `deploy` alone does not install it. Migration 027 runs automatically; `ogc_vp` must be restarted afterwards so pg_featureserv re-reads the comments.
+- [test_stack.sh](test_stack.sh) gains checks that every string field publishes a `maxLength` and that both Part 5 schemas declare their primary geometry.
+
 ## v3.5.379 – v3.5.380
 
 ### Shipped to production

@@ -34,6 +34,36 @@ const path = require('path');
 
 const { columnExpr } = require('_schema/column_expr');
 
+/*
+  Constraint text appended to each column comment.
+
+  pg_featureserv publishes a column comment verbatim as that field's description
+  and publishes nothing else -- no length, no allowed values, no format. A client
+  reading the OGC collection therefore has no way to size a string field, and
+  will guess; guessed sizes are how the published ArcGIS layers ended up with
+  String(4000) fields inflating layer storage.
+
+  Appending the constraint to the prose is inelegant, but it is the only channel
+  that reaches EVERY OGC client, including a person reading the collection page.
+  The structured form is served separately at /collections/{id}/schema.
+
+  Authored description text stays clean; this is added at generation time.
+*/
+function constraintText(f) {
+    const bits = [];
+    if (f.format === 'date-time') {
+        bits.push('ISO-8601 UTC (YYYY-MM-DDTHH:MM:SS.mmmZ)');
+    } else if (f.jsonType === 'string') {
+        if (f.maxLength) bits.push(`max ${f.maxLength} characters`);
+    } else if (f.jsonType === 'integer' || f.jsonType === 'number') {
+        if (f.conversion && f.conversion.startsWith('boolean')) bits.push('0 or 1');
+        else if (f.dbfDecimals) bits.push(`decimal, ${f.dbfWidth} digits with ${f.dbfDecimals} decimal places`);
+        else bits.push('whole number');
+    }
+    if (f.domain) bits.push(`allowed values: ${f.domain.join(', ')}`);
+    return bits.length ? ` [${bits.join('; ')}]` : '';
+}
+
 function buildView(group, viewName, fields, from, where, comment) {
     const cols = fields.map(f => {
         const expr = columnExpr(f);
@@ -52,7 +82,7 @@ function buildView(group, viewName, fields, from, where, comment) {
     */
     const comments = fields
         .filter(f => f.description && f.description.trim())
-        .map(f => `COMMENT ON COLUMN ogc.${viewName}."${f.name}" IS\n  '${f.description.replace(/'/g, "''")}';`);
+        .map(f => `COMMENT ON COLUMN ogc.${viewName}."${f.name}" IS\n  '${(f.description + constraintText(f)).replace(/'/g, "''")}';`);
 
     return `-- ── Collection: ${viewName} (${fields.length} published fields + geom) ${'─'.repeat(Math.max(0, 20))}
 DROP VIEW IF EXISTS ogc.${viewName} CASCADE;

@@ -13,6 +13,13 @@ const service = require('./vpSchema.service');
 
 router.get('/', index);
 router.get('/vocabularies', (req, res) => res.json(service.vocabularies()));
+
+/*
+  OGC API - Features Part 5 schema resource. nginx routes
+  /ogc/collections/{id}/schema here instead of to pg_featureserv, which serves
+  no such resource and publishes no field lengths of its own.
+*/
+router.get('/ogc/:collectionId', ogcSchema);
 router.get('/:group', groupSchema);
 router.get('/:group/shapefile', shapefileSchema);
 router.get('/:group/arcgis', arcgisSchema);
@@ -20,6 +27,17 @@ router.get('/:group/arcgis', arcgisSchema);
 module.exports = router;
 
 function index(req, res) { res.json(service.index()); }
+
+function ogcSchema(req, res) {
+    const id = String(req.params.collectionId).replace(/\.json$/, '');
+    if (!service.ogcCollectionGroup(id)) {
+        return res.status(404).json({
+            name: 'NotFound',
+            message: `Unknown collection '${id}'. Known collections: ${Object.keys(service.OGC_COLLECTIONS).join(', ')}.`,
+        });
+    }
+    res.type('application/schema+json').json(service.ogcSchema(id));
+}
 
 function unknown(res, group) {
     return res.status(404).json({

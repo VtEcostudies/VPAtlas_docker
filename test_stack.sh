@@ -549,8 +549,42 @@ else
     fi
 fi
 
+# Field sizes must be discoverable, not inferred. A consumer that has to guess a
+# string width picks 4000, which is what inflated the published ArcGIS layers.
+for grp in mapped visit; do
+    sizes=$(curl -s --max-time 20 "$API_URL/schema/$grp" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)['properties']
+strings=[k for k,v in d.items() if 'string' in v.get('type',[])]
+sized=[k for k in strings if 'maxLength' in d[k]]
+ext=[k for k,v in d.items() if 'x-dbfWidth' in v or 'x-precision' in v]
+print(f'{len(sized)}/{len(strings)}/{len(ext)}/{len(d)}')
+" 2>/dev/null)
+    sized="${sizes%%/*}"; rest="${sizes#*/}"; total_str="${rest%%/*}"
+    if [ -n "$sizes" ] && [ "$sized" = "$total_str" ] && [ "$sized" != "0" ]; then
+        pass "/schema/$grp publishes maxLength on all $sized string fields"
+    else
+        fail "/schema/$grp string fields missing maxLength ($sizes)"
+    fi
+done
+
+# OGC API - Features Part 5 schema resource, served by us because
+# pg_featureserv implements none and publishes no field lengths of its own.
+for coll in ogc.mapped_pools ogc.pool_visits; do
+    role=$(curl -s --max-time 20 "$API_URL/schema/ogc/$coll" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(d['properties']['geom'].get('x-ogc-role',''))
+" 2>/dev/null)
+    if [ "$role" = "primary-geometry" ]; then
+        pass "Part 5 schema for $coll declares its primary geometry"
+    else
+        fail "Part 5 schema for $coll malformed (geom role '$role')"
+    fi
+done
+
 # Data definitions are reachable and unauthenticated.
-for path in /schema /schema/vocabularies /schema/mapped /schema/visit/shapefile /schema/visit/arcgis /openapi.json /docs; do
+for path in /schema /schema/vocabularies /schema/mapped /schema/visit/shapefile /schema/visit/arcgis /schema/ogc/ogc.mapped_pools /openapi.json /docs; do
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$API_URL$path" 2>/dev/null)
     if [ "$code" = "200" ]; then
         pass "GET $path returns 200"

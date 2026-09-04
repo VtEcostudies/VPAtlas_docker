@@ -44,6 +44,34 @@ function jsonSchema(group) {
         if (f.domain) p.enum = f.domain.concat([null]);
         if (f.description) p.description = f.description;
         if (f.conversion) p.$comment = f.conversion;
+
+        /*
+          Extensions for what JSON Schema has no vocabulary for. Without these a
+          consumer has to fetch /schema/{group}/shapefile and
+          /schema/{group}/arcgis separately and join them by field name; this
+          makes one document sufficient.
+
+          Numeric fields matter most here. maxLength describes a string, and
+          JSON Schema offers nothing for the precision and scale of a number --
+          which is exactly what a DBF writer and an ArcGIS field definition both
+          need.
+        */
+        p['x-pgType'] = f.pgType;
+        p['x-dbfName'] = f.shapefileName;
+        p['x-dbfType'] = f.dbfType;
+        if (f.dbfType === 'C') p['x-dbfWidth'] = f.maxLength;
+        if (f.dbfWidth !== undefined) p['x-dbfWidth'] = f.dbfWidth;
+        if (f.dbfDecimals !== undefined) p['x-dbfDecimals'] = f.dbfDecimals;
+        if (f.dbfType === 'N') {
+            p['x-precision'] = f.dbfWidth;
+            p['x-scale'] = f.dbfDecimals;
+        }
+        p['x-esriType'] = f.esriType;
+        if (f.esriType === 'esriFieldTypeString' && f.maxLength) p['x-esriLength'] = f.maxLength;
+        if (f.measuredMaxLength !== undefined) p['x-measuredMaxLength'] = f.measuredMaxLength;
+        if (f.shapefileTruncation) p['x-shapefileTruncation'] = true;
+        if (f.nullable === false) p['x-nullable'] = false;
+
         props[f.name] = p;
     }
     return {
@@ -119,6 +147,61 @@ function vocabularies() {
     };
 }
 
+/*
+  OGC API - Features Part 5 (Schemas) resource for a collection.
+
+  pg_featureserv 1.3.1 serves no /collections/{id}/schema and its collection
+  metadata carries only name, type and description -- no length, no allowed
+  values, no format. A client pointed at the OGC route therefore has to infer
+  field widths, which is precisely how the published ArcGIS layers ended up with
+  String(4000) fields.
+
+  nginx routes /ogc/collections/{id}/schema here rather than to pg_featureserv,
+  so the OGC service answers the standard resource with the same dictionary
+  every other format is built from.
+
+  Part 5 is a draft, and the role annotations below follow it: x-ogc-role marks
+  the identifier and the primary geometry so a client can tell them from ordinary
+  attributes.
+*/
+const OGC_COLLECTIONS = { 'ogc.mapped_pools': 'mapped', 'ogc.pool_visits': 'visit' };
+
+function ogcCollectionGroup(collectionId) {
+    return OGC_COLLECTIONS[collectionId] || null;
+}
+
+function ogcSchema(collectionId) {
+    const group = OGC_COLLECTIONS[collectionId];
+    const base = jsonSchema(group);
+    const props = Object.assign({}, base.properties);
+
+    // The identifier, so a client knows which property is the feature key.
+    if (props.poolId) props.poolId = Object.assign({}, props.poolId, { 'x-ogc-role': 'id' });
+    if (group === 'visit' && props.visitId) {
+        props.visitId = Object.assign({}, props.visitId, { 'x-ogc-role': 'id' });
+        delete props.poolId['x-ogc-role'];
+    }
+
+    props.geom = {
+        $ref: 'https://geojson.org/schema/Point.json',
+        title: 'Pool location',
+        description: 'Point geometry in WGS84 (CRS84), per RFC 7946.',
+        'x-ogc-role': 'primary-geometry',
+    };
+
+    return {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        $id: `https://api.vpatlas.org/ogc/collections/${collectionId}/schema`,
+        title: base.title,
+        description: base.description,
+        type: 'object',
+        properties: props,
+        additionalProperties: false,
+        'x-fieldCount': base['x-fieldCount'],
+        'x-generatedAt': base['x-generatedAt'],
+    };
+}
+
 function index() {
     return {
         title: 'VPAtlas published field dictionaries',
@@ -144,4 +227,5 @@ function index() {
     };
 }
 
-module.exports = { groups, known, jsonSchema, shapefileSchema, arcgisSchema, vocabularies, index, GROUPS };
+module.exports = { groups, known, jsonSchema, shapefileSchema, arcgisSchema, vocabularies,
+                   ogcSchema, ogcCollectionGroup, OGC_COLLECTIONS, index, GROUPS };
