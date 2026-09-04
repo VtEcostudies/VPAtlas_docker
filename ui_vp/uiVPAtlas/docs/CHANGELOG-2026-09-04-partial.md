@@ -2,6 +2,35 @@
 
 Partial day's work; additional changes may land later under a follow-up 2026-09-04 changelog.
 
+## v3.5.379 – v3.5.380
+
+### Shipped to production
+
+Migrations 022–025 applied cleanly to prod (298 ms, 1115 ms, 49 ms, 220 ms), after a full 220 MB database backup to local disk and S3. Verified live: `/mapped/geojson` 13,485 features / 20 fields, `/visit/geojson` 2,215 / 108, both OGC collections returning everything with no `?limit=`, dates as ISO-8601 UTC, and the substrate variants — `Leaflitter` and every JSON-array form — reconciled.
+
+### One row the cleanup should have caught
+
+- **`visitPoolType` was still stored as `["Artificial"]` on prod.** Migration 023's generator only emits an UPDATE when the normalised result lands on a canonical value — deliberate, so an unanticipated answer is preserved for a human rather than guessed at. But it conflated resolving a value to a vocabulary (a judgement) with unwrapping a JSON array (a format fix). "Artificial" is not a pool type anyone has decided on, so the whole value was left alone, wrapper included.
+- **[Migration 026](db_migrate/migrations/026_unwrap_remaining_json_arrays.sql)** unwraps any remaining array-shaped value regardless of what is inside it, and [build_normalize_sql.js](api_vp/_schema/build_normalize_sql.js) now emits that pass unconditionally so the class cannot recur.
+- **The published output was never wrong** — the canonical views unwrap array-shaped strings on the way out, so all three formats already showed `Artificial`. This corrects the value at rest.
+
+### Four values on production still need a decision
+
+Reported as warnings by the schema contract test, deliberately not guessed at:
+
+| Field | Value | Rows |
+|---|---|---|
+| `visitPoolType` | `Artificial` | 1 |
+| `visitForestUpland` | `Forest` | 1 |
+| `visitForestCondition` | `Uncut` | 1 |
+| `visitHydroPeriod` | `Dries some years` | 3 |
+
+`Artificial` is plausibly `Manmade` and `Uncut` plausibly `Undisturbed`, but both are guesses about what an observer meant, and `Dries some years` sits between `Dries annually` and `Dries every 5 years` with no obvious home.
+
+### Service worker / build
+
+- `manifest.json` → 3.5.380 via `node sw-build.js patch`. Migration 026 runs automatically; `ogc_vp` restarted after deploy so pg_featureserv picks up the rebuilt collection metadata.
+
 ## v3.5.378
 
 ### Migration 023 would not have cleaned production
