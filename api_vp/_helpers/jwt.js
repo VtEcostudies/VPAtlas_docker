@@ -47,6 +47,8 @@ function jwt() {
             { url: /^\/schema\/.*/, methods: ['GET'] },
             { url: /^\/openapi\.json/, methods: ['GET'] },
             { url: /^\/docs/, methods: ['GET'] },
+            { url: /^\/ogcproxy/, methods: ['GET'] },
+            { url: /^\/ogcproxy\/.*/, methods: ['GET'] },
 
             { url: /^\/pools/, methods: ['GET'] },
             { url: /^\/pools\/.*/, methods: ['GET'] },

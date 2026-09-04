@@ -583,6 +583,36 @@ print(d['properties']['geom'].get('x-ogc-role',''))
     fi
 done
 
+# The Part 5 schema resource must be DISCOVERABLE, not merely present. Without
+# the link relation a conforming client has no reason to believe it exists.
+for coll in ogc.mapped_pools ogc.pool_visits; do
+    has=$(curl -s --max-time 20 -H 'Accept: application/json' "$API_URL/ogcproxy/collections/$coll" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print('yes' if any('rel/ogc/1.0/schema' in l.get('rel','') for l in d.get('links',[])) else 'no')
+" 2>/dev/null)
+    if [ "$has" = "yes" ]; then
+        pass "$coll advertises its Part 5 schema link"
+    else
+        fail "$coll missing the Part 5 schema link relation"
+    fi
+done
+
+conf=$(curl -s --max-time 20 -H 'Accept: application/json' "$API_URL/ogcproxy/conformance" | grep -c "ogcapi-features-5/1.0/conf/schemas" 2>/dev/null)
+if [ "$conf" = "1" ]; then
+    pass "/conformance declares the Part 5 schemas class"
+else
+    fail "/conformance missing the Part 5 schemas conformance class"
+fi
+
+# The browse page must offer a route to the schema too -- a link relation is no
+# use to a person reading the collection in a browser.
+if curl -s --max-time 20 "http://localhost:9010/collections/ogc.mapped_pools.html" 2>/dev/null | grep -q "SCHEMA"; then
+    pass "OGC collection browse page links to the schema"
+else
+    fail "OGC collection browse page has no schema link (template override missing?)"
+fi
+
 # Data definitions are reachable and unauthenticated.
 for path in /schema /schema/vocabularies /schema/mapped /schema/visit/shapefile /schema/visit/arcgis /schema/ogc/ogc.mapped_pools /openapi.json /docs; do
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$API_URL$path" 2>/dev/null)

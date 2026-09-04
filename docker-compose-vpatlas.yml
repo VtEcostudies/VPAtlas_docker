@@ -157,6 +157,15 @@ services:
 
       PGFS_METADATA_TITLE: "VPAtlas OGC API - Features"
       PGFS_METADATA_DESCRIPTION: "Vermont Vernal Pool Atlas - live feature access for GIS clients"
+
+    # pg_featureserv renders its browse pages from Go templates baked into the
+    # image. The stock collection page links to Items and JSON but has no route
+    # to the schema, so the field types, lengths and allowed values published at
+    # /collections/{id}/schema were reachable only by someone told the URL.
+    # Overriding this one template adds that link; everything else is untouched.
+    volumes:
+      - ./deploy/pgfs-assets/collection.gohtml:/assets/collection.gohtml:ro
+
     ports:
       - 9010:9000
     depends_on:

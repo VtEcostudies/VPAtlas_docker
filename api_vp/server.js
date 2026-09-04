@@ -60,6 +60,11 @@ try {
   // over it. All projected from _schema/{group}.json, which is generated from
   // the database.
   app.use('/schema', require('./vpSchema/vpSchema.routes'));
+
+  // OGC metadata resources, routed here by nginx so the Part 5 schema link and
+  // conformance class can be added to what pg_featureserv emits. /items is not
+  // proxied -- that is the heavy path and needs nothing added.
+  app.use('/ogcproxy', require('./vpSchema/ogc_proxy.routes'));
   app.get('/openapi.json', (req, res) => res.json(require('./vpSchema/openapi').build()));
   app.get('/docs', (req, res) => res.type('html').send(require('./vpSchema/docs_page').HTML));
 } catch(err) {

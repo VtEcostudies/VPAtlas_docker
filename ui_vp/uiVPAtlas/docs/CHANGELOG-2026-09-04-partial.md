@@ -2,6 +2,26 @@
 
 Partial day's work; additional changes may land later under a follow-up 2026-09-04 changelog.
 
+## v3.5.383 – v3.5.384
+
+### The schema resource is now discoverable, by machines and by people
+
+The Part 5 schema shipped in v3.5.382 was reachable only by someone who had been told the URL. A collection advertised three links — `self`, `alternate`, `items` — and nothing else, and the browse page offered no route to it at all.
+
+- **Part 5 link relation and conformance class.** OGC API - Features says a client finds the schema through a link with `rel="http://www.opengis.net/def/rel/ogc/1.0/schema"`. pg_featureserv generates its own metadata documents and offers no hook to extend them, so nginx now routes `/ogc/collections`, `/ogc/collections/{id}` and `/ogc/conformance` to a small augmenting proxy in the API ([ogc_proxy.js](api_vp/vpSchema/ogc_proxy.js)), which fetches upstream, injects the link, adds `…ogcapi-features-5/1.0/conf/schemas` to `conformsTo`, and returns the result.
+- **`/items` is deliberately not proxied.** It is the heavy path, it needs nothing added, and it keeps working if the API is down.
+- **Content negotiation is preserved.** The proxy forwards the client's `Accept` header and only touches responses that come back as JSON; pg_featureserv's HTML browse pages pass through byte for byte.
+- **A visible link on the collection page.** pg_featureserv renders its browse pages from Go templates baked into the image, so [deploy/pgfs-assets/collection.gohtml](deploy/pgfs-assets/collection.gohtml) is bind-mounted over the stock one, adding a **SCHEMA** link in the crumbs bar and a described entry in the body. Everything else in the template is untouched, and the properties-table header now notes that constraints appear in brackets in each description.
+
+### The failure mode, stated plainly
+
+This puts the Node API in front of the collection listing, which previously depended only on pg_featureserv. **If the API is down, OGC collection metadata goes down with it** where before it would have survived. That is an accepted trade for standards-correct discovery; `/items` is unaffected either way.
+
+### Service worker / build
+
+- `manifest.json` → 3.5.384 via `node sw-build.js patch`. **API rebuild and `deploy-prod.sh setup` both required** — the nginx vhost gains three proxy locations, and `deploy` alone does not install it. `ogc_vp` is recreated to pick up the template bind-mount.
+- [test_stack.sh](test_stack.sh) now checks that both collections advertise the Part 5 link, that `/conformance` declares the class, and that the browse page carries the SCHEMA link.
+
 ## v3.5.381 – v3.5.382
 
 ### Field sizes are now discoverable on every interface
