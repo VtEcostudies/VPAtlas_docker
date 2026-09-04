@@ -495,6 +495,71 @@ else
 fi
 
 # =============================================================================
+section "Published schema contract (dictionary ↔ views ↔ formats)"
+# =============================================================================
+# The six public feature outputs -- /mapped/geojson, /mapped/shapefile,
+# ogc.mapped_pools and the three visit equivalents -- agree only because all of
+# them are generated from one field dictionary per group. Nothing fails loudly
+# when that stops being true; it surfaces later as a downstream schema review
+# reporting that the published layers no longer match. This gates a deploy on it.
+schema_out=$(docker exec api_vp node /opt/api/_schema/schema.test.js 2>&1)
+if [ $? -eq 0 ]; then
+    pass "Dictionary, canonical views and shapefile names agree"
+else
+    fail "Published schema contract broken" "$(echo "$schema_out" | grep FAIL | head -5)"
+fi
+
+# Field sets identical across GeoJSON and the OGC collection, per group.
+for grp in mapped visit; do
+    want=$(curl -s --max-time 30 "$API_URL/schema/$grp" | python3 -c "import sys,json;print(json.load(sys.stdin)['x-fieldCount'])" 2>/dev/null)
+    got=$(curl -s --max-time 60 "$API_URL/$grp/geojson" | python3 -c "import sys,json;d=json.load(sys.stdin);print(len(d['features'][0]['properties']))" 2>/dev/null)
+    if [ -n "$want" ] && [ "$want" = "$got" ]; then
+        pass "/$grp/geojson publishes all $want dictionary fields"
+    else
+        fail "/$grp/geojson field count $got != dictionary $want"
+    fi
+done
+
+# The visit form keeps its own copy of the value-equivalence map, because it runs
+# in the browser and cannot require the server module. This is what stops the two
+# from silently diverging -- which is the whole failure mode being guarded here.
+equiv_json=$(curl -s --max-time 10 "$API_URL/schema/vocabularies" 2>/dev/null)
+form_html=$(curl -s --max-time 10 "$UI_URL/survey/visit_create.html" 2>/dev/null)
+equiv_pairs=$(echo "$equiv_json" | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)['equivalents']
+except Exception:
+    sys.exit(0)
+for field,m in d.items():
+    for k,v in m.items(): print(f'{k}:{v}')
+" 2>/dev/null)
+if [ -z "$equiv_pairs" ]; then
+    fail "Could not read /schema/vocabularies equivalents"
+else
+    missing=""
+    while IFS= read -r pair; do
+        k="${pair%%:*}"; v="${pair##*:}"
+        echo "$form_html" | grep -q "'$k': '$v'" || missing="$missing $k->$v"
+    done <<< "$equiv_pairs"
+    if [ -z "$missing" ]; then
+        pass "visit form value-equivalence map matches the server"
+    else
+        fail "visit form missing equivalence pairs:$missing"
+    fi
+fi
+
+# Data definitions are reachable and unauthenticated.
+for path in /schema /schema/vocabularies /schema/mapped /schema/visit/shapefile /schema/visit/arcgis /openapi.json /docs; do
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$API_URL$path" 2>/dev/null)
+    if [ "$code" = "200" ]; then
+        pass "GET $path returns 200"
+    else
+        fail "GET $path returned $code"
+    fi
+done
+
+# =============================================================================
 section "Offline deliverability (urlsToCache.js → ui_vp)"
 # =============================================================================
 # Runtime complement to sw-validate.js (build-time graph check). Every URL

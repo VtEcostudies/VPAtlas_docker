@@ -3,6 +3,8 @@ const query = db.query;
 const pgUtil = require('_helpers/db_pg_util');
 const common = require('_helpers/db_common');
 const shapeFile = require('_helpers/db_shapefile').shapeFile;
+const propertiesSql = require('_helpers/geojson_props').propertiesSql;
+const { geojsonSelect, shapefileSelect } = require('_schema/select_list');
 var staticColumns = [];
 
 module.exports = {
@@ -211,6 +213,16 @@ WHERE "mappedPoolId"=$1;`
     return await query(text, [id]);
 }
 
+/*
+  Column list feeding the public /mapped/geojson properties object. Boolean to
+  0/1, ISO-8601 UTC dates and dropping the nested mappedPoolLocation are handled
+  by _helpers/geojson_props, shared with /visit/geojson so the two endpoints
+  cannot drift apart on typing again.
+*/
+// Canonical column list, built from _schema/mapped.json -- the same dictionary
+// that generates ogc.mapped_pools and the shapefile alias list.
+const MAPPED_PROPS = geojsonSelect('mapped');
+
 async function getGeoJson(params={}) {
     console.log('vpMapped.service | getGeoJson |', params);
     //console.log('vpMapped.service | getGeoJson |', staticColumns);
@@ -231,21 +243,12 @@ async function getGeoJson(params={}) {
         FROM (
             SELECT
               'Feature' AS type,
-              ST_AsGeoJSON("mappedPoolLocation")::json as geometry,
-              (SELECT row_to_json(p) FROM
-                (SELECT
-                  "mappedPoolId" AS "poolId",
-                  "mappedPoolStatus" AS "poolStatus",
-                  CONCAT('https://vpatlas.org/pools/list?poolId=',"mappedPoolId",'&zoomFilter=false') AS vpatlas_pool_url,
-                  vptown."townName",
-                  vpcounty."countyName",
-                  vpmapped.*
-                ) AS p
-              ) AS properties
-            FROM vpmapped
-            LEFT JOIN vptown on "mappedTownId"=vptown."townId"
-            LEFT JOIN vpcounty ON "townCountyId"="govCountyId"
-            LEFT JOIN vpuser ON "mappedUserId"=id
+              ST_AsGeoJSON(m."mappedPoolLocation")::json as geometry,
+              ${propertiesSql(MAPPED_PROPS)} AS properties
+            FROM vpmapped m
+            LEFT JOIN vptown   t ON m."mappedTownId" = t."townId"
+            LEFT JOIN vpcounty c ON t."townCountyId" = c."govCountyId"
+            LEFT JOIN vpuser   u ON m."mappedUserId" = u.id
             ${where.text}
         ) AS f
       ) AS fc`;
@@ -267,21 +270,19 @@ async function getShapeFile(params={}, excludeHidden=1) {
     where.combined = where.combined.replace(`$${idx+1}`, `'${val}'`)
   })
   console.log('vpMapped.service::getShapeFile | WHERE', where);
+  // Same dictionary as the GeoJSON and OGC outputs, aliased to DBF's 10-character
+  // field-name limit. Geometry comes last; pgsql2shp finds it by type.
   let qry = `SELECT
-  "mappedPoolId" AS "poolId",
-  "mappedPoolStatus" AS "poolStatus",
-  CONCAT('https://vpatlas.org/pools/list?poolId=',"mappedPoolId",'&zoomFilter=false') AS "poolUrl",
-  "townName",
-  "countyName",
-  vpmapped.*
-  FROM vpmapped
-  LEFT JOIN vptown on "mappedTownId"="townId"
-  LEFT JOIN vpcounty ON "townCountyId"="govCountyId"
-  LEFT JOIN vpuser ON "mappedUserId" = id
+${shapefileSelect('mapped')},
+  m."mappedPoolLocation" AS geom
+  FROM vpmapped m
+  LEFT JOIN vptown   t ON m."mappedTownId" = t."townId"
+  LEFT JOIN vpcounty c ON t."townCountyId" = c."govCountyId"
+  LEFT JOIN vpuser   u ON m."mappedUserId" = u.id
   WHERE TRUE
   ${where.combined}
   `;
-  if (excludeHidden) {qry += ` AND "mappedPoolStatus" NOT IN ('Duplicate', 'Eliminated')`}
+  if (excludeHidden) {qry += ` AND m."mappedPoolStatus" NOT IN ('Duplicate', 'Eliminated')`}
   return await shapeFile(qry, params.authUser, 'vpmapped')
 }
 

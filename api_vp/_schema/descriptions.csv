@@ -1,0 +1,129 @@
+group,field,pgType,jsonType,maxLength,domain,dbfName,description
+mapped,poolId,text,string,20,,POOLID,"Alias of mappedPoolId, retained for compatibility."
+mapped,poolStatus,text,string,10,Potential|Probable|Confirmed|Eliminated|Duplicate,POOLSTATUS,"Alias of mappedPoolStatus, retained for compatibility."
+mapped,townName,text,string,20,,TOWNNAME,Town containing the pool.
+mapped,countyName,text,string,10,,COUNTYNAME,County containing the pool. Stored uppercase.
+mapped,vpatlas_pool_url,text,string,75,,VPAPOOURL,Deep link to the pool on vpatlas.org.
+mapped,mappedPoolId,text,string,20,,MAPPOOID,Unique VPAtlas identifier for the pool. Identifiers prefixed NEW were assigned by the atlas; others carry the identifier from the source dataset.
+mapped,mappedDateText,date,string,,,MAPDATTEXT,Date the pool was mapped or first entered into the atlas.
+mapped,mappedLatitude,numeric,number,,,MAPLATITUD,"Latitude of the mapped pool centre, WGS84 decimal degrees."
+mapped,mappedLongitude,numeric,number,,,MAPLONGITU,"Longitude of the mapped pool centre, WGS84 decimal degrees."
+mapped,mappedConfidence,enum:vp_pool_mapped_confidence_type,string,10,L|ML|M|MH|H|UNK,MAPCONFIDE,"Mapper's confidence that the mapped feature is a vernal pool, from L (low) through H (high). UNK where not assessed."
+mapped,mappedSource,text,string,50,,MAPSOURCE,"Dataset, project or organisation the pool record originated from."
+mapped,mappedSource2,text,string,10,,MAPSOURCE2,"Secondary source, where the record was corroborated by or merged from more than one origin."
+mapped,mappedPhotoNumber,text,string,10,,MAPPHONUMB,"Reference number of the photograph taken of the pool, where one exists."
+mapped,mappedLocationAccuracy,enum:vp_pool_mapped_location_accuracy_type,string,10,L|ML|M|MH|H|UNK,MAPLOCACCU,"Confidence in the positional accuracy of the mapped coordinates, from L (low) through H (high). UNK where not assessed."
+mapped,createdAt,timestamp without time zone,string,,,CREATEDAT,Timestamp the record was created in VPAtlas (UTC).
+mapped,updatedAt,timestamp without time zone,string,,,UPDATEDAT,Timestamp the record was last modified in VPAtlas (UTC).
+mapped,mappedMethod,enum:vp_mapped_method,string,10,Aerial|Known|Visit|Survey|CIR|LiDAR|LiDAR_NDWI|NDWI,MAPMETHOD,"How the pool was identified: Aerial photography, CIR or LiDAR imagery, NDWI, a field Visit or Survey, or previously Known."
+mapped,mappedLandownerPermission,boolean,integer,,,MAPLANPERM,"Whether landowner permission to access the pool is on record. 1 = yes, 0 = no. Landowner identity is not published."
+mapped,mappedLocationUncertainty,text,string,20,,MAPLOCUNCE,Positional uncertainty of the mapped coordinates as recorded by the mapper.
+mapped,mappedPoolStatus,enum:vp_pool_status_type,string,10,Potential|Probable|Confirmed|Eliminated|Duplicate,MAPPOOSTAT,Verification status of the pool. Potential means mapped but unvisited; Probable and Confirmed reflect field evidence. Eliminated and Duplicate records are not published.
+visit,poolId,text,string,20,,POOLID,"Alias of mappedPoolId, retained for compatibility."
+visit,poolStatus,text,string,10,Potential|Probable|Confirmed|Eliminated|Duplicate,POOLSTATUS,"Alias of mappedPoolStatus, retained for compatibility."
+visit,townName,text,string,20,,TOWNNAME,Town containing the pool.
+visit,countyName,text,string,10,,COUNTYNAME,County containing the pool. Stored uppercase.
+visit,vpatlas_pool_url,text,string,75,,VPAPOOURL,Deep link to the pool on vpatlas.org.
+visit,vpatlas_visit_url,text,string,50,,VPAVISURL,Deep link to the visit on vpatlas.org.
+visit,visitId,integer,integer,,,VISITID,Unique identifier for this visit record.
+visit,visitPoolId,text,string,10,,VISPOOID,Identifier of the pool visited; joins to mappedPoolId.
+visit,visitDate,date,string,,,VISITDATE,Date the pool was visited.
+visit,visitLocatePool,text,string,10,,VISLOCPOOL,"Whether the observer was able to locate the pool in the field. Values are inconsistent across the record's history (Yes/No, true/false, 1/0/-1)."
+visit,visitCertainty,text,string,20,,VISCERTAIN,"Observer's certainty that the feature found was the mapped pool: Certain, Pretty Sure or Not Sure."
+visit,visitNavMethod,text,string,25,,VISNAVMETH,"How the observer navigated to the pool: GPS, Map, Map and compass, prior knowledge of the site, or other."
+visit,visitCoordSource,text,string,50,,VISCOOSOUR,"Source of the coordinates used to find the pool, often the name of an originating shapefile or GPS."
+visit,visitLatitude,numeric,number,,,VISLATITUD,"Latitude recorded at the pool during the visit, WGS84 decimal degrees."
+visit,visitLongitude,numeric,number,,,VISLONGITU,"Longitude recorded at the pool during the visit, WGS84 decimal degrees."
+visit,visitVernalPool,text,string,10,,VISVERPOOL,"Observer's determination of whether the feature is a vernal pool: Yes, No or Don't Know."
+visit,visitPoolType,text,string,50,,VISPOOTYPE,"Landform setting of the pool, such as Isolated Forest Depression, Floodplain Depression, or Manmade."
+visit,visitInletType,text,string,20,,VISINLTYPE,Nature of any inflow to the pool.
+visit,visitOutletType,text,string,20,,VISOUTTYPE,Nature of any outflow from the pool.
+visit,visitForestUpland,text,string,10,,VISFORUPLA,"Dominant forest type of the surrounding upland: Coniferous, Deciduous, Hardwood, Mixed, Open/Field or Other."
+visit,visitForestCondition,text,string,20,,VISFORCOND,"Condition of the surrounding forest: Undisturbed, Old Growth, Minor logging, Major logging or Other."
+visit,visitHabitatAgriculture,boolean,integer,,,VISHABAGRI,"Agricultural land present in the surrounding habitat. 1 = yes, 0 = no."
+visit,visitHabitatLightDev,boolean,integer,,,VISHALIDEV,"Light development present in the surrounding habitat. 1 = yes, 0 = no."
+visit,visitHabitatHeavyDev,boolean,integer,,,VISHAHEDEV,"Heavy development present in the surrounding habitat. 1 = yes, 0 = no."
+visit,visitHabitatPavedRd,boolean,integer,,,VISHAPARD,"Paved road present in the surrounding habitat. 1 = yes, 0 = no."
+visit,visitHabitatDirtRd,boolean,integer,,,VISHADIRD,"Dirt road present in the surrounding habitat. 1 = yes, 0 = no."
+visit,visitHabitatPowerline,boolean,integer,,,VISHABPOWE,"Powerline corridor present in the surrounding habitat. 1 = yes, 0 = no."
+visit,visitHabitatOther,text,string,150,,VISHABOTHE,Other surrounding habitat feature not covered by the habitat flags.
+visit,visitHabitatComment,text,string,254,,VISHABCOMM,Observer's notes on the surrounding habitat. Truncated to 254 characters in the shapefile export.
+visit,visitMaxDepth,text,string,20,,VISMAXDEPT,Maximum water depth observed. Free text; values range from measurements to descriptive depths such as 'Knee-deep'.
+visit,visitWaterLevelObs,text,string,20,,VISWALEOBS,"Water level at the time of the visit: Full, More than 50%, Less than 50%, or Dry."
+visit,visitHydroPeriod,text,string,20,,VISHYDPERI,"How long the pool holds water: Ephemeral, Dries annually, Dries every 5 years, Semi-permanent, Never dries or Permanent."
+visit,visitMaxWidth,integer,integer,,,VISMAXWIDT,"Maximum width of the pool, in feet."
+visit,visitMaxLength,integer,integer,,,VISMAXLENG,"Maximum length of the pool, in feet."
+visit,visitPoolTrees,real,number,,,VISPOOTREE,"Percent of the pool shaded or occupied by trees, 0-100."
+visit,visitPoolShrubs,real,number,,,VISPOOSHRU,"Percent of the pool occupied by shrubs, 0-100."
+visit,visitPoolEmergents,real,number,,,VISPOOEMER,"Percent of the pool occupied by emergent vegetation, 0-100."
+visit,visitPoolFloatingVeg,real,number,,,VISPOFLVEG,"Percent of the pool occupied by floating vegetation, 0-100."
+visit,visitSubstrate,text,string,20,,VISSUBSTRA,"Dominant pool substrate: Leaf litter, Mud, Sand/Gravel, Bedrock or Other."
+visit,visitDisturbDumping,boolean,integer,,,VISDISDUMP,"Evidence of dumping at the pool. 1 = yes, 0 = no."
+visit,visitDisturbSiltation,boolean,integer,,,VISDISSILT,"Evidence of siltation at the pool. 1 = yes, 0 = no."
+visit,visitDisturbVehicleRuts,boolean,integer,,,VISDIVERUT,"Evidence of vehicle ruts at the pool. 1 = yes, 0 = no."
+visit,visitDisturbRunoff,boolean,integer,,,VISDISRUNO,"Evidence of runoff affecting the pool. 1 = yes, 0 = no."
+visit,visitDisturbDitching,boolean,integer,,,VISDISDITC,"Evidence of ditching at or near the pool. 1 = yes, 0 = no."
+visit,visitDisturbOther,text,string,150,,VISDISOTHE,"Other disturbance observed, not covered by the disturbance flags."
+visit,visitWoodFrogAdults,integer,integer,,,VISWOFRADU,Count of adult wood frogs (Lithobates sylvaticus) observed.
+visit,visitWoodFrogLarvae,integer,integer,,,VISWOFRLAR,Count of wood frog larvae observed.
+visit,visitWoodFrogEgg,integer,integer,,,VISWOFREGG,Count of wood frog egg masses observed. A primary vernal pool indicator.
+visit,visitWoodFrogEggHow,text,string,10,,VISWFEHOW,Whether the wood frog egg mass count was Counted or Estimated.
+visit,visitSpsAdults,integer,integer,,,VISSPSADUL,Count of adult spotted salamanders (Ambystoma maculatum) observed.
+visit,visitSpsLarvae,integer,integer,,,VISSPSLARV,Count of spotted salamander larvae observed.
+visit,visitSpsEgg,integer,integer,,,VISSPSEGG,Count of spotted salamander egg masses observed. A primary vernal pool indicator.
+visit,visitSpsEggHow,text,string,10,,VISSPEGHOW,Whether the spotted salamander egg mass count was Counted or Estimated.
+visit,visitJesaAdults,integer,integer,,,VISJESADUL,Count of adult Jefferson salamanders (Ambystoma jeffersonianum) observed.
+visit,visitJesaLarvae,integer,integer,,,VISJESLARV,Count of Jefferson salamander larvae observed.
+visit,visitJesaEgg,integer,integer,,,VISJESEGG,Count of Jefferson salamander egg masses observed. A primary vernal pool indicator.
+visit,visitJesaEggHow,text,string,10,,VISJEEGHOW,Whether the Jefferson salamander egg mass count was Counted or Estimated.
+visit,visitBssaAdults,integer,integer,,,VISBSSADUL,Count of adult blue-spotted salamanders (Ambystoma laterale) observed.
+visit,visitBssaLarvae,integer,integer,,,VISBSSLARV,Count of blue-spotted salamander larvae observed.
+visit,visitBssaEgg,integer,integer,,,VISBSSEGG,Count of blue-spotted salamander egg masses observed. A primary vernal pool indicator.
+visit,visitBssaEggHow,text,string,10,,VISBSEGHOW,Whether the blue-spotted salamander egg mass count was Counted or Estimated.
+visit,visitFairyShrimp,integer,integer,,,VISFAISHRI,Count of fairy shrimp (Anostraca) observed. A primary vernal pool indicator.
+visit,visitFingerNailClams,integer,integer,,,VISFINACLA,Count of fingernail clams (Sphaeriidae) observed. A secondary vernal pool indicator.
+visit,visitSpeciesOther1,text,string,50,,VISSPEOTHE,Additional species observed at the pool.
+visit,visitSpeciesOther2,text,string,100,,VISSPEOTH2,Further additional species observed at the pool.
+visit,visitFish,boolean,integer,,,VISITFISH,"Fish observed in the pool. 1 = yes, 0 = no. Fish presence generally disqualifies a pool as vernal habitat."
+visit,visitFishCount,text,string,10,,VISFISCOUN,Number of fish observed. Free text; may hold a count or a descriptive abundance.
+visit,visitFishSizeSmall,real,number,,,VISFISISMA,Fish abundance recorded for the small size class. Sparsely recorded.
+visit,visitFishSizeMedium,real,number,,,VISFISIMED,Fish abundance recorded for the medium size class. Sparsely recorded.
+visit,visitFishSizeLarge,real,number,,,VISFISILAR,Fish abundance recorded for the large size class. Sparsely recorded.
+visit,createdAt,timestamp without time zone,string,,,CREATEDAT,Timestamp the visit record was created in VPAtlas (UTC).
+visit,updatedAt,timestamp without time zone,string,,,UPDATEDAT,Timestamp the visit record was last modified in VPAtlas (UTC).
+visit,visitPoolMapped,boolean,integer,,,VISPOOMAPP,"Whether the pool had already been mapped before this visit. 1 = yes, 0 = no."
+visit,visitUserIsLandowner,boolean,integer,,,VISUSISLAN,"Whether the observer was the landowner. 1 = yes, 0 = no. Observer identity is not published."
+visit,visitLandownerPermission,boolean,integer,,,VISLANPERM,"Whether landowner permission for this visit is on record. 1 = yes, 0 = no. Landowner identity is not published."
+visit,visitFishSize,text,string,10,,VISFISSIZE,"Size of fish observed, as free text."
+visit,visitNavMethodOther,text,string,150,,VISNAMEOTH,"Navigation method, where visitNavMethod is Other."
+visit,visitPoolTypeOther,text,string,150,,VISPOTYOTH,"Pool type, where visitPoolType is Other."
+visit,visitSubstrateOther,text,string,75,,VISSUBOTHE,"Substrate, where visitSubstrate is Other."
+visit,visitSpeciesOtherName,text,string,50,,VISSPOTNAM,Name of the additional species recorded in visitSpeciesOtherCount.
+visit,visitSpeciesOtherCount,integer,integer,,,VISSPOTCOU,Count of the additional species named in visitSpeciesOtherName.
+visit,visitLocationUncertainty,text,string,10,,VISLOCUNCE,Positional uncertainty of the visit coordinates as recorded by the observer.
+visit,visitSubmergedVeg,integer,integer,,,VISSUBVEG,Submerged vegetation present in the pool. Sparsely recorded.
+visit,visitHabitatTrails,boolean,integer,,,VISHABTRAI,"Trails present in the surrounding habitat. 1 = yes, 0 = no."
+visit,visitAmphibianDisease,boolean,integer,,,VISAMPDISE,"Signs of amphibian disease observed. 1 = yes, 0 = no."
+visit,lastEditedAt,timestamp without time zone,string,,,LASEDIAT,Timestamp the visit record was last edited (UTC).
+visit,mappedPoolId,text,string,20,,MAPPOOID,Unique VPAtlas identifier for the pool. Identifiers prefixed NEW were assigned by the atlas; others carry the identifier from the source dataset.
+visit,mappedDateText,date,string,,,MAPDATTEXT,Date the pool was mapped or first entered into the atlas.
+visit,mappedLatitude,numeric,number,,,MAPLATITUD,"Latitude of the mapped pool centre, WGS84 decimal degrees."
+visit,mappedLongitude,numeric,number,,,MAPLONGITU,"Longitude of the mapped pool centre, WGS84 decimal degrees."
+visit,mappedConfidence,enum:vp_pool_mapped_confidence_type,string,10,L|ML|M|MH|H|UNK,MAPCONFIDE,"Mapper's confidence that the mapped feature is a vernal pool, from L (low) through H (high). UNK where not assessed."
+visit,mappedSource,text,string,50,,MAPSOURCE,"Dataset, project or organisation the pool record originated from."
+visit,mappedSource2,text,string,10,,MAPSOURCE2,"Secondary source, where the record was corroborated by or merged from more than one origin."
+visit,mappedPhotoNumber,text,string,10,,MAPPHONUMB,"Reference number of the photograph taken of the pool, where one exists."
+visit,mappedLocationAccuracy,enum:vp_pool_mapped_location_accuracy_type,string,10,L|ML|M|MH|H|UNK,MAPLOCACCU,"Confidence in the positional accuracy of the mapped coordinates, from L (low) through H (high). UNK where not assessed."
+visit,mappedMethod,enum:vp_mapped_method,string,10,Aerial|Known|Visit|Survey|CIR|LiDAR|LiDAR_NDWI|NDWI,MAPMETHOD,"How the pool was identified: Aerial photography, CIR or LiDAR imagery, NDWI, a field Visit or Survey, or previously Known."
+visit,mappedLandownerPermission,boolean,integer,,,MAPLANPERM,"Whether landowner permission to access the pool is on record. 1 = yes, 0 = no. Landowner identity is not published."
+visit,mappedLocationUncertainty,text,string,20,,MAPLOCUNCE,Positional uncertainty of the mapped coordinates as recorded by the mapper.
+visit,mappedPoolStatus,enum:vp_pool_status_type,string,10,Potential|Probable|Confirmed|Eliminated|Duplicate,MAPPOOSTAT,Verification status of the pool. Potential means mapped but unvisited; Probable and Confirmed reflect field evidence. Eliminated and Duplicate records are not published.
+visit,reviewId,integer,integer,,,REVIEWID,"Unique identifier for the quality-assurance review of this visit, where one exists."
+visit,reviewPoolId,text,string,10,,REVPOOID,Identifier of the pool the review applies to.
+visit,reviewVisitId,integer,integer,,,REVVISID,Identifier of the visit the review applies to.
+visit,reviewQACode,text,string,20,,REVQACODE,Quality-assurance outcome code assigned by the reviewer.
+visit,reviewQAAlt,text,string,100,,REVQAALT,"Alternate quality-assurance code, where the reviewer recorded one."
+visit,reviewQADate,date,string,,,REVQADATE,Date the quality-assurance review was completed.
+visit,reviewPoolStatus,enum:vp_pool_status_type,string,10,Potential|Probable|Confirmed|Eliminated|Duplicate,REVPOOSTAT,"Pool status assigned by the reviewer, which may differ from the status recorded at the visit."
+visit,reviewPoolLocator,boolean,integer,,,REVPOOLOCA,"Whether the reviewer could locate the pool from the visit record. 1 = yes, 0 = no."
+visit,reviewReasons,ARRAY,string,100,,REVREASONS,"Reasons recorded by the reviewer for the assigned status, as a comma-delimited list."

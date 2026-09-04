@@ -2100,8 +2100,49 @@
             }
         });
 
+        /*
+          Stored values that are equivalent to a form control under a different
+          name. MUST match EQUIVALENTS in api_vp/_helpers/normalize_values.js,
+          which is the source of truth; _schema/schema.test.js fails the build if
+          the two disagree.
+
+          visitForestUpland holds Deciduous (590 rows) and Coniferous (49) from
+          the legacy vocabulary while this form offers Hardwood and Softwood.
+          Both spellings stay in the data deliberately. Without this mapping
+          those 639 visits open with no forest type selected, and re-saving one
+          silently drops the answer.
+        */
+        const VALUE_EQUIVALENTS = {
+            visitForestUpland: { 'Deciduous': 'Hardwood', 'Coniferous': 'Softwood' },
+            // Minor logging (526 rows) and Major logging (70) both tick the single
+            // "Recently Logged" option. preserveEquivalent keeps whichever was
+            // stored, so saving an unchanged record does not flatten the two.
+            visitForestCondition: { 'Minor logging': 'Recently Logged', 'Major logging': 'Recently Logged' }
+        };
+
+        // The control value to activate for a stored value.
+        function controlValueFor(field, stored) {
+            const map = VALUE_EQUIVALENTS[field];
+            return (map && map[stored] !== undefined) ? map[stored] : stored;
+        }
+
+        /*
+          What to write back. When the submitted control is merely the equivalent
+          of what was already stored, the original spelling is kept -- opening a
+          Deciduous visit and saving it unchanged must not rewrite it to Hardwood.
+        */
+        function preserveEquivalent(field, submitted, original) {
+            if (!original || submitted === original) return submitted;
+            return controlValueFor(field, original) === submitted ? original : submitted;
+        }
+
+        // The record currently loaded, so collectBody can tell an unchanged
+        // equivalent from a genuine edit.
+        let loadedVisit = null;
+
         function populateVisitForm(v, m) {
             if (!v) return;
+            loadedVisit = v;
             m = m || {};
             // Text/date inputs
             ['visitPoolId','visitDate','visitObserverUserName','visitLatitude','visitLongitude',
@@ -2162,7 +2203,7 @@
                 if (f === 'visitPoolType' && typeof val === 'string' && val.trim().startsWith('[')) {
                     try { let arr = JSON.parse(val); val = Array.isArray(arr) && arr.length ? arr[0] : val; } catch(e) {}
                 }
-                let radio = document.querySelector(`input[name="${f}"][value="${val}"]`);
+                let radio = document.querySelector(`input[name="${f}"][value="${controlValueFor(f, val)}"]`);
                 if (radio) radio.checked = true;
             });
             // Substrate multi-select
@@ -2256,10 +2297,21 @@
              'visitWaterLevelObs','visitHydroPeriod',
              'visitForestUpland','visitForestCondition',
              'visitSubmergedVeg','visitPoolFloatingVeg','visitPoolEmergents','visitPoolShrubs','visitPoolTrees'
-            ].forEach(f => { let r = document.querySelector(`input[name="${f}"]:checked`); if (r) body[f] = r.value; });
+            ].forEach(f => {
+                let r = document.querySelector(`input[name="${f}"]:checked`);
+                if (r) body[f] = preserveEquivalent(f, r.value, loadedVisit && loadedVisit[f]);
+            });
             // Substrate multi-select
+            /*
+              Comma-delimited, not JSON.stringify. This form was itself a source
+              of the JSON-array-shaped strings ('["Leaf litter"]') that migration
+              023 had to clean up -- Survey123 was not the only one writing them.
+              Neither a GeoJSON property nor a DBF column can hold an array, and
+              a string that merely looks like one silently fails every filter and
+              symbology rule expecting the plain value.
+            */
             let substrates = [...document.querySelectorAll('.visitSubstrate:checked')].map(cb => cb.value);
-            if (substrates.length) body.visitSubstrate = JSON.stringify(substrates);
+            if (substrates.length) body.visitSubstrate = substrates.join(', ');
             return body;
         }
 

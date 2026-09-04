@@ -164,6 +164,29 @@ for migration_file in $MIGRATION_FILES; do
 done
 
 # -----------------------------------------------------------------------------
+# Always-run: sync the pg_featureserv reader password
+# -----------------------------------------------------------------------------
+# NOT a tracked migration, deliberately. 021 sets this password once and is then
+# skipped forever -- but db_restore.sh restores schema_migrations along with
+# everything else, so after any restore the role carries whatever password came
+# out of the dump while ogc_vp still connects with PGFS_PASSWORD from the
+# environment. The container then restart-loops on SASL auth failure and the OGC
+# endpoint is simply down, with the deploy having reported success.
+#
+# Idempotent and cheap, so it runs every time rather than being tracked.
+if [ -n "$PGFS_PASSWORD" ]; then
+    if run_sql_quiet -c "SELECT 1 FROM pg_roles WHERE rolname = 'pgfs_reader';" 2>/dev/null | grep -q 1; then
+        if run_sql -c "ALTER ROLE pgfs_reader PASSWORD '$PGFS_PASSWORD';" > /dev/null 2>&1; then
+            log "Synced pgfs_reader password from PGFS_PASSWORD"
+        else
+            log "WARNING: could not sync pgfs_reader password; ogc_vp may fail to connect"
+        fi
+    fi
+else
+    log "PGFS_PASSWORD not set - leaving pgfs_reader password alone"
+fi
+
+# -----------------------------------------------------------------------------
 # Summary
 # -----------------------------------------------------------------------------
 log ""

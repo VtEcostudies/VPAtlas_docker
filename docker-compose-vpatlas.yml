@@ -133,16 +133,26 @@ services:
       # function as expected." Data here is already public, so * is appropriate.
       PGFS_SERVER_CORSORIGINS: "*"
 
-      # LIMITDEFAULT keeps casual/unparameterised requests small.
+      # LIMITDEFAULT matches LIMITMAX deliberately: a request with no ?limit=
+      # returns the whole collection.
       #
-      # LIMITMAX must stay ABOVE the largest collection's feature count. This
-      # build of pg_featureserv emits neither `numberMatched` nor a `next` link,
-      # so a client that asks for more than LIMITMAX gets a silently truncated
-      # page with nothing indicating features are missing. `offset` paging works
-      # but is undiscoverable, so the ceiling is the only real guard.
-      # ogc.mapped_pools is ~13.5k features; 50000 leaves ~3.7x headroom.
-      # RAISE THIS if a collection ever approaches it.
-      PGFS_PAGING_LIMITDEFAULT: 1000
+      # These collections exist to be consumed whole, by ArcGIS Online, QGIS and
+      # anything else pointing at a feature service. A default that returned a
+      # partial page would be the worst of both worlds here, because this build
+      # of pg_featureserv emits neither `numberMatched` nor a `next` link -- a
+      # truncated response is indistinguishable from a complete one, so a client
+      # that forgot ?limit= would quietly publish a fraction of the data and
+      # believe it had all of it. That has already happened once at 10000.
+      #
+      # The cost is that the human-browsable HTML view also loads everything.
+      # Append ?limit=50 when browsing by hand.
+      #
+      # LIMITMAX must stay ABOVE the largest collection's feature count, for the
+      # same silent-truncation reason. `offset` paging works but is
+      # undiscoverable without a `next` link, so the ceiling is the only real
+      # guard. ogc.mapped_pools is ~13.5k features; 50000 leaves ~3.7x headroom.
+      # RAISE BOTH if a collection ever approaches it.
+      PGFS_PAGING_LIMITDEFAULT: 50000
       PGFS_PAGING_LIMITMAX: 50000
 
       PGFS_METADATA_TITLE: "VPAtlas OGC API - Features"

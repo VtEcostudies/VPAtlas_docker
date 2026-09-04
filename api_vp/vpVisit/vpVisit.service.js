@@ -3,6 +3,9 @@ const query = db.query;
 const pgUtil = require('_helpers/db_pg_util');
 const common = require('_helpers/db_common');
 const shapeFile = require('_helpers/db_shapefile').shapeFile;
+const propertiesSql = require('_helpers/geojson_props').propertiesSql;
+const { geojsonSelect, shapefileSelect } = require('_schema/select_list');
+const { normalizeVisit } = require('_helpers/normalize_values');
 var staticColumns = [];
 
 module.exports = {
@@ -294,6 +297,21 @@ async function getCsv(params={}) {
 
   Input: params are passed as req.query
 */
+/*
+  Column list feeding the public /visit/geojson properties object, and the one
+  value that has to be rebuilt in SQL rather than normalised generically:
+  reviewReasons is a text[] and JSON arrays have no flat-table equivalent, so it
+  is collapsed to a comma-delimited string with NULL and the '{}' column default
+  both coming out NULL. Everything else -- boolean to 0/1, ISO-8601 UTC dates,
+  dropping the nested mappedPoolLocation and visitLandowner -- is handled by
+  _helpers/geojson_props.
+*/
+// Canonical column list, built from _schema/visit.json -- the same dictionary
+// that generates ogc.pool_visits and the shapefile alias list. reviewReasons
+// (text[]) is flattened to a comma-delimited string by the shared column
+// expression, so no per-endpoint overlay is needed any more.
+const VISIT_PROPS = geojsonSelect('visit');
+
 async function getGeoJson(params={}) {
     console.log('vpVisit.service | getGeoJson |', params);
     var where = pgUtil.whereClause(params, staticColumns, 'WHERE');
@@ -314,45 +332,13 @@ async function getGeoJson(params={}) {
         FROM (
             SELECT
                 'Feature' AS type,
-                ST_AsGeoJSON("mappedPoolLocation")::json as geometry,
-                -- Properties come from SELECT * on three tables, then get fixed up as
-                -- jsonb so the payload is loadable by flat GeoJSON readers (ArcGIS
-                -- Online Data Pipelines et al.), which have no attribute type for a
-                -- JSON array or a nested object:
-                --   - visitLandowner (jsonb: name / address / phone / email) is
-                --     dropped outright. It is landowner PII and this endpoint is
-                --     unauthenticated; nothing public should carry it.
-                --   - reviewReasons (text[]) is collapsed to a comma-delimited
-                --     string. NULL and empty arrays both come out NULL, not ''.
-                -- Casting to jsonb additionally de-duplicates the "createdAt" and
-                -- "updatedAt" keys that vpmapped/vpvisit/vpreview each contribute:
-                -- json emitted all three copies, and every parser already took the
-                -- last one, so consumers see no change.
-                (SELECT (row_to_json(p)::jsonb - 'visitLandowner'::text)
-                        || jsonb_build_object(
-                             'reviewReasons',
-                             NULLIF(array_to_string(COALESCE(p."reviewReasons", '{}'::text[]), ', '), '')
-                           )
-                 FROM
-                  (SELECT
-                    "mappedPoolId" AS "poolId",
-                    "mappedPoolStatus" AS "poolStatus",
-                    CONCAT('https://vpatlas.org/pools/list?poolId=',"mappedPoolId",'&zoomFilter=false') AS vpatlas_pool_url,
-                    CONCAT('https://vpatlas.org/pools/visit/view/',"visitId") AS vpatlas_visit_url,
-                    vptown."townName",
-                    vpcounty."countyName",
-                    vpmapped.*,
-                    vpvisit.*,
-                    vpreview.*
-                    ) AS p
-              ) AS properties
-            FROM vpvisit
-            INNER JOIN vpmapped ON "visitPoolId"="mappedPoolId"
-            LEFT JOIN vptown ON "mappedTownId"="townId"
-            LEFT JOIN vpcounty ON "townCountyId"="govCountyId"
-            --LEFT JOIN vpuser AS mappeduser ON "mappedUserId"=mappeduser."id"
-            --LEFT JOIN vpuser AS visituser ON "visitUserId"=visituser."id"
-            LEFT JOIN vpreview ON "visitId" = "reviewVisitId"
+                ST_AsGeoJSON(m."mappedPoolLocation")::json as geometry,
+                ${propertiesSql(VISIT_PROPS)} AS properties
+            FROM vpvisit v
+            INNER JOIN vpmapped m ON v."visitPoolId"  = m."mappedPoolId"
+            LEFT  JOIN vptown   t ON m."mappedTownId" = t."townId"
+            LEFT  JOIN vpcounty c ON t."townCountyId" = c."govCountyId"
+            LEFT  JOIN vpreview r ON v."visitId"      = r."reviewVisitId"
             ${where.text}
         ) AS f
     ) AS fc;`
@@ -370,16 +356,30 @@ async function getShapeFile(params={}, excludeHidden=1) {
   })
   console.log('vpVisit.service::getShapeFile | WHERE', where);
   //Important: notes and comments fields have characters that crash the shapefile dump. It must be handled.
-  let qry = `SELECT * 
-  FROM visit_shapefile
+  // Was: SELECT * FROM visit_shapefile, a 117-column view that published
+  // visitLandowner and visitDirections -- landowner PII on an unauthenticated
+  // download. Now the same dictionary as the GeoJSON and OGC outputs, aliased to
+  // DBF's 10-character field-name limit.
+  let qry = `SELECT
+${shapefileSelect('visit')},
+  m."mappedPoolLocation" AS geom
+  FROM vpvisit v
+  INNER JOIN vpmapped m ON v."visitPoolId"  = m."mappedPoolId"
+  LEFT  JOIN vptown   t ON m."mappedTownId" = t."townId"
+  LEFT  JOIN vpcounty c ON t."townCountyId" = c."govCountyId"
+  LEFT  JOIN vpreview r ON v."visitId"      = r."reviewVisitId"
   WHERE TRUE
   ${where.combined}
   `;
-  if (excludeHidden) {qry += `AND "mappedPoolStatus" NOT IN ('Duplicate', 'Eliminated')`}
+  if (excludeHidden) {qry += `AND m."mappedPoolStatus" NOT IN ('Duplicate', 'Eliminated')`}
   return await shapeFile(qry, params.authUser, 'vpvisit')
 }
 
 async function create(body) {
+    // Every writer normalises, not just the Survey123 sync. The visit form
+    // was itself storing JSON-array-shaped substrate values and control
+    // labels that did not match what was already in the column.
+    normalizeVisit(body);
     var queryColumns = pgUtil.parseColumns(body, 1, [], staticColumns);
     text = `insert into vpvisit (${queryColumns.named}) values (${queryColumns.numbered}) returning "visitId"`;
     console.log(text, queryColumns.values);
@@ -389,6 +389,10 @@ async function create(body) {
 }
 
 async function update(id, body) {
+    // Every writer normalises, not just the Survey123 sync. The visit form
+    // was itself storing JSON-array-shaped substrate values and control
+    // labels that did not match what was already in the column.
+    normalizeVisit(body);
     console.log(`vpVisit.service.update | before pgUtil.parseColumns`, staticColumns);
     var queryColumns = pgUtil.parseColumns(body, 2, [id], staticColumns);
     // Stamp "lastEditedAt" = now() on every user edit. This service.update

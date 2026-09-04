@@ -54,6 +54,14 @@ try {
   app.use('/parcel', require('./vcgiMapData/vcgiParcel.routes'));
   app.use('/tracks', require('./vpTrack/vpTrack.routes'));
   app.use('/utils', require('./vpUtil/vpUtils.routes'));
+
+  // Data definitions for the public feature endpoints: JSON Schema, the DBF
+  // field mapping, an esriFieldType list, an OpenAPI document and a Swagger UI
+  // over it. All projected from _schema/{group}.json, which is generated from
+  // the database.
+  app.use('/schema', require('./vpSchema/vpSchema.routes'));
+  app.get('/openapi.json', (req, res) => res.json(require('./vpSchema/openapi').build()));
+  app.get('/docs', (req, res) => res.type('html').send(require('./vpSchema/docs_page').HTML));
 } catch(err) {
   console.log('attempt to open db failed |', err);
   process.exit();

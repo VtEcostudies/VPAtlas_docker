@@ -1,6 +1,4 @@
-# Changelog — Snapshot 2026-09-02 (partial)
-
-Partial day's work; additional changes may land later under a follow-up 2026-09-02 changelog.
+# Changelog — Snapshot 2026-09-02
 
 ## v3.5.368 – v3.5.369
 

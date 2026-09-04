@@ -41,6 +41,13 @@ function jwt() {
 
             { url: /^\/review/, methods: ['GET'] },
 
+            // Data definitions describing already-public datasets. A schema
+            // that needs a login is no use to the GIS consumers it exists for.
+            { url: /^\/schema/, methods: ['GET'] },
+            { url: /^\/schema\/.*/, methods: ['GET'] },
+            { url: /^\/openapi\.json/, methods: ['GET'] },
+            { url: /^\/docs/, methods: ['GET'] },
+
             { url: /^\/pools/, methods: ['GET'] },
             { url: /^\/pools\/.*/, methods: ['GET'] },
             { url: /^\/pools\/page\/.*/, methods: ['GET'] },

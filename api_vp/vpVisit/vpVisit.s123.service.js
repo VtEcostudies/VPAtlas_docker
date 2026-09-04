@@ -1,4 +1,5 @@
 const db = require('_helpers/db_postgres');
+const { normalizeVisit } = require('_helpers/normalize_values');
 const query = db.query;
 const pgUtil = require('_helpers/db_pg_util');
 const fetch = require('node-fetch');
@@ -290,6 +291,23 @@ function fixJsonColumnsData(jsonData) {
     jsonData["visitFishSizeSmall"]=jsonData["visitFishSizeSmall"];
     jsonData["visitFishSizeMedium"]=jsonData["visitFishSizeMedium"];
     jsonData["visitFishSizeLarge"]=jsonData["visitFishSizeLarge"];
+    /*
+      Last step before the row is written: reconcile every controlled-vocabulary
+      answer to its canonical spelling, and resolve visitLocatePool's seven
+      spellings of three states to a nullable boolean.
+
+      Survey123 is the origin of most of the drift migration 023 had to clean
+      up -- it sends multi-select answers JSON-array-wrapped ('["Leaf litter"]'),
+      and its own option labels have diverged from the VPAtlas form's over time
+      ("Prior knowledge of site" against "Prior Knowledge"). Every one of those
+      lands in a column the visit form matches with an exact string comparison,
+      so an unreconciled value opens the form with the answer missing.
+
+      Normalising here rather than at read time means the database itself stays
+      clean and every consumer -- form, GeoJSON, shapefile, OGC -- inherits it.
+    */
+    normalizeVisit(jsonData);
+
     return jsonData;
 }
 
