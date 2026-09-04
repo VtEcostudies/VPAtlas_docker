@@ -140,7 +140,8 @@ function allocateShapefileNames(fields, existing) {
 async function columnMetadata(tables) {
     const res = await query(`
         SELECT table_name, column_name, ordinal_position, data_type, udt_name,
-               character_maximum_length, numeric_precision, numeric_scale, is_nullable
+               character_maximum_length, numeric_precision, numeric_precision_radix,
+               numeric_scale, is_nullable
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = ANY($1)
         ORDER BY array_position($1::text[], table_name), ordinal_position`, [tables]);
@@ -169,6 +170,38 @@ async function measureLengths(table, columns) {
     const out = {};
     columns.forEach((c, i) => { out[c] = row['c' + i] === null ? 0 : Number(row['c' + i]); });
     return out;
+}
+
+/*
+  DBF numeric width in DECIMAL DIGITS, which is not what information_schema
+  reports for most types.
+
+  numeric_precision is only a digit count when numeric_precision_radix is 10,
+  which is true for `numeric` alone. For the binary types the radix is 2 and the
+  value is a BIT width -- an `integer` reports 32 and a `real` reports 24. Taking
+  those at face value published "32 digits" for a column that holds at most 10,
+  which is wrong in every consumer that reads the width, and would have sized a
+  DBF field three times wider than it needs.
+
+  Widths below are the decimal digits each type can actually hold, plus one for
+  the sign, matching the DBF convention.
+*/
+const NUMERIC_WIDTH = {
+    'smallint':         { width: 6,  decimals: 0 },   // -32768 .. 32767
+    'integer':          { width: 11, decimals: 0 },   // -2147483648 .. 2147483647
+    'bigint':           { width: 20, decimals: 0 },
+    'real':             { width: 14, decimals: 6 },   // ~7 significant digits
+    'double precision': { width: 19, decimals: 11 },  // ~15 significant digits
+};
+
+function numericWidth(col) {
+    const fixed = NUMERIC_WIDTH[col.data_type];
+    if (fixed) return fixed;
+    // radix 10 means numeric_precision really is a digit count.
+    if (Number(col.numeric_precision_radix) === 10 && col.numeric_precision) {
+        return { width: Number(col.numeric_precision), decimals: Number(col.numeric_scale || 0) };
+    }
+    return { width: 10, decimals: 0 };
 }
 
 function describeType(col, domains, measured) {
@@ -212,8 +245,9 @@ function describeType(col, domains, measured) {
             entry.dbfWidth = 1; entry.dbfDecimals = 0;
             entry.conversion = 'boolean emitted as smallint 0/1 (ArcGIS has no boolean field type)';
         } else {
-            entry.dbfWidth = col.numeric_precision || 10;
-            entry.dbfDecimals = col.numeric_scale || 0;
+            const w = numericWidth(col);
+            entry.dbfWidth = w.width;
+            entry.dbfDecimals = w.decimals;
         }
     }
     if (pgType === 'ARRAY') entry.conversion = 'array flattened to a comma-delimited string';

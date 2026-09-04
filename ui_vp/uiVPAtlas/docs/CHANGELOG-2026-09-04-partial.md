@@ -2,6 +2,20 @@
 
 Partial day's work; additional changes may land later under a follow-up 2026-09-04 changelog.
 
+## v3.5.385 – v3.5.386
+
+### Numeric field widths were reported in bits, not digits
+
+- **The bug.** The dictionary took its numeric width from `information_schema.numeric_precision`, which is only a digit count when `numeric_precision_radix` is 10 — true for `numeric` alone. For the binary types the radix is 2 and the value is a **bit width**: an `integer` reports 32 and a `real` reports 24. So `visitMaxWidth`, which holds at most 10 digits, was published as 32, and every `real` column claimed 24 digits with no decimal places.
+- **Where it showed.** The `x-dbfWidth` and `x-precision` extensions in the JSON Schema, and the constraint text in every column comment the OGC endpoint serves. It would also have sized a DBF field roughly three times wider than needed.
+- **The fix.** [build_dictionary.js](api_vp/_schema/build_dictionary.js) now maps each binary type to the decimal digits it can actually hold — `smallint` 6, `integer` 11, `bigint` 20, `real` 14 with 6 decimals, `double precision` 19 with 11 — and falls back to `numeric_precision` only when the radix says that value is already decimal. `numeric` columns are unchanged, having been correct all along. [Migration 028](db_migrate/migrations/028_correct_numeric_widths_in_comments.sql) rebuilds the views so the comments match.
+
+  `Percent of the pool shaded or occupied by trees, 0-100. [decimal, 14 digits with 6 decimal places]`
+
+### Service worker / build
+
+- `manifest.json` → 3.5.386 via `node sw-build.js patch`. **API rebuild required**; migration 028 runs automatically and `ogc_vp` must be restarted afterwards. No nginx change.
+
 ## v3.5.383 – v3.5.384
 
 ### The schema resource is now discoverable, by machines and by people
