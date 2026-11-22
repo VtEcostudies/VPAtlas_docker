@@ -46,7 +46,7 @@
 #   • vpatlas.org has NO Elastic IP: its public IP (44.234.147.110) is the
 #     instance's auto-assigned one, so cutover = editing DNS A records (Google
 #     Cloud DNS, ns-cloud-e*.googledomains.com). Lower TTLs to 300 s at least a
-#     day ahead — vpatlas.org and www are 14400 s (4 h), the rest 1800 s.
+#     day ahead — vpatlas.org is 14400 s (4 h), the rest 1800 s.
 #   • Do NOT stop the old instance until you're done with it: stopping releases
 #     44.234.147.110 for good, and DNS-based rollback depends on it.
 #   • Give the NEW instance an Elastic IP right after launch (Elastic IPs →
@@ -70,8 +70,8 @@ export AWS_DEFAULT_REGION="$AWS_REGION"
 
 PROD_COMPOSE="docker compose -f docker-compose-vpatlas.yml -f docker-compose-prod.yml"
 DEV_COMPOSE="docker compose -f docker-compose-vpatlas.yml -f docker-compose-dev.yml"
-# Every A record pointing at the host. www has no TLS cert (pre-existing) so verify skips it.
-DOMAINS=(vpatlas.org www.vpatlas.org api.vpatlas.org dev.vpatlas.org api.dev.vpatlas.org)
+# A records to move at cutover. www.vpatlas.org is unused (never served, no cert) — not migrated.
+DOMAINS=(vpatlas.org api.vpatlas.org dev.vpatlas.org api.dev.vpatlas.org)
 DNS_MAX_TTL=600
 
 MIGRATE_DIR="$HOME/vpatlas_migrate"
