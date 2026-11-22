@@ -158,6 +158,20 @@ wait_for_vpatlas_on() {  # wait_for_vpatlas_on <hostname> <label>
 guard_precutover() {
     [ "${CUTOVER_DONE:-0}" != "1" ] || { echo "Cutover already done — '$1' would read from the NEW host. Refusing." >&2; exit 1; }
 }
+# OLD_HOST is a hostname, so anything that re-points it locally (an /etc/hosts
+# line left over from browser-testing the new box, a stale resolver) silently
+# turns every "old" command into a "new" one — copy-data would then dump the new
+# DB into itself. Before cutover the two must be different machines.
+assert_distinct_hosts() {
+    local o n
+    o=$(old hostname) || { echo "Cannot reach $OLD_HOST (see error above). If vpatlas.org is in /etc/hosts, remove that line." >&2; exit 1; }
+    n=$(new hostname)
+    if [ "$o" = "$n" ]; then
+        echo "ABORT: $OLD_HOST and ubuntu@$NEW_IP are the SAME machine ($n)." >&2
+        echo "  Check /etc/hosts for a vpatlas.org line: $(getent hosts vpatlas.org)" >&2
+        exit 1
+    fi
+}
 # Pin a new-host checkout to the exact commit live on the old host, so the
 # migration doesn't double as an unreviewed deploy of whatever is on main.
 # MIGRATE_REF overrides the pin (e.g. origin/main when a build fix had to land
@@ -426,6 +440,7 @@ clone)
 # ─── 6. Secrets + host config (streamed old → local pipe → new; nothing written locally) ───
 copy-config)
     guard_precutover copy-config
+    assert_distinct_hosts
     echo "=== Copying config to ubuntu@$NEW_IP ==="
     for st in "${STACKS[@]}"; do IFS='|' read -r dir _ _ <<< "$st"
         if old "[ -e '$dir/.env' ]"; then
@@ -461,6 +476,7 @@ copy-config)
 # ─── 7. Data + start stacks (rehearsal; safe to repeat — old host is only read) ───
 copy-data)
     guard_precutover copy-data
+    assert_distinct_hosts
     echo "=== Copying data to ubuntu@$NEW_IP (old host keeps serving) ==="
     for st in "${STACKS[@]}"; do IFS='|' read -r dir compose c <<< "$st"
         sync_commit "$dir"
@@ -511,6 +527,7 @@ verify)
 # ─── 9. Cutover ───
 cutover)
     guard_precutover cutover
+    assert_distinct_hosts
     ensure_old_ids; id=$OLD_INSTANCE_ID
     new_label="${NEW_INSTANCE_ID:-new instance $NEW_IP}"
     alloc=none
@@ -609,6 +626,13 @@ rollback)
         confirm "Done?"
     fi
     wait_for_vpatlas_on "$OLD_HOSTNAME" old
+    # Drop the post-cutover straggler forwarding (iptables rules tagged
+    # vpatlas-migrate-fwd that DNAT old:80/443 → new), or the old host would
+    # keep sending its traffic to the new one.
+    old "sudo iptables-save | grep -c vpatlas-migrate-fwd >/dev/null && \
+         { sudo iptables-save | grep -- '-A .*vpatlas-migrate-fwd' | sed 's/^-A/-D/' | \
+           while read -r r; do t=filter; case \"\$r\" in *DNAT*|*MASQUERADE*) t=nat;; esac; \
+             eval sudo iptables -t \$t \$r; done; echo '→ removed straggler forwarding'; } || true"
     # vpatlas.org reaches the old host again; its host keys never changed.
     for st in "${STACKS[@]}"; do IFS='|' read -r dir compose _ <<< "$st"
         old "cd '$dir' && $compose up -d"
