@@ -98,10 +98,9 @@ commit_local_changes() {
     git commit -m "$msg"
 }
 
-# Pinned Compose v2 version compatible with Docker 20.10 on the AWS host.
-COMPOSE_VER="v2.24.7"
-
-# Auto-detect docker compose command on remote (already installed via deploy-dev.sh setup).
+# Auto-detect docker compose command on remote. The host (Ubuntu 26.04 since
+# 2026-11-22) has the docker-compose-plugin package from Docker's apt repo, so
+# `docker compose` is always present; the docker-compose v1 fallback is legacy.
 COMPOSE=$(ssh_cmd "docker compose version >/dev/null 2>&1 && echo 'docker compose' || echo 'docker-compose'" 2>/dev/null)
 COMPOSE="$COMPOSE $COMPOSE_FILES"
 

@@ -47,18 +47,18 @@ case "${1:-deploy}" in
 setup)
     echo "=== Setting up nginx + SSL on remote ==="
 
-    # Ensure compatible Docker Compose v2 plugin (v2.24 works with Docker 20.10+)
-    COMPOSE_VER="v2.24.7"
-    ssh_cmd "INSTALLED=\$(docker compose version --short 2>/dev/null || echo '0'); \
-        if echo \$INSTALLED | grep -qE '^2\.(1[0-9]|2[0-4])'; then \
-            echo 'Docker Compose \$INSTALLED OK'; \
+    # Docker Compose must be >= 2.24.4 (the compose files use the `!override`
+    # YAML tag). This used to download a pinned v2.24.7 into
+    # /usr/local/lib/docker/cli-plugins for the old Docker 20.10 host — which,
+    # on the current host, would SHADOW the newer apt-installed plugin and
+    # downgrade it. Now: check only, and point at the apt package if too old.
+    ssh_cmd "V=\$(docker compose version --short 2>/dev/null | sed 's/^v//'); \
+        if [ -n \"\$V\" ] && [ \"\$(printf '%s\n' 2.24.4 \"\$V\" | sort -V | head -1)\" = 2.24.4 ]; then \
+            echo \"Docker Compose \$V OK\"; \
         else \
-            echo 'Installing Docker Compose $COMPOSE_VER...' && \
-            sudo mkdir -p /usr/local/lib/docker/cli-plugins && \
-            sudo curl -SL https://github.com/docker/compose/releases/download/$COMPOSE_VER/docker-compose-linux-\$(uname -m) \
-              -o /usr/local/lib/docker/cli-plugins/docker-compose && \
-            sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
-            docker compose version; \
+            echo \"Docker Compose \${V:-not installed} is too old: need >= 2.24.4 for !override.\"; \
+            echo 'Install from Docker apt repo:  sudo apt-get install docker-compose-plugin'; \
+            exit 1; \
         fi"
 
     # Copy nginx configs
