@@ -32,6 +32,7 @@
 #   UBUNTU_VERSION=26.04          target Ubuntu LTS
 #   NEW_INSTANCE_TYPE=<type>      default: same as old instance
 #   NEW_ROOT_SIZE=<GiB>           root EBS size; default: same as old (291). e.g. 100
+#   MIGRATE_REF=<git ref>         check out this instead of the old host's live commit (e.g. origin/main)
 #   MIGRATE_DEV=0                 1 = also migrate the dev.vpatlas.org stack (must be running on old host)
 #   PROD_DIR / DEV_DIR            remote working dirs (defaults below)
 #   NEW_IP                        set if you launched the instance by hand
@@ -159,11 +160,20 @@ guard_precutover() {
 }
 # Pin a new-host checkout to the exact commit live on the old host, so the
 # migration doesn't double as an unreviewed deploy of whatever is on main.
+# MIGRATE_REF overrides the pin (e.g. origin/main when a build fix had to land
+# for the new host); every file that differs from what's live is listed so the
+# difference is visible, never silent.
 sync_commit() {
-    local dir="$1" sha
+    local dir="$1" sha target
     sha=$(old "git -C '$dir' rev-parse HEAD")
-    new "git -C '$dir' fetch -q origin && git -C '$dir' checkout -q main && git -C '$dir' reset -q --hard $sha"
-    echo "→ $dir pinned to old host's commit ${sha:0:7}"
+    target="${MIGRATE_REF:-$sha}"
+    new "git -C '$dir' fetch -q origin && git -C '$dir' checkout -q main && git -C '$dir' reset -q --hard $target"
+    if [ -n "${MIGRATE_REF:-}" ]; then
+        echo "→ $dir at $MIGRATE_REF ($(new "git -C '$dir' rev-parse --short HEAD")); differs from live ${sha:0:7} in:"
+        new "git -C '$dir' diff --stat $sha HEAD" | sed 's/^/    /'
+    else
+        echo "→ $dir pinned to old host's commit ${sha:0:7}"
+    fi
 }
 
 # ─── DB copy: globals (roles incl. pgfs_reader) + full DB, old container → new ───
@@ -606,7 +616,7 @@ rollback)
     ;;
 
 *)
-    sed -n '2,57p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,58p' "$0" | sed 's/^# \{0,1\}//'
     echo "Usage: $0 {inventory|snapshot-old|launch|set-new-ip <ip>|provision|clone|copy-config|copy-data|verify|cutover|rollback}"
     exit 1
     ;;
