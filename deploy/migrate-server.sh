@@ -182,9 +182,12 @@ sync_commit() {
 # in the dump). Hence pg_dumpall --globals-only first.
 copy_db() {
     local dir="$1" compose="$2" c="$3"
+    # Readiness is checked over TCP: on a fresh data dir the image's entrypoint
+    # first runs a socket-only temporary server for initdb, then restarts —
+    # a socket pg_isready passes during that window and the next psql fails.
     echo "→ [$c] starting db container on new host"
     new "cd '$dir' && $compose up -d --build db_vp && \
-         until docker exec $c pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done"
+         until docker exec $c pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do sleep 1; done"
     new "cd '$dir' && $compose stop api_vp ogc_vp 2>/dev/null || true"
 
     echo "→ [$c] roles (errors like 'role \"postgres\" already exists' are expected)"
