@@ -196,12 +196,16 @@ dump_one() {
         return 0
     fi
 
-    TMP_DIR=$(mktemp -d)
+    # Work on disk next to the output, NOT in /tmp. On Ubuntu 26.04 /tmp is a
+    # 1.9 GB tmpfs with a per-user quota; the uncompressed data section alone
+    # is larger than that, and on 2026-11-23 the dump was silently truncated
+    # mid-data ("Disk quota exceeded") yet logged SUCCESS and went to S3.
+    TMP_DIR=$(mktemp -d "${DEPLOY_DIR}/.tmp.XXXXXX")
     local tmp_globals="${TMP_DIR}/globals.sql"
     local tmp_schema="${TMP_DIR}/schema.sql"
     local tmp_data="${TMP_DIR}/data.sql"
     local tmp_settings="${TMP_DIR}/settings.sql"
-    local tmp_combined="${TMP_DIR}/combined.sql"
+    local partial="${filepath}.partial"
 
     # ---- 1/5 GLOBALS (roles) ----
     log "  [1/5] Dumping globals (roles)..."
@@ -259,12 +263,17 @@ EOF
             done
             ;;
         complete)
+            # A failed data dump makes the backup worthless — fail, don't warn.
             for schema in "${SCHEMAS_COMPLETE[@]}"; do
                 log "    Dumping schema: ${schema}.*"
-                docker exec "$container" pg_dump -U "$DB_USER" -d "$database" \
-                    -F p --data-only --no-owner --no-acl --schema="$schema" \
-                    >> "$tmp_data" 2>>"$LOG_FILE" \
-                    || log_warn "Schema ${schema} dump had issues"
+                if ! docker exec "$container" pg_dump -U "$DB_USER" -d "$database" \
+                        -F p --data-only --no-owner --no-acl --schema="$schema" \
+                        >> "$tmp_data" 2>>"$LOG_FILE"; then
+                    log_error "Data dump of schema ${schema} failed for ${label}"
+                    RESULTS+=("${label}: FAILED (data ${schema})")
+                    rm -rf "$TMP_DIR"; TMP_DIR=""
+                    return 1
+                fi
             done
             ;;
     esac
@@ -285,8 +294,13 @@ SEOF
     fi
 
     # ---- 5/5 COMBINE + COMPRESS ----
+    # Stream the parts straight into gzip (no uncompressed combined copy), in
+    # a `set -e` subshell so any failed cat/echo fails the pipeline, into a
+    # .partial file that only becomes the real dump after it is verified.
     log "  [5/5] Combining and compressing..."
-    cat > "$tmp_combined" <<EOF
+    (
+    set -e
+    cat <<EOF
 -- =============================================================================
 -- VPAtlas Database Backup
 -- =============================================================================
@@ -308,32 +322,48 @@ SEOF
 
 -- === GLOBALS (roles) ===
 EOF
-    cat "$tmp_globals" >> "$tmp_combined"
-    {
-        echo ""
-        echo "-- === SCHEMA ==="
-        cat "$tmp_schema"
-        echo ""
-        echo "-- === DATA ==="
-        cat "$tmp_data"
-        echo ""
-        echo "-- === SETTINGS (apply with actual database name) ==="
-        cat "$tmp_settings"
-    } >> "$tmp_combined"
-
-    gzip -c "$tmp_combined" > "$filepath"
+    cat "$tmp_globals"
+    echo ""
+    echo "-- === SCHEMA ==="
+    cat "$tmp_schema"
+    echo ""
+    echo "-- === DATA ==="
+    cat "$tmp_data"
+    echo ""
+    echo "-- === SETTINGS (apply with actual database name) ==="
+    cat "$tmp_settings"
+    ) | gzip -c > "$partial"
+    local rc=("${PIPESTATUS[@]}")
 
     rm -rf "$TMP_DIR"; TMP_DIR=""
 
-    if [ ! -f "$filepath" ]; then
-        log_error "Output file not created: ${filepath}"
-        RESULTS+=("${label}: FAILED (file not created)")
+    if [ "${rc[0]}" -ne 0 ] || [ "${rc[1]}" -ne 0 ]; then
+        log_error "Combine/compress failed for ${label} (combine rc=${rc[0]}, gzip rc=${rc[1]}) — see ${LOG_FILE}"
+        RESULTS+=("${label}: FAILED (combine/compress)")
+        rm -f "$partial"
         return 1
     fi
 
+    # ---- VERIFY before the file is trusted or uploaded ----
+    # Every pg_dump section ends with "-- PostgreSQL database dump complete"
+    # (schema + at least one data dump ⇒ ≥2), and SETTINGS is written last.
+    local verify markers has_settings
+    verify=$(zcat "$partial" 2>>"$LOG_FILE" | awk '
+        /^-- PostgreSQL database dump complete/ { c++ }
+        /^-- === SETTINGS/                      { s = 1 }
+        END { print NR, c + 0, s + 0 }') || verify="0 0 0"
+    read -r line_count markers has_settings <<< "$verify"
+    if ! gzip -t "$partial" 2>>"$LOG_FILE" || [ "${markers:-0}" -lt 2 ] || [ "${has_settings:-0}" -ne 1 ]; then
+        local bad="${ARCHIVE_DIR}/${filename%.sql.gz}_INCOMPLETE_$(date +%H%M%S).sql.gz"
+        log_error "Dump for ${label} is INCOMPLETE (lines=${line_count}, dump-complete markers=${markers}, settings=${has_settings}) — kept as ${bad}, NOT uploaded"
+        RESULTS+=("${label}: FAILED (incomplete dump)")
+        mv -f "$partial" "$bad"
+        return 1
+    fi
+    mv -f "$partial" "$filepath"
+
     file_size=$(stat -c%s "$filepath" 2>/dev/null || echo 0)
     file_size_human=$(ls -lh "$filepath" | awk '{print $5}')
-    line_count=$(zcat "$filepath" | wc -l)
     elapsed=$(( $(date +%s) - start_time ))
 
     if [ -n "${MIN_DUMP_SIZE_BYTES:-}" ] && [ "$file_size" -lt "$MIN_DUMP_SIZE_BYTES" ]; then

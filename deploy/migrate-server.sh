@@ -569,7 +569,16 @@ cutover)
 
     echo "→ crontab"
     old "crontab -l" > "$MIGRATE_DIR/crontab_old.txt" 2>/dev/null || true
+    # The backup line redirects to ~/db_backups/vpatlas_cron.log. If that dir
+    # is missing the redirect fails, the shell never starts db_backup.sh, and
+    # with no MTA the error is discarded — exactly what happened on the
+    # 2026-11-22 cutover (two silent nights, no backups). Create it, then
+    # prove the job runs before trusting cron with it.
+    new "mkdir -p ~/db_backups"
     new "crontab -" < "$MIGRATE_DIR/crontab_old.txt"
+    echo "→ test-running the nightly backup exactly as cron will"
+    new "$PROD_DIR/db_dump_restore/db_backup.sh >> \$HOME/db_backups/vpatlas_cron.log 2>&1 && tail -2 \$HOME/db_backups/vpatlas_cron.log" \
+        || echo "⚠ backup test FAILED — see ~/db_backups/vpatlas_cron.log on the new host. Nightly backups are NOT working."
     old "crontab -l | sed 's/^\([^#]\)/# migrated-to-new-host: \1/' | crontab -"
 
     if [[ "$alloc" == eipalloc-* ]]; then
